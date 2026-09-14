@@ -62,34 +62,38 @@ Registered in `hooks/hooks.json` as a `command` hook for each event listed above
 It does the following:
 - Reads the hook JSON from stdin and adds `receivedAt` (epoch ms) and `envEffort` (`process.env.CLAUDE_EFFORT`, if set).
 - **Sanitises before sending.** Of the hook JSON it forwards only `hook_event_name`, `session_id`, `cwd`, `transcript_path`, `model`, `effort`, `tool_name`, a derived `target`, a derived `build` flag, `notification_type`, `error`, `source`, and `permission_mode` when present, plus the two fields it adds itself (receivedAt, envEffort).
-  - `target` is the basename of `tool_input.file_path` / `notebook_path` / `path`. For Bash it is up to three leading words of the command, stopping at the first word that doesn't match `^[\w.\-/]+$`, capped at 24 characters.
-  - For Bash, `build` is the result of testing the **full** command against the build/test pattern (§3). Only the boolean leaves the forwarder.
+  - `target` is the basename of `tool_input.file_path` / `notebook_path` / `path` for file tools; for Bash it is the program name plus, for a short whitelist of dev tools, one subcommand word (the Bash target rule below), capped at 24 characters.
+  - **Bash target rule.** Leading `cd <dir> &&` / `cd <dir>;` segments and `NAME=value` environment assignments are stripped first. `program` is the basename of the first remaining word (split on `/` and `\`, a trailing `.exe`/`.cmd`/`.bat` removed); it must match `/^[A-Za-z0-9][\w.+-]{0,23}$/` or the target is `''`. One subcommand word is appended only when `program` is in a fixed set of dev tools (`git`, `npm`, `cargo`, `docker`, …) and it matches `/^[a-z][a-z0-9-]{0,15}$/`. Every other word on the command line — arguments, paths, secrets — is dropped.
+  - For Bash, `build` is the result of testing the command, after the same `cd`/assignment stripping, against the build/test pattern (§3). Only the boolean leaves the forwarder.
   - Prompts, tool inputs and tool outputs are never forwarded.
-- Reads `~/.desk-companion/server.json` (`{pid, port, token}`) and POSTs to the server with a 300 ms timeout.
-- If the server is unreachable or `server.json` is missing, it spawns `node bin/server.mjs` detached (`windowsHide: true`, `stdio: 'ignore'`, `unref()`). On `SessionStart` it waits up to 2 s for `server.json` and retries once. On any other event it drops that single event.
+- Reads `~/.desk-companion/config.json` for the port and token and POSTs to the server with a 300 ms timeout.
+- If that POST fails, it spawns `node bin/server.mjs` detached (`windowsHide: true`, `stdio: 'ignore'`, `unref()`, `cwd: os.homedir()`). On `SessionStart` it then polls `GET /api/health` (re-reading `config.json`) for up to 2 s and retries the POST once it answers. On any other event it drops that single event.
 - It always exits 0 and prints nothing to stdout, so it never alters Claude's behaviour. Errors are appended to `~/.desk-companion/hook.log`, capped at 256 KB with one rotation.
+- `~/.desk-companion/server.json` (`{pid, port, startedAt}`, no token) is written by the server on start, for `--stop` alone; the forwarder and `pair.mjs` never read it.
 
 ### 2. Server: `bin/server.mjs` + `src/server/*.mjs`
 
-- **Single instance.** On start it reads `~/.desk-companion/config.json`. If a live `pid` in `server.json` answers `GET /api/health`, the new process exits.
+- **Single instance.** On start it reads `~/.desk-companion/config.json`; if `GET /api/health` on `config.port` answers with our JSON (`{ok: true, pid}`), the new process exits.
 - **Stable address.** `config.json` is created on first run with `{ port, token }`. The port is random in 50000–60000, the token 128-bit hex (`crypto.randomBytes(16)`). Both persist, so a home-screen bookmark keeps working across restarts.
+- **Cwd.** Right after loading the config it changes directory into the data dir, so it never holds a session's project folder as its cwd (Windows locks a process's cwd against rename and delete).
 - **Binding.** It listens on `0.0.0.0:<port>`. The first time, Windows Firewall asks whether to allow Node on private networks; the README says so.
-- **Lifetime.** It runs until the PC shuts down or `node bin/server.mjs --stop` (which kills the pid in `server.json`). The next hook after a stop or crash starts it again.
+- **Port recovery.** `EACCES`, or `EADDRINUSE` where nothing answers our own health check, moves the server to a new random port in 50000–60000 (persisted into `config.json`, keeping the token and every other field) and logs the switch, up to 5 attempts before giving up. `EADDRINUSE` where our own health check does answer means another instance already won this race, and this process exits 0 as before.
+- **Lifetime.** It runs until the PC shuts down or `node bin/server.mjs --stop`. `--stop` reads the pid out of `server.json` and kills it only if `GET /api/health` — tried on `server.json`'s port, then `config.port` — reports that same pid; `server.json` is removed in every case, so a stale pid left by a reboot or a crash is never acted on. The next hook after a stop or crash starts the server again.
 - **Log.** `~/.desk-companion/server.log`, capped at 1 MB with one rotation.
 
 Routes:
 
 | Route | Auth | Purpose |
 |---|---|---|
-| `POST /api/hook` | loopback address **and** `x-dc-token` | Ingest one sanitised hook event |
-| `GET /api/health` | loopback | `{ok, pid}` |
-| `GET /` | `?k=<token>` or cookie | The dashboard page; sets an HttpOnly `dc` cookie |
-| `GET /events` | cookie or `?k=` | SSE stream: `snapshot` on connect and on every change; `event` for discrete moments; `ping` every 20 s |
-| `GET /web/*` | cookie or `?k=` | Static page assets, including `/web/sprites/*`. Exception: `manifest.webmanifest` and `icon.png` are public, because browsers fetch manifests without cookies |
-| `GET /pair`, `GET /api/pair-info` | loopback only | Pairing page: phone URL as text and as QR code, a status summary, and a live preview of the dashboard (loopback needs no token) |
-| `POST /api/dev/limits` | loopback **and** `x-dc-token` | Test helper: set the limits shown, for the fake-event driver |
+| `POST /api/hook` | loopback (address **and** Host) **and** `x-dc-token` | Ingest one sanitised hook event |
+| `GET /api/health` | loopback (address **and** Host) | `{ok, pid}` |
+| `GET /` | loopback, or `?k=<token>`, or cookie | The dashboard page; a token login from a non-loopback request also sets an HttpOnly `dc` cookie |
+| `GET /events` | loopback, cookie or `?k=` | SSE stream: `snapshot` on connect and on every change; `event` for discrete moments; `ping` every 20 s |
+| `GET /web/*` | loopback, cookie or `?k=` | Static page assets, including `/web/sprites/*`. Exception: `manifest.webmanifest` and `icon.png` are public, because browsers fetch manifests without cookies |
+| `GET /pair`, `GET /api/pair-info` | loopback (address **and** Host) only | Pairing page: phone URL as text and as QR code, a status summary, and a live preview of the dashboard (loopback needs no token) |
+| `POST /api/dev/limits` | loopback (address **and** Host) **and** `x-dc-token` | Test helper: set the limits shown, for the fake-event driver |
 
-Requests without the token get 403; an authenticated request for an unknown path gets 404, and any other non-GET request gets 405. Static paths are resolved inside `src/web/` only; `..` and absolute paths are rejected.
+The loopback exemption itself needs a loopback remote address **and** a `Host` header naming `localhost`, `127.0.0.1` or `[::1]` (any port): a page whose own DNS name was rebound to 127.0.0.1 still reaches the server from a loopback address, but its requests carry its own name in `Host`, so it gets no exemption — it can still log in with the token like any other device. No token cookie is set for a loopback request; loopback needs none, and cookies aren't port-scoped, so one set on localhost would reach every other local service. Requests that fail the route's required check get 403; an authenticated request for an unknown path gets 404, and any other non-GET request gets 405. Static paths are resolved inside `src/web/` only; `..` and absolute paths are rejected.
 
 ### 3. Sessions: `src/server/sessions.mjs` (pure logic, unit-tested)
 
@@ -113,7 +117,11 @@ Activity from events (the `detail` string is shown in the speech bubble):
 | `PreToolUse` other Bash, Task/Agent, any other tool | `working` | `Running <target>` / `Delegating` / `<tool_name>, max 24 chars; for MCP tools (mcp__<server>__<tool>) only the tool part, made readable ("Search threads")` |
 | `PreToolUse` AskUserQuestion, ExitPlanMode | unchanged; sets `needsYou` | `Has a question` / `Plan ready for review` |
 | `PostToolUse` | `thinking` | `Thinking…` |
-| `Notification` | unchanged; sets `needsYou` | `Needs permission` / `Waiting for you` |
+| `Notification` `permission_prompt` | unchanged; sets `needsYou` | `Needs permission` |
+| `Notification` `elicitation_dialog` | unchanged; sets `needsYou` | `Has a question` |
+| `Notification` `idle_prompt` | unchanged; does **not** set `needsYou` | `Waiting for you` |
+| `Notification` `auth_success` | ignored | — |
+| `Notification` other | unchanged; sets `needsYou` | `Needs you` |
 | `Stop` | `done` | `Your turn` |
 | `StopFailure` `error=rate_limit` | `rateLimited` | `Rate limited` |
 | `StopFailure` other | `error` | `Error` |
@@ -122,6 +130,7 @@ Activity from events (the `detail` string is shown in the speech bubble):
 - **Build/test pattern:** `^(npm|pnpm|yarn|bun)\s+(run\s+)?(test|build)|^(pytest|jest|vitest|tsc|make|mvn|gradle)\b|^(cargo|go|dotnet)\s+(build|test)\b|^pio\s+run\b`.
 - `activity` is one of `idle | thinking | reading | working | compiling | done | rateLimited | error`. `needsYou` is a separate boolean flag, so the session list can show both, e.g. "working · needs permission".
 - `needsYou` clears on the session's next non-Notification event.
+- `idle_prompt` arrives about a minute after every `Stop`, while Claude is merely idle rather than blocked, so it only softens the detail text: it must not steal the creature's focus from a working session or block sleep for up to an hour.
 - A session with no event for 60 minutes is dropped.
 
 **Focus rule.** The creature follows the most recent `needsYou` session, otherwise the most recently active one (`thinking`, `reading`, `working` or `compiling`), otherwise the most recent session overall. Settings can pin a session instead.
@@ -172,11 +181,12 @@ Plain HTML/CSS/JS served as-is: no build step, no framework, no CDN.
 - **Portrait:** stage on top (about 40% of the height), rings in a row, then the list.
 - **List length:** up to 5 rows; beyond that, a "+N more" line.
 - **Countdowns** are computed on the page from `resetsAt` and re-rendered every 30 s, e.g. "1h 48m" or "Thu 09:00" when more than 24 h away.
-- `#app` is sized with dynamic viewport units (100dvw/100dvh) and the controls are offset by `env(safe-area-inset-*)`, so iPhone browser toolbars and the notch never hide them; in portrait the stage is padded so the speech bubble stays clear of the controls.
+- `#app` is sized with dynamic viewport units (100dvw/100dvh). Its four padding sides track `env(safe-area-inset-*)`, remapped per rotation class (`rot0`/`rot90`/`rot180`/`rot270`, set by `applyLayout`) so the inset always lands on whichever `#app` edge rotation put against that physical screen edge; the controls sit inside that padding, so iPhone browser toolbars, the notch and the Dynamic Island never hide them at any rotation. In portrait the stage's own top padding (no `env()` term of its own — `#app`'s padding already covers it) keeps the speech bubble clear of the controls.
 
 **Controls.** Small icons, top right, 45% opacity:
 - **✕ Close.** A black overlay covers the page until tapped (a "screen off" for night). On Android, if in full screen, it also exits full screen. A page cannot close its own tab on iOS, so no attempt is made.
 - **⟲ Rotate.** Each tap turns the content a further 90° with CSS: 0°, 90°, 180°, 270°, then back to 0°. At 90° and 270° the page uses the other layout (landscape ↔ portrait), so it still fills the screen. This lets a phone with rotation lock on stand sideways in either direction and still read correctly. The choice is saved.
+- Any control tap arms full screen and keep-awake exactly as a tap on the stage does — the controls stop the tap from reaching the document's own click handler, so each one calls the same activation step itself.
 - **⚙ Settings.** A panel, saved in `localStorage`:
   - mood thresholds for the 5-hour limit: 50 / 80 / 95;
   - idle blinks per minute (26), glances per minute (2), and percentage of time moving (50);
@@ -189,9 +199,9 @@ Plain HTML/CSS/JS served as-is: no build step, no framework, no CDN.
 - On the first tap anywhere, the page calls `requestFullscreen()` where supported (Android).
 - iOS gets `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style=black-translucent` and a `manifest.webmanifest` with `display: fullscreen`, so "Add to Home Screen" opens without browser bars.
 
-**Keep screen awake.** It uses `navigator.wakeLock` when available (secure contexts only). Otherwise it loops a tiny silent inline video, started by the first tap (the NoSleep technique). The Settings text names the fallback: iPhone Auto-Lock → Never, or Android "Stay awake while charging".
+**Keep screen awake.** It uses `navigator.wakeLock` when available (secure contexts only). Otherwise it loops a tiny silent inline video, started by a tap anywhere, including the ✕, ⟲ and ⚙ controls. The OS drops the wake lock, or pauses the video, while the page is hidden, so `visibilitychange` to hidden disables it explicitly; the next tap after the page is visible again re-arms it. The Settings text names the fallback: iPhone Auto-Lock → Never, or Android "Stay awake while charging".
 
-**Offline.** `EventSource` reconnects by itself. After 5 s without a connection an overlay reads "PC offline — waiting…" and the creature sleeps. Stale limits are shown greyed, with "as of HH:MM".
+**Offline.** `EventSource` reconnects by itself on most errors. A half-open connection (the phone slept, or the PC dropped it without a TCP reset) raises no error, so the page also replaces a connection that has gone silent: after 45 s with no message, and no self-reconnect in the last 15 s, it closes the old `EventSource` and opens a new one. Returning to the tab (`visibilitychange` to visible) after more than 25 s of silence reconnects immediately rather than waiting for that 45 s check. After 5 s without a connection an overlay reads "PC offline — waiting…" and the creature sleeps. Stale limits are shown greyed, with "as of HH:MM".
 
 **Burn-in protection.** Every 10 minutes the whole layout shifts by up to 4 px in a random direction.
 
@@ -215,10 +225,10 @@ Rules, adapted from clawdio's `state_machine.cpp` (expression names are clawdio'
 | 5-hour ≥ warn / low / critical | limits, only while idle | `low_tokens` / `sad` / `ending` |
 | Week or Fable ≥ 95 / ≥ 100 | limits, only while idle | `ending` / `overloaded` |
 | 100% or rate-limited | 5-hour ≥ 100 or `rateLimited` | `overloaded` (overrides activity) |
-| Reset | any window drops from ≥ 20 to < 10 between snapshots | `jumping_joy` → `happy` 5 s → `cool` 8 s → idle |
+| Reset | any window drops from ≥ 20 to < 10 between snapshots | waits out a live "Your turn" moment if one is running, then `jumping_joy` → `happy` 5 s → `cool` 8 s → idle |
 | Plenty left | 5-hour ≤ 5, idle; 1/1200 chance per 500 ms | `cool` for 8 s |
-| Error | `error` event | `error` for 5 s; the third error in a row uses `angry` |
-| Sleep | no activity for `sleepAfter` minutes, idle | `yawning` about 2.5 s → `sleeping`; `dim: true` (screen to about 30% brightness) |
+| Error | `error` event | `error` for 5 s; the third error in a row uses `angry`; an error from a background session doesn't interrupt a busy focus session — it still counts toward the third-error escalation |
+| Sleep | no activity for `sleepAfter` minutes, idle or at the week/Fable limit | `yawning` about 2.5 s → `sleeping`; `dim: true` (screen to about 30% brightness) |
 | Wake | any activity while asleep | `yawning` → `surprised` → `love`, then the activity state |
 | Tap | touch on the creature | random one-shot: `love`, `surprised` or `curious` |
 
@@ -228,7 +238,7 @@ Rules, adapted from clawdio's `state_machine.cpp` (expression names are clawdio'
 ### 8. Sprite player and calm idle: `src/web/mascot.js`
 
 - **Frames.** Plays 8-frame strips on a 256×256 `<canvas>` with CSS `mix-blend-mode: lighten`, so the black sprite background disappears into the dark stage.
-- **Timing.** Frame durations follow clawdio's registry, e.g. idle 150, blink 80, look 120, thinking 100, working 80, surprised 100, love 120, sleeping 200, overloaded 70 ms. The table lives in `sprites.json`.
+- **Timing.** Frame durations follow clawdio's registry, e.g. idle 150, blink 80, look 120, thinking 100, working 80, surprised 100, love 120, sleeping 200, overloaded 70 ms. The table lives in `src/web/anims.js`.
 - **Playback rules.** Loop animations wrap. A one-shot plays its chained `next` if it has one, otherwise the queued one-shots, otherwise the base. There is no tweening, and it advances at most one frame per tick with the remainder carried forward.
 - **Calm idle.** When the base is idle, the player holds idle frame 0. While standing still it runs three timers:
   - blink: the blink strip, 640 ms;
@@ -270,18 +280,18 @@ Rules, adapted from clawdio's `state_machine.cpp` (expression names are clawdio'
 
 It is a plugin **skill**, not a command file, because Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` only in plugin skills. The skill body has a dynamic-context line, `` !`node "${CLAUDE_PLUGIN_ROOT}/bin/pair.mjs"` ``, which Claude Code runs before Claude sees the text. Frontmatter: `disable-model-invocation: true`. The script:
 - makes sure the server is running;
-- prints the phone URL `http://<LAN-IPv4>:<port>/?k=<token>`, with `http://<hostname>.local:<port>/?k=<token>` as an alternative;
+- prints the phone URL `http://<LAN-IPv4>:<port>/?k=<token>` for the best-ranked adapter (real adapters before virtual ones, e.g. VirtualBox or Hyper-V; then home-network ranges), plus every other adapter's address and `http://<hostname>.local:<port>/?k=<token>` as alternatives;
 - opens `http://localhost:<port>/pair` in the PC's default browser.
 
-The pair page shows the QR code, the URL, and a status line: sessions tracked, limits status, and connected pages. Next to the QR code it shows a live preview of the dashboard, since loopback clients need no token. The QR code is rendered in the PC's browser by `qrcode-generator` 1.4.4 (Kazuhiko Arase, MIT), vendored at `src/web/vendor/qrcode.js`.
+The pair page shows the QR code, the URL, and a status line: sessions tracked, limits status, and connected pages. Every alternative address is rendered as its own clickable element under the QR code; clicking one redraws the QR code and the URL text for that address, and puts the previous one back among the alternatives — useful when a virtual adapter's address would otherwise be the only one that sorts first. Next to the QR code it shows a live preview of the dashboard, since loopback clients need no token. The QR code is rendered in the PC's browser by `qrcode-generator` 1.4.4 (Kazuhiko Arase, MIT), vendored at `src/web/vendor/qrcode.js`.
 
 Keeping the screen awake uses `nosleep.js` 0.12.0 (MIT), vendored at `src/web/vendor/NoSleep.min.js`. It uses the Wake Lock API when available, and otherwise the silent-video technique.
 
 ## Security and privacy
 
-- **Page access.** Reaching the page and its stream needs the 128-bit token, in the URL or the HttpOnly cookie set from it.
-- **Event injection.** Only loopback clients that present the token can post events. Other devices on the LAN can't inject events.
-- **What reaches the phone:** project folder names, model, effort, context %, tool names (MCP: tool part only), file basenames, and up to three leading safe words of Bash commands (24 characters max). Never prompts, file contents, full paths or command arguments beyond that.
+- **Page access.** Reaching the page and its stream needs the 128-bit token (in the URL or the HttpOnly cookie set from it), except for a request that is both from a loopback address and carries a loopback `Host` (`localhost`, `127.0.0.1` or `[::1]`, any port). A DNS-rebinding page that merely resolves to 127.0.0.1 still fails this check, because its own name stays in `Host`; it can still log in with the token like any other device.
+- **Event injection.** Only loopback clients (address and Host) that present the token can post events. Other devices on the LAN can't inject events.
+- **What reaches the phone:** project folder names, model, effort, context %, tool names (MCP: tool part only), file basenames, and for Bash the program name plus, for a short whitelist of dev tools, one subcommand word (24 characters max; §1's Bash target rule). Never prompts, file contents, full paths or command arguments beyond that.
 - **Credentials.** The plugin never reads Claude credentials or tokens. Limits come from Claude Code's own `get_usage`.
 - **Transport.** HTTP only, on the LAN. HTTPS is out of scope; the token is not a secret against someone sniffing the same Wi-Fi.
 
@@ -333,6 +343,7 @@ Home/lock screen widgets, native apps, cost display, API-key billing, multiple P
 3. ~~Plugin loading in the desktop app~~: confirmed 2026-09-15. Installed from the local marketplace (user scope), the plugin's hooks fire in the desktop app's Code tab, and that session appears on the dashboard with model, effort and activity.
 4. **iOS behaviour over plain HTTP:** the user browses with Chrome on iPhone. The controls were first hidden by the toolbars and are fixed with dynamic viewport units and safe-area insets (see §6). Still to confirm on the device: Home Screen full screen, and whether keep-awake holds over HTTP. The settings panel already points to Auto-Lock → Never.
 5. ~~Context window size~~: 1 M except Haiku, measured on this machine's transcripts (§3).
+6. **Pair skill under default permissions:** `skills/pair/SKILL.md` now declares `allowed-tools` for its injected `bin/pair.mjs` command, and the script has an automated smoke test (`node --test`). A live `claude -p` run of `/desk-companion:pair` in a fresh, default-permission session is still pending.
 
 ## File layout
 
