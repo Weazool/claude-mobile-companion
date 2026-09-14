@@ -90,3 +90,7 @@ html, body {
 .panel .check { justify-content: flex-start; }
 .panel .hint { color: var(--dim); font-size: 12px; line-height: 1.4; margin: 8px 0 12px; }
 .panel button { width: 100%; padding: 10px; border-radius: 10px; border: 0; background: #2d6cdf; color: #fff; font-size: 15px; }
+
+/* Portrait: keep the bubble below the controls row. */
+#app.portrait .stage { padding-top: calc(10cqmin + env(safe-area-inset-top, 0px)); }
+#app.portrait #mascot { width: min(52cqw, 26cqh); }

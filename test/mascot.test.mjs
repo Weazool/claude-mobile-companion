@@ -89,4 +89,9 @@ test('setBase with the same base does not restart; unknown names are ignored', (
   assert.equal(pl.fi, f);
   pl.play('nope');
   assert.equal(pl.cur.name, 'working');
+  pl.setBase('nope');
+  pl.setBase([]);
+  assert.deepEqual(pl.base, ['working']);
+  assert.doesNotThrow(() => run(pl, 2000));
+  assert.equal(pl.frame().sheet, pl.anims.working.sheet);
 });

@@ -50,7 +50,8 @@ export class Player {
   }
 
   setBase(names) {
-    const next = [].concat(names);
+    const next = [].concat(names).filter(n => this.anims[n]);
+    if (!next.length) return; // unknown names keep the current base
     if (next.length === this.base.length && next.every((n, i) => n === this.base[i])) return;
     this.base = next;
     this.bi = 0;

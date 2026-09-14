@@ -26,7 +26,11 @@ test('classify maps tools to activity and detail', () => {
   assert.deepEqual(pre('Bash', { target: 'git status' }), { needsYou: false, activity: 'working', detail: 'Running git status' });
   assert.equal(pre('Bash').detail, 'Running a command');
   assert.equal(pre('Task').detail, 'Delegating');
-  assert.equal(pre('mcp__server__tool_with_a_long_name').detail, 'mcp__server__tool_with_a');
+  assert.equal(pre('mcp__server__tool_with_a_long_name').detail, 'Tool with a long name');
+  assert.equal(pre('mcp__4afbfe35-266b-44fc-b6f2-16c9d565cd93__search_threads').detail, 'Search threads');
+  assert.equal(pre('mcp__plugin_x_srv__get_page_text_and_more_words').detail, 'Get page text and more w');
+  assert.equal(pre('mcp__odd__').detail, 'mcp__odd__');
+  assert.equal(pre('SomeBrandNewToolWithALongName').detail, 'SomeBrandNewToolWithALon');
   assert.deepEqual(pre('AskUserQuestion'), { needsYou: true, detail: 'Has a question', discrete: 'needsYou' });
   assert.deepEqual(pre('ExitPlanMode'), { needsYou: true, detail: 'Plan ready for review', discrete: 'needsYou' });
   assert.equal(classify({ hook_event_name: 'Nope' }), null);
