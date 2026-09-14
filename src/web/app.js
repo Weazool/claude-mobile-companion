@@ -175,10 +175,13 @@ applyLayout();
 // Full screen and keep-awake need a tap. The controls stop propagation, so they call this themselves.
 const noSleep = window.NoSleep ? new window.NoSleep() : null;
 const standalone = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+function keepAwake() {
+  if (settings.keepAwake && noSleep && !noSleep.isEnabled) Promise.resolve(noSleep.enable()).catch(() => {});
+}
 function activate() {
   const el = document.documentElement;
   if (!standalone && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
-  if (settings.keepAwake && noSleep && !noSleep.isEnabled) Promise.resolve(noSleep.enable()).catch(() => {});
+  keepAwake();
 }
 document.addEventListener('click', activate);
 // The OS pauses the keep-awake video (or drops the wake lock) while the page is hidden; disable it so the next tap re-arms it.
@@ -195,7 +198,7 @@ $('btnRotate').addEventListener('click', e => {
 
 $('btnClose').addEventListener('click', e => {
   e.stopPropagation();
-  activate(); // first: it requests full screen only when not in it, so the exit below still applies
+  keepAwake(); // night mode keeps the (black) screen on, but never enters full screen
   $('settings').hidden = true;
   $('blank').hidden = false; // a page can't close itself on iOS: blank the screen until tapped
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});

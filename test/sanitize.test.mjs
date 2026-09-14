@@ -64,7 +64,7 @@ test('bashTarget: arguments, paths and secrets never pass', () => {
   assert.doesNotMatch(JSON.stringify(e), /SECRET/);
 });
 
-test('build flag is computed from the full command', () => {
+test('build flag is computed from the command after cd and assignment prefixes', () => {
   const b = cmd => bash(cmd).build;
   assert.equal(b('npm run build'), true);
   assert.equal(b('npm test'), true);

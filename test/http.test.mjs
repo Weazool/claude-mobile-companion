@@ -152,14 +152,17 @@ test('dashboard needs the token from a remote client and sets the cookie', async
   app.close();
 });
 
-test('loopback requests get no token cookie (cookies are not port-scoped)', async t => {
+test('loopback requests get no token cookie and clear an old one (cookies are not port-scoped)', async t => {
   const { app, port, loopback } = await start();
   t.after(() => app.close());
   loopback(true);
   for (const p of ['/', `/?k=${TOKEN}`]) {
     const r = await req(port, 'GET', p);
     assert.equal(r.status, 200, p);
-    assert.equal(r.headers['set-cookie'], undefined, p);
+    const c = r.headers['set-cookie'] || [];
+    assert.equal(c.length, 1, p);
+    assert.match(c[0], /^dc=; .*Path=\/.*Max-Age=0/, p);
+    assert.ok(!c[0].includes(TOKEN), p);
   }
 });
 

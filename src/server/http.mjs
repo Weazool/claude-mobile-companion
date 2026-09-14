@@ -100,9 +100,11 @@ export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, ge
       if (!authed) return deny(res);
       if (p === '/') {
         // The cookie is only for token logins from other devices. Loopback never needs it, and cookies
-        // ignore ports, so one set on localhost would be sent to every other local service.
-        return serveFile(res, path.join(root, 'index.html'),
-          loop ? {} : { 'set-cookie': `dc=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000` });
+        // ignore ports, so one set on localhost would be sent to every other local service: clear any old one.
+        return serveFile(res, path.join(root, 'index.html'), {
+          'set-cookie': loop ? 'dc=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'
+            : `dc=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000`,
+        });
       }
       if (p === '/events') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
