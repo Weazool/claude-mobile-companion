@@ -162,3 +162,38 @@ test('poller: onStop pulls the next call forward, at least 2 minutes after the l
   await c.advance(1);
   assert.deepEqual(calls, [0, 120e3]);
 });
+
+test('fetchUsage kills a child that never exits, after killAfterMs', async () => {
+  const killed = [];
+  const r = await fetchUsage({ spawnImpl: fakeSpawn(() => {}), timeoutMs: 20, killAfterMs: 10, kill: c => killed.push(c) });
+  assert.equal(r.reason, 'timeout');
+  await new Promise(res => setTimeout(res, 40));
+  assert.equal(killed.length, 1);
+});
+
+test('fetchUsage does not kill a child that already exited', async () => {
+  const killed = [];
+  let child;
+  const spawnImpl = (...a) => { child = fakeSpawn(() => {})(...a); return child; };
+  const p = fetchUsage({ spawnImpl, timeoutMs: 1000, killAfterMs: 10, kill: c => killed.push(c) });
+  child.emit('exit', 0);
+  const r = await p;
+  assert.equal(r.reason, 'exit');
+  await new Promise(res => setTimeout(res, 40));
+  assert.equal(killed.length, 0);
+});
+
+test('poller keeps its schedule when onUpdate throws', async () => {
+  const c = fakeClock();
+  const calls = [];
+  let first = true;
+  const p = createLimitsPoller({
+    now: c.now, setTimer: c.set, clearTimer: c.clear,
+    fetch: async () => { calls.push(c.now()); return { status: 'ok', asOf: c.now(), fiveHour: null, week: null, fable: null }; },
+    onUpdate: () => { if (first) { first = false; throw new Error('boom'); } },
+  });
+  p.start();
+  await c.advance(0);
+  await c.advance(5 * MIN);
+  assert.deepEqual(calls, [0, 5 * MIN]);
+});

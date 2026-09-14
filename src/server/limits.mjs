@@ -1,5 +1,16 @@
 import { spawn as nodeSpawn } from 'node:child_process';
 
+// On Windows the child is cmd.exe (shell: true); taskkill /T also ends the claude process under it.
+export function killTree(child) {
+  if (process.platform === 'win32' && child.pid) {
+    try {
+      nodeSpawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => {});
+    } catch { /* ignore */ }
+    return;
+  }
+  try { child.kill(); } catch { /* already gone */ }
+}
+
 // Confirmed in the planning spike (Task 0). --safe-mode keeps our own plugin's hooks out of this child.
 export const CLAUDE_ARGS = ['-p', '--safe-mode', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose'];
 export const POLL_MS = 5 * 60e3;
@@ -32,7 +43,7 @@ export function parseUsage(resp, now) {
   return { status: 'ok', asOf: now, fiveHour: windowOf(rl.five_hour), week: windowOf(rl.seven_day), fable: windowOf(fable) };
 }
 
-export function fetchUsage({ spawnImpl = nodeSpawn, command = 'claude', timeoutMs = 20000, now = Date.now } = {}) {
+export function fetchUsage({ spawnImpl = nodeSpawn, command = 'claude', timeoutMs = 20000, now = Date.now, killAfterMs = 2000, kill = killTree } = {}) {
   return new Promise(resolve => {
     const fail = reason => ({ ...EMPTY, reason });
     const opts = { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, env: { ...process.env, DESK_COMPANION_INTERNAL: '1' } };
@@ -47,19 +58,20 @@ export function fetchUsage({ spawnImpl = nodeSpawn, command = 'claude', timeoutM
     }
     let buf = '';
     let settled = false;
+    let exited = false;
     const send = o => { try { child.stdin.write(JSON.stringify(o) + '\n'); } catch { /* closed */ } };
     const finish = r => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       try { child.stdin.end(); } catch { /* closed */ } // EOF makes claude exit by itself
-      const k = setTimeout(() => { try { child.kill(); } catch { /* gone */ } }, 2000);
+      const k = setTimeout(() => { if (!exited) kill(child); }, killAfterMs);
       if (k.unref) k.unref();
       resolve(r);
     };
     const timer = setTimeout(() => finish(fail('timeout')), timeoutMs);
     child.on('error', () => finish(fail('spawn')));
-    child.on('exit', () => finish(fail('exit')));
+    child.on('exit', () => { exited = true; finish(fail('exit')); });
     child.stdout.on('data', d => {
       buf += d;
       let i;
@@ -119,8 +131,13 @@ export function createLimitsPoller({ fetch = fetchUsage, onUpdate, now = Date.no
       if (current.status !== 'ok') current = { ...EMPTY }; // keep last good values; they go stale
       log(`limits unavailable${r.reason ? ` (${r.reason})` : ''}`);
     }
-    onUpdate(view());
-    at(now() + (failures ? BACKOFF_MS[Math.min(failures, BACKOFF_MS.length) - 1] : POLL_MS));
+    try {
+      onUpdate(view());
+    } catch (e) {
+      log(`limits update failed: ${e && e.message}`);
+    } finally {
+      at(now() + (failures ? BACKOFF_MS[Math.min(failures, BACKOFF_MS.length) - 1] : POLL_MS));
+    }
   }
 
   return {
