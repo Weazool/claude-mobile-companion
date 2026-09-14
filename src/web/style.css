@@ -73,3 +73,20 @@ html, body {
 
 .overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .82); color: var(--dim); font-size: 18px; }
 .overlay[hidden] { display: none; }
+
+.overlay.blank { background: #000; }
+.panel {
+  position: fixed; z-index: 60; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(92%, 420px); max-height: 90%; overflow: auto;
+  background: #14141c; border: 1px solid #2c2c38; border-radius: 16px; padding: 18px 20px; font-size: 15px;
+}
+.panel[hidden] { display: none; }
+.panel h2 { font-size: 18px; margin-bottom: 10px; }
+.panel fieldset { border: 1px solid #2c2c38; border-radius: 10px; padding: 8px 12px 10px; margin-bottom: 10px; }
+.panel legend { color: var(--dim); font-size: 13px; padding: 0 4px; }
+.panel label { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 6px 0; }
+.panel input[type=number] { width: 90px; background: #0a0a0f; color: var(--text); border: 1px solid #2c2c38; border-radius: 6px; padding: 4px 6px; font-size: 15px; }
+.panel select { width: 100%; background: #0a0a0f; color: var(--text); border: 1px solid #2c2c38; border-radius: 6px; padding: 6px; font-size: 15px; }
+.panel .check { justify-content: flex-start; }
+.panel .hint { color: var(--dim); font-size: 12px; line-height: 1.4; margin: 8px 0 12px; }
+.panel button { width: 100%; padding: 10px; border-radius: 10px; border: 0; background: #2d6cdf; color: #fff; font-size: 15px; }

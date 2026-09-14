@@ -2,6 +2,7 @@ import { limitsView, sessionMeta, dotClass, visibleSessions } from './format.js'
 import { Player } from './mascot.js';
 import { createMood } from './mood.js';
 import { SHEETS, FRAME_SIZE } from './anims.js';
+import { loadSettings, saveSettings, rotationFor, nextRotation } from './settings.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -12,7 +13,8 @@ let lastMsgAt = Date.now();
 let downSince = null;
 
 // ---------- companion ----------
-const settings = { mood: {}, idle: {} }; // Task 16 loads these from storage
+const store = (() => { try { return window.localStorage; } catch { return null; } })();
+let settings = loadSettings(store);
 const mood = createMood(settings.mood);
 const player = new Player({ idle: settings.idle });
 const ctx = $('mascot').getContext('2d');
@@ -137,6 +139,75 @@ setInterval(() => {
   }
 }, 1000);
 setInterval(renderRings, 30000);
+
+// ---------- controls ----------
+function applyLayout() {
+  const { w, h, layout } = rotationFor(settings.rotation, window.innerWidth, window.innerHeight);
+  const app = $('app');
+  app.style.setProperty('--w', `${w}px`);
+  app.style.setProperty('--h', `${h}px`);
+  app.style.setProperty('--rot', `${settings.rotation}deg`);
+  app.classList.toggle('landscape', layout === 'landscape');
+  app.classList.toggle('portrait', layout === 'portrait');
+}
+window.addEventListener('resize', applyLayout);
+applyLayout();
+
+$('btnRotate').addEventListener('click', e => {
+  e.stopPropagation();
+  settings = saveSettings(store, { ...settings, rotation: nextRotation(settings.rotation) });
+  applyLayout();
+});
+
+$('btnClose').addEventListener('click', e => {
+  e.stopPropagation();
+  $('blank').hidden = false; // a page can't close itself on iOS: blank the screen until tapped
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+});
+$('blank').addEventListener('click', () => { $('blank').hidden = true; });
+
+const noSleep = window.NoSleep ? new window.NoSleep() : null;
+const standalone = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+document.addEventListener('click', () => {
+  const el = document.documentElement;
+  if (!standalone && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  if (settings.keepAwake && noSleep && !noSleep.isEnabled) Promise.resolve(noSleep.enable()).catch(() => {});
+});
+
+const form = $('settings');
+function fillSettings() {
+  const f = form.elements;
+  for (const k of ['warn', 'low', 'crit', 'sleepAfterMin']) f[k].value = settings.mood[k];
+  for (const k of ['blinksPerMin', 'glancesPerMin', 'movingPct']) f[k].value = settings.idle[k];
+  f.keepAwake.checked = settings.keepAwake;
+  const sessions = snap ? snap.sessions : [];
+  f.pinnedId.innerHTML = '<option value="">Automatic</option>'
+    + sessions.map(s => `<option value="${esc(s.id)}">${esc(s.name || s.id)}</option>`).join('');
+  f.pinnedId.value = settings.mood.pinnedId || '';
+}
+function readSettings() {
+  const f = form.elements;
+  settings = saveSettings(store, {
+    ...settings,
+    mood: { warn: f.warn.value, low: f.low.value, crit: f.crit.value, sleepAfterMin: f.sleepAfterMin.value, pinnedId: f.pinnedId.value || null },
+    idle: { blinksPerMin: f.blinksPerMin.value, glancesPerMin: f.glancesPerMin.value, movingPct: f.movingPct.value },
+    keepAwake: f.keepAwake.checked,
+  });
+  mood.setSettings(settings.mood);
+  player.setIdle(settings.idle);
+  if (!settings.keepAwake && noSleep && noSleep.isEnabled) noSleep.disable();
+  apply(mood.tick(Date.now()));
+}
+$('btnSettings').addEventListener('click', e => { e.stopPropagation(); fillSettings(); form.hidden = false; });
+form.addEventListener('change', readSettings);
+$('settingsDone').addEventListener('click', () => { form.hidden = true; fillSettings(); });
+
+// Burn-in protection: shift the whole layout by up to 4 px every 10 minutes.
+setInterval(() => {
+  const app = $('app');
+  app.style.setProperty('--dx', `${Math.round(Math.random() * 8 - 4)}px`);
+  app.style.setProperty('--dy', `${Math.round(Math.random() * 8 - 4)}px`);
+}, 10 * 60000);
 
 render();
 connect();

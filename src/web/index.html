@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0a0a0f">
   <title>desk-companion</title>
+  <link rel="manifest" href="/web/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/web/icon.png">
   <link rel="stylesheet" href="/web/style.css">
 </head>
 <body>
@@ -26,8 +28,28 @@
       <button id="btnRotate" aria-label="Rotate">⟲</button>
       <button id="btnSettings" aria-label="Settings">⚙</button>
     </nav>
+    <div id="offline" class="overlay" hidden><p>PC offline — waiting…</p></div>
+    <div id="blank" class="overlay blank" hidden></div>
+    <form id="settings" class="panel" hidden>
+      <h2>Settings</h2>
+      <fieldset><legend>Mood (5-hour limit %)</legend>
+        <label>Tired at <input name="warn" type="number" min="1" max="99"></label>
+        <label>Sad at <input name="low" type="number" min="1" max="99"></label>
+        <label>Alarm at <input name="crit" type="number" min="1" max="100"></label>
+      </fieldset>
+      <fieldset><legend>Idle</legend>
+        <label>Blinks per minute <input name="blinksPerMin" type="number" min="0" max="60"></label>
+        <label>Glances per minute <input name="glancesPerMin" type="number" min="0" max="20"></label>
+        <label>% of time moving <input name="movingPct" type="number" min="5" max="95"></label>
+        <label>Sleep after (minutes) <input name="sleepAfterMin" type="number" min="1" max="120"></label>
+      </fieldset>
+      <fieldset><legend>Follow session</legend><select name="pinnedId"></select></fieldset>
+      <label class="check"><input name="keepAwake" type="checkbox"> Keep the screen awake</label>
+      <p class="hint">iPhone: Share → Add to Home Screen opens this full screen. If the screen still locks, set Settings → Display &amp; Brightness → Auto-Lock → Never. Android: Developer options → Stay awake while charging.</p>
+      <button type="button" id="settingsDone">Done</button>
+    </form>
   </main>
-  <div id="offline" class="overlay" hidden><p>PC offline — waiting…</p></div>
+  <script src="/web/vendor/NoSleep.min.js"></script>
   <script type="module" src="/web/app.js"></script>
 </body>
 </html>
