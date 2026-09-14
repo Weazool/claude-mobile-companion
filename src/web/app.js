@@ -1,4 +1,7 @@
 import { limitsView, sessionMeta, dotClass, visibleSessions } from './format.js';
+import { Player } from './mascot.js';
+import { createMood } from './mood.js';
+import { SHEETS, FRAME_SIZE } from './anims.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7,6 +10,46 @@ let snap = null;   // latest Snapshot (spec §5)
 let skew = 0;      // serverTime - Date.now(), so countdowns use the PC's clock
 let lastMsgAt = Date.now();
 let downSince = null;
+
+// ---------- companion ----------
+const settings = { mood: {}, idle: {} }; // Task 16 loads these from storage
+const mood = createMood(settings.mood);
+const player = new Player({ idle: settings.idle });
+const ctx = $('mascot').getContext('2d');
+const IMG = Object.fromEntries(SHEETS.map(s => {
+  const img = new Image();
+  img.src = `/web/sprites/${s}.png${location.search}`;
+  return [s, img];
+}));
+let drawPending = true;
+
+function draw() {
+  const f = player.frame();
+  const img = IMG[f.sheet];
+  if (!img.complete || !img.naturalWidth) { drawPending = true; return; }
+  drawPending = false;
+  ctx.clearRect(0, 0, FRAME_SIZE, FRAME_SIZE);
+  ctx.drawImage(img, f.index * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE, 0, 0, FRAME_SIZE, FRAME_SIZE);
+}
+
+function apply(cmd) {
+  if (!cmd) return;
+  player.setBase(cmd.base);
+  if (cmd.play.length) player.play(cmd.play);
+  setBubble(cmd.bubble && cmd.bubble.text, cmd.bubble && cmd.bubble.tone);
+  $('app').classList.toggle('dim', cmd.dim);
+}
+
+let lastFrameAt = performance.now();
+function loop(now) {
+  const dt = Math.min(100, now - lastFrameAt);
+  lastFrameAt = now;
+  if (player.update(dt) || drawPending) draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+setInterval(() => apply(mood.tick(Date.now())), 500);
+$('mascot').addEventListener('click', () => apply(mood.onTap(Date.now())));
 
 // ---------- rings ----------
 function renderRings() {
@@ -52,19 +95,12 @@ function setBubble(text, tone) {
   b.className = 'bubble' + (text ? ' show' : '') + (tone ? ' ' + tone : '');
 }
 
-// v0: the bubble shows the focus session's detail. Task 15 hands it to the companion.
-function renderBubble() {
-  const f = snap && snap.sessions.find(s => s.id === snap.focusId);
-  setBubble(f && f.detail, f && f.needsYou ? 'need' : '');
-}
-
 function render() {
   renderRings();
   renderSessions();
-  renderBubble();
 }
 
-function onEvent(ev) { /* Task 15: companion reactions */ }
+function onEvent(ev) { apply(mood.onEvent(ev, Date.now())); }
 
 // ---------- connection ----------
 function seen() {
@@ -75,7 +111,13 @@ function seen() {
 
 function connect() {
   const es = new EventSource('/events' + location.search);
-  es.addEventListener('snapshot', e => { snap = JSON.parse(e.data); skew = snap.serverTime - Date.now(); seen(); render(); });
+  es.addEventListener('snapshot', e => {
+    snap = JSON.parse(e.data);
+    skew = snap.serverTime - Date.now();
+    seen();
+    render();
+    apply(mood.onSnapshot(snap, Date.now()));
+  });
   es.addEventListener('event', e => { seen(); onEvent(JSON.parse(e.data)); });
   es.addEventListener('ping', seen);
   es.onerror = () => {
@@ -84,9 +126,15 @@ function connect() {
   };
 }
 
+let offline = false;
 setInterval(() => {
   const now = Date.now();
-  $('offline').hidden = !((downSince !== null && now - downSince > 5000) || now - lastMsgAt > 45000);
+  const down = (downSince !== null && now - downSince > 5000) || now - lastMsgAt > 45000;
+  $('offline').hidden = !down;
+  if (down !== offline) {
+    offline = down;
+    apply(mood.setOffline(down, now));
+  }
 }, 1000);
 setInterval(renderRings, 30000);
 

@@ -170,3 +170,10 @@ test('a pinned session overrides the server focus', () => {
   m.setSettings({ pinnedId: null });
   assert.equal(m.tick(T0 + 2000).base, 'working');
 });
+
+test('offline: the companion sleeps until the connection returns', () => {
+  const m = createMood({}, { rand: mid });
+  m.onSnapshot(snap([sess('working', { detail: 'x' })]), T0);
+  assert.deepEqual(m.setOffline(true, T0 + 1), { base: 'sleeping', play: [], bubble: null, dim: false });
+  assert.equal(m.setOffline(false, T0 + 2).base, 'working');
+});

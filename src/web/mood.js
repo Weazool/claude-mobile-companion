@@ -14,6 +14,7 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
   let S = { ...DEFAULT_MOOD, ...settings };
   let snap = null;
   let lastKey = null;
+  let offline = false;
   const st = {
     mode: null, since: 0, escalated: false, lastActiveAt: null, asleep: false,
     transient: null, plays: [], errors: 0, loveDay: null, pendingCelebrate: false,
@@ -31,6 +32,7 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
   const busy = f => !!f && (ACTIVE.has(f.activity) || f.needsYou);
 
   function target(now) {
+    if (offline) return { mode: 'offline', base: 'sleeping', bubble: null, dim: false };
     const f = focus();
     const L = (snap && snap.limits) || {};
     const p5 = pctOf(L.fiveHour);
@@ -192,5 +194,11 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
     },
 
     setSettings(partial) { S = { ...S, ...partial }; },
+
+    setOffline(value, now) {
+      init(now);
+      offline = !!value;
+      return out(now);
+    },
   };
 }
