@@ -1,0 +1,6 @@
+{"type":"user","message":{"role":"user","content":"x"}}
+{"type":"assistant","effort":"high","message":{"model":"claude-opus-4-8","usage":{"input_tokens":10,"cache_read_input_tokens":100,"cache_creation_input_tokens":5,"output_tokens":7}}}
+{"type":"assistant","effort":"xhigh","message":{"model":"claude-opus-5","usage":{"input_tokens":2000,"cache_read_input_tokens":240000,"cache_creation_input_tokens":8000,"output_tokens":50}}}
+{"type":"assistant","isSidechain":true,"message":{"model":"claude-haiku-4-5-20251001","usage":{"input_tokens":1,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}
+{"type":"assistant","message":{"model":"<synthetic>","usage":{"input_tokens":0}}}
+{not json
