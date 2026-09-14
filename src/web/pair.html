@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>desk-companion: pair your phone</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0a0a0f; color: #e8e6e3; font-family: system-ui, sans-serif; }
+    main { width: 100%; box-sizing: border-box; max-width: 1280px; padding: 24px; display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; justify-content: center; }
+    .pair { text-align: center; max-width: 360px; }
+    .preview { flex: 1 1 520px; max-width: 820px; text-align: center; }
+    #qr { background: #fff; padding: 16px; border-radius: 16px; display: inline-block; }
+    #qr svg { display: block; width: 280px; height: 280px; }
+    #dash { display: block; width: 100%; aspect-ratio: 812 / 375; border: 1px solid #2a2a35; border-radius: 16px; background: #000; }
+    code { display: block; word-break: break-all; background: #1b1b24; padding: 10px 12px; border-radius: 8px; margin: 14px 0; }
+    a { color: #d97757; }
+    .dim { color: #8a8a93; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="pair">
+      <h1>Scan with your phone</h1>
+      <p class="dim">Use the same Wi-Fi as this PC. On iPhone, tap Share → Add to Home Screen for full screen.</p>
+      <div id="qr"></div>
+      <code id="url">…</code>
+      <div id="alts" class="dim"></div>
+      <p id="status" class="dim"></p>
+    </section>
+    <section class="preview">
+      <h1>Live on this PC</h1>
+      <iframe id="dash" src="/" title="desk-companion dashboard"></iframe>
+      <p class="dim"><a href="/" target="_blank" rel="noopener">Open the dashboard in its own tab</a> · no token needed on this PC</p>
+    </section>
+  </main>
+  <script src="/web/vendor/qrcode.js"></script>
+  <script>
+    fetch('/api/pair-info').then(r => r.json()).then(info => {
+      const url = info.urls[0];
+      if (!url) { document.getElementById('url').textContent = 'No Wi-Fi address found on this PC.'; return; }
+      const qr = qrcode(0, 'M');
+      qr.addData(url);
+      qr.make();
+      document.getElementById('qr').innerHTML = qr.createSvgTag(6, 0);
+      document.getElementById('url').textContent = url;
+      document.getElementById('alts').textContent = info.urls.length > 1 ? 'Also: ' + info.urls.slice(1).join('  ·  ') : '';
+      document.getElementById('status').textContent =
+        `${info.sessions} session(s) tracked · limits: ${info.limits} · ${info.pages} dashboard page(s) connected`;
+    });
+  </script>
+</body>
+</html>
