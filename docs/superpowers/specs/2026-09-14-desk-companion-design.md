@@ -61,7 +61,10 @@ Registered in `hooks/hooks.json` as a `command` hook for each event listed above
 
 It does the following:
 - Reads the hook JSON from stdin and adds `receivedAt` (epoch ms) and `envEffort` (`process.env.CLAUDE_EFFORT`, if set).
-- **Sanitises before sending.** It forwards only `hook_event_name`, `session_id`, `cwd`, `transcript_path`, `model`, `effort`, `tool_name`, a derived `target`, `notification_type`, `error`, `source`, and `permission_mode` when present. The `target` is the basename of `tool_input.file_path` / `notebook_path` / `path`, or for Bash the first two words of the command. Those words are kept only if they match `^[\w.\-/]+$`, and are capped at 24 characters. Prompts, tool inputs and tool outputs are never forwarded.
+- **Sanitises before sending.** It forwards only `hook_event_name`, `session_id`, `cwd`, `transcript_path`, `model`, `effort`, `tool_name`, a derived `target`, a derived `build` flag, `notification_type`, `error`, `source`, and `permission_mode` when present.
+  - `target` is the basename of `tool_input.file_path` / `notebook_path` / `path`. For Bash it is up to three leading words of the command, stopping at the first word that doesn't match `^[\w.\-/]+$`, capped at 24 characters.
+  - For Bash, `build` is the result of testing the **full** command against the build/test pattern (§3). Only the boolean leaves the forwarder.
+  - Prompts, tool inputs and tool outputs are never forwarded.
 - Reads `~/.desk-companion/server.json` (`{pid, port, token}`) and POSTs to the server with a 300 ms timeout.
 - If the server is unreachable or `server.json` is missing, it spawns `node bin/server.mjs` detached (`windowsHide: true`, `stdio: 'ignore'`, `unref()`). On `SessionStart` it waits up to 2 s for `server.json` and retries once. On any other event it drops that single event.
 - It always exits 0 and prints nothing to stdout, so it never alters Claude's behaviour. Errors are appended to `~/.desk-companion/hook.log`, capped at 256 KB with one rotation.
@@ -82,8 +85,9 @@ Routes:
 | `GET /api/health` | loopback | `{ok, version, pid}` |
 | `GET /` | `?k=<token>` or cookie | The dashboard page; sets an HttpOnly `dc` cookie |
 | `GET /events` | cookie or `?k=` | SSE stream: `snapshot` on connect and on every change; `event` for discrete moments; `ping` every 20 s |
-| `GET /web/*`, `GET /sprites/*` | cookie or `?k=` | Static page assets |
-| `GET /pair` | loopback only | Pairing page: phone URL as text and as QR code (SVG), plus a status summary |
+| `GET /web/*` | cookie or `?k=` | Static page assets, including `/web/sprites/*`. Exception: `manifest.webmanifest` and `icon.png` are public, because browsers fetch manifests without cookies |
+| `GET /pair`, `GET /api/pair-info` | loopback only | Pairing page: phone URL as text and as QR code, plus a status summary |
+| `POST /api/dev/limits` | loopback **and** `x-dc-token` | Test helper: set the limits shown, for the fake-event driver |
 
 All other requests get 403. Static paths are resolved inside `src/web/` only; `..` and absolute paths are rejected.
 
@@ -94,18 +98,18 @@ Per `session_id` it keeps `{ id, name, model, modelLabel, effort, contextPct, ac
 - `name` is the basename of `cwd`.
 - **Model.** From the `SessionStart` payload `model`, otherwise the newest assistant `message.model` in the transcript tail. `modelLabel` maps ids to labels: `claude-opus-5` → `Opus 5`, `claude-fable-5-1` → `Fable 5.1`, `claude-sonnet-5` → `Sonnet 5`, `claude-haiku-4-5-*` → `Haiku 4.5`. The generic rule drops `claude-`, capitalises the family, and joins version digits with `.`.
 - **Effort.** From payload `effort.level`, otherwise `envEffort`, otherwise the transcript's top-level `effort`, otherwise `—`.
-- **Context percent.** The newest assistant `usage` in the transcript tail: `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`, divided by the context window. The window is 200,000 unless the model id carries `[1m]` or the observed tokens exceed 200,000, in which case it is 1,000,000. A `contextWindow` override per model id can be set in `config.json`.
-- **Transcript tail.** On each event it reads the last 64 KB of `transcript_path`, parses complete JSON lines only, and ignores malformed ones. The file is never read in full and its content is never forwarded.
+- **Context percent.** The newest assistant `usage` in the transcript tail: `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`, divided by the context window. The window is 1,000,000 for every model except Haiku (200,000). This machine's transcripts show Opus 5, Fable 5.1, Sonnet 5 and Opus 4.x all reaching about 1 M tokens. A `contextWindow` override per model id can be set in `config.json`.
+- **Transcript tail.** On each event it reads the last 64 KB of `transcript_path`, parses complete JSON lines only, and ignores malformed lines, `isSidechain: true` lines and the `<synthetic>` model. The file is never read in full and its content is never forwarded.
 
 Activity from events (the `detail` string is shown in the speech bubble):
 
 | Event | activity | detail |
 |---|---|---|
-| `SessionStart` | `idle` (marks `isNew` for one snapshot) | — |
+| `SessionStart` | `idle` (plus a `sessionStart` discrete event) | — |
 | `UserPromptSubmit` | `thinking` | `Thinking…` |
 | `PreToolUse` Read, Grep, Glob, LS, WebFetch, WebSearch, NotebookRead | `reading` | `Reading <target>` / `Searching` / `Browsing` |
 | `PreToolUse` Edit, Write, MultiEdit, NotebookEdit | `working` | `Editing <target>` / `Writing <target>` |
-| `PreToolUse` Bash matching the build/test pattern below | `compiling` | `Running <target>` |
+| `PreToolUse` Bash with `build: true` (the forwarder matched the build/test pattern below) | `compiling` | `Running <target>` |
 | `PreToolUse` other Bash, Task/Agent, any other tool | `working` | `Running <target>` / `Delegating` / `<tool_name>` |
 | `PreToolUse` AskUserQuestion, ExitPlanMode | unchanged; sets `needsYou` | `Has a question` / `Plan ready for review` |
 | `PostToolUse` | `thinking` | `Thinking…` |
@@ -124,12 +128,16 @@ Activity from events (the `detail` string is shown in the speech bubble):
 
 ### 4. Limits: `src/server/limits.mjs`
 
-- **Source.** Claude Code's `get_usage` control request, as implemented by the Agent SDK (`usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET`). The server spawns the `claude` CLI in stream-json SDK mode, sends the `get_usage` control request, reads the control response, and exits the child. Our code never reads credential files or tokens.
-- **Parsed fields.** `five_hour` and `seven_day` (utilisation and `resets_at`), plus the first `model_scoped` / weekly-scoped entry whose display name contains `Fable`. Utilisation is normalised to 0–100, whether the source uses 0–1 or 0–100.
+- **Source.** Claude Code's `get_usage` control request, as implemented by the Agent SDK 0.3.270 (`usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET`). Our code never reads credential files or tokens. Confirmed in a spike on this machine with CLI 2.1.245:
+  - The server spawns `claude -p --safe-mode --input-format stream-json --output-format stream-json --verbose`. `--safe-mode` disables plugins and hooks, so the child never triggers our own hooks. The child's environment also carries `DESK_COMPANION_INTERNAL=1`, which the forwarder ignores.
+  - It writes `{"type":"control_request","request_id":"dc-init","request":{"subtype":"initialize"}}`, then, after the success reply, `{"type":"control_request","request_id":"dc-usage","request":{"subtype":"get_usage","skip_behaviors":true}}`.
+  - It reads `control_response` lines until the `dc-usage` reply arrives (about 1 s), then closes the child.
+- **Sign-in prerequisite.** The CLI must be signed in with the claude.ai account (`claude auth login`). The desktop app's sign-in is not shared with standalone CLI processes; the spike returned `rate_limits_available: false` and `subscription_type: null` while signed out. That case is reported as status `signin`, and the page tells the user what to run.
+- **Parsed fields** (`SDKControlGetUsageResponse`): `rate_limits.five_hour` and `rate_limits.seven_day` as `{utilization 0–100, resets_at ISO 8601}`, plus the first `rate_limits.model_scoped[]` entry whose `display_name` contains `Fable`. A utilisation below 1 that isn't an integer is treated as a fraction.
 - **Schedule.** On server start; every 5 minutes; and 60 s after a `Stop` event. There are at least 2 minutes between calls.
 - **Failure handling.** On failure or a 429 it backs off to 10, 20, then 30 minutes. It keeps the last good values with `asOf`, and marks them `stale` after 15 minutes.
 - **Missing CLI.** If `claude` is not on PATH, or the version doesn't support `get_usage`, limits are `unavailable`. The page shows "—" rings, and everything else works.
-- **First build task.** This path is experimental, so the plan's first task is a spike that confirms the exact invocation, response shape and minimum CLI version on this machine. If the spike fails, the fallback is: ship with `unavailable` limits and record the issue. Nothing else in the design depends on limits.
+- **Isolation.** This path is experimental. Nothing else in the design depends on limits.
 
 ### 5. Snapshot (server → page)
 
@@ -140,11 +148,11 @@ Activity from events (the `detail` string is shown in the speech bubble):
   "sessions": [
     { "id": "…", "name": "my_claude_companion", "modelLabel": "Opus 5", "effort": "high",
       "contextPct": 48, "activity": "working", "detail": "Editing server.mjs",
-      "needsYou": false, "isNew": false, "lastEventAt": 1789359990000 }
+      "needsYou": false, "lastEventAt": 1789359990000 }
   ],
   "focusId": "…",
   "limits": {
-    "status": "ok | stale | unavailable",
+    "status": "ok | stale | signin | unavailable",
     "asOf": 1789359900000,
     "fiveHour": { "pct": 62, "resetsAt": 1789366000000 },
     "week":     { "pct": 34, "resetsAt": 1789545600000 },
@@ -248,17 +256,25 @@ Rules, adapted from clawdio's `state_machine.cpp` (expression names are clawdio'
   - Align every frame horizontally on its body centre.
   - Align vertically on the feet line: per frame for static-body sheets, and per sheet (the median of rest frames) for sheets whose drawn motion must survive. Those are `happy_eyes`, `surprised`, `jumping_joy`, `celebration`, `happy` and `yawning`.
   - Result: across all sheets, body width is within ±2% of idle's and the resting feet line within ±2 px.
-- **Output.** `src/web/sprites/<name>.png`, 8 frames of 256×256 in a 2048×256 strip on a black background, plus `sprites.json` (frame timings, loop and next) and `LICENSE-clawdio.txt` (clawdio's MIT notice). The README credits clawdio.
+- **Output.**
+  - `src/web/sprites/<name>.png`: 8 frames of 256×256 in a 2048×256 strip on a black background.
+  - `sprites.json`: the source repo and commit, plus per-sheet metrics.
+  - `LICENSE-clawdio.txt`: clawdio's MIT notice.
+  - `src/web/icon.png`: idle frame 0, used as the Home Screen icon.
+
+  Timings are not in `sprites.json`; they live in `src/web/anims.js`. The README credits clawdio.
 - **Aliases.** As in clawdio: `reading` → thinking art, `compiling` → working art, `sad` → ending art, each at its own timing.
 
-### 10. Pairing: `commands/pair.md` → `/desk-companion:pair`
+### 10. Pairing: `skills/pair/SKILL.md` → `/desk-companion:pair`
 
-The command runs `node "${CLAUDE_PLUGIN_ROOT}/bin/pair.mjs"` through the slash command's bash execution. The script:
+It is a plugin **skill**, not a command file, because Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` only in plugin skills. The skill body has a dynamic-context line, `` !`node "${CLAUDE_PLUGIN_ROOT}/bin/pair.mjs"` ``, which Claude Code runs before Claude sees the text. Frontmatter: `disable-model-invocation: true`. The script:
 - makes sure the server is running;
 - prints the phone URL `http://<LAN-IPv4>:<port>/?k=<token>`, with `http://<hostname>.local:<port>/?k=<token>` as an alternative;
 - opens `http://localhost:<port>/pair` in the PC's default browser.
 
-The pair page shows the QR code (from a vendored MIT QR encoder in `src/server/vendor/`), the URL, and a status line: sessions tracked, limits status, and connected pages.
+The pair page shows the QR code, the URL, and a status line: sessions tracked, limits status, and connected pages. The QR code is rendered in the PC's browser by `qrcode-generator` 1.4.4 (Kazuhiko Arase, MIT), vendored at `src/web/vendor/qrcode.js`.
+
+Keeping the screen awake uses `nosleep.js` 0.12.0 (MIT), vendored at `src/web/vendor/NoSleep.min.js`. It uses the Wake Lock API when available, and otherwise the silent-video technique.
 
 ## Security and privacy
 
@@ -298,10 +314,11 @@ The pair page shows the QR code (from a vendored MIT QR encoder in `src/server/v
 - Node 18 or later, and the Claude Code CLI on PATH (needed for limits only).
 - The repo is its own plugin marketplace:
   ```
-  /plugin marketplace add C:\Users\weazo\GitHub\my_claude_companion
-  /plugin install desk-companion@desk-companion
+  claude plugin marketplace add C:\Users\weazo\GitHub\my_claude_companion
+  claude plugin install desk-companion@desk-companion
   ```
-  Then run `/desk-companion:pair` and scan the QR code with the phone.
+  The in-session equivalents are `/plugin marketplace add …` and `/plugin install …`. Then run `/desk-companion:pair` and scan the QR code with the phone.
+- For limits, sign the CLI in once: `claude auth login`.
 - Verify during the build that a plugin installed this way also loads in the Claude desktop app's Code tab. If it doesn't, document the extra step.
 
 ## Out of scope for v1
@@ -310,22 +327,26 @@ Home/lock screen widgets, native apps, cost display, API-key billing, multiple P
 
 ## Risks to verify early (in the plan's first tasks)
 
-1. **`get_usage` invocation and minimum CLI version** (§4). Fallback: limits unavailable.
-2. **Hook events.** `StopFailure` may not exist in the installed CLI (2.1.245). Check that `hooks.json` with this event list loads in both the CLI and the desktop app; drop `StopFailure` if it breaks loading.
+1. ~~`get_usage` invocation~~: confirmed during planning (§4). Open: the response shape once signed in, including whether `model_scoped` lists Fable on CLI 2.1.245. Verify after `claude auth login`.
+2. ~~Hook events~~: `StopFailure` exists since 2.1.78, and since 2.1.101 an unknown hook event no longer breaks settings loading.
 3. **Plugin loading in the desktop app** (see Install).
 4. **iOS behaviour over plain HTTP:** the Home Screen web app opens full screen, and the silent-video keep-awake works on the user's iPhone.
-5. **Context window size** per model (§3). Verify against real transcripts and adjust the heuristic.
+5. ~~Context window size~~: 1 M except Haiku, measured on this machine's transcripts (§3).
 
 ## File layout
 
 ```
 .claude-plugin/marketplace.json, plugin.json
 hooks/hooks.json
-commands/pair.md
+skills/pair/SKILL.md
 bin/hook.mjs, server.mjs, pair.mjs
-src/server/http.mjs, sessions.mjs, limits.mjs, transcript.mjs, snapshot.mjs, paths.mjs, vendor/qr.mjs
-src/web/index.html, app.js, mood.js, mascot.js, style.css, manifest.webmanifest, sprites/
-tools/build-sprites.mjs, fake-events.mjs
+src/hook/sanitize.mjs
+src/server/http.mjs, sessions.mjs, limits.mjs, transcript.mjs, snapshot.mjs, paths.mjs, net.mjs
+src/web/index.html, pair.html, app.js, format.js, anims.js, mood.js, mascot.js, settings.js, style.css,
+        manifest.webmanifest, icon.png, sprites/, vendor/qrcode.js, vendor/NoSleep.min.js
+tools/build-sprites.mjs, tools/lib/png.mjs, tools/lib/sprite-math.mjs, tools/fake-events.mjs
 test/*.test.mjs, test/fixtures/
 package.json ("type": "module", "scripts": { "test": "node --test" }), README.md, LICENSE
 ```
+
+`src/web/anims.js` is the single source of truth for animation names, sheets and timings. Both the page and the sprite build import it.
