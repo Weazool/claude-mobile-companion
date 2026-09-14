@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0a0f">
+  <title>desk-companion</title>
+  <link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+  <main id="app" class="landscape">
+    <section class="stage">
+      <div id="bubble" class="bubble"></div>
+      <canvas id="mascot" width="256" height="256"></canvas>
+    </section>
+    <section class="data">
+      <div id="rings" class="rings"></div>
+      <div id="limitsNote" class="note"></div>
+      <div id="sessions" class="sessions"></div>
+    </section>
+    <nav class="controls">
+      <button id="btnClose" aria-label="Close">✕</button>
+      <button id="btnRotate" aria-label="Rotate">⟲</button>
+      <button id="btnSettings" aria-label="Settings">⚙</button>
+    </nav>
+  </main>
+  <div id="offline" class="overlay" hidden><p>PC offline — waiting…</p></div>
+  <script type="module" src="/web/app.js"></script>
+</body>
+</html>
