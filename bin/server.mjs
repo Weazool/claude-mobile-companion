@@ -10,6 +10,7 @@ import { readTail } from '../src/server/transcript.mjs';
 import { buildSnapshot, EMPTY_LIMITS } from '../src/server/snapshot.mjs';
 import { createApp } from '../src/server/http.mjs';
 import { phoneUrls } from '../src/server/net.mjs';
+import { createLimitsPoller } from '../src/server/limits.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = path.join(ROOT, 'src', 'web');
@@ -64,7 +65,14 @@ async function start() {
     getPairInfo: () => ({ urls: phoneUrls(config), sessions: store.list().length, limits: limits.status }),
   });
 
-  // LIMITS-POLLER
+  if (!process.env.DESK_COMPANION_NO_LIMITS) {
+    const poller = createLimitsPoller({
+      log,
+      onUpdate(l) { limits = l; app.broadcast('snapshot', snapshot()); },
+    });
+    onStop = () => poller.onStop();
+    poller.start();
+  }
 
   app.server.on('error', e => {
     if (e.code === 'EADDRINUSE') process.exit(0); // lost a start-up race to another instance
