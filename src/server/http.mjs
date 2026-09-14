@@ -79,6 +79,7 @@ export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, ge
         const rel = decodeURIComponent(p.slice(5));
         const abs = path.resolve(root, rel);
         if (!abs.startsWith(root + path.sep)) return deny(res);
+        if (rel === 'pair.html' && !loop) return deny(res); // the pair page is loopback-only (spec §2)
         if (!authed && !PUBLIC.has(rel)) return deny(res);
         return serveFile(res, abs);
       }

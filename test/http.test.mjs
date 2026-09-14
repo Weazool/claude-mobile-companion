@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { createApp, tokenMatches } from '../src/server/http.mjs';
+import { createApp, tokenMatches, isLoopback } from '../src/server/http.mjs';
 import { buildSnapshot, EMPTY_LIMITS } from '../src/server/snapshot.mjs';
 
 const TOKEN = 'f'.repeat(32);
@@ -77,6 +77,24 @@ test('tokenMatches is exact', () => {
   assert.equal(tokenMatches(TOKEN, TOKEN), true);
   assert.equal(tokenMatches('f'.repeat(31), TOKEN), false);
   assert.equal(tokenMatches(undefined, TOKEN), false);
+});
+
+test('isLoopback accepts IPv4, IPv6 and IPv4-mapped loopback only', () => {
+  const r = a => isLoopback({ socket: { remoteAddress: a } });
+  assert.equal(r('127.0.0.1'), true);
+  assert.equal(r('::1'), true);
+  assert.equal(r('::ffff:127.0.0.1'), true);
+  assert.equal(r('192.168.1.5'), false);
+  assert.equal(r('::ffff:192.168.1.5'), false);
+  assert.equal(r(undefined), false);
+});
+
+test('pair.html stays loopback-only under /web/', async () => {
+  const { app, port, loopback } = await start();
+  assert.equal((await req(port, 'GET', `/web/pair.html?k=${TOKEN}`)).status, 403);
+  loopback(true);
+  assert.equal((await req(port, 'GET', '/web/pair.html')).status, 200);
+  app.close();
 });
 
 test('dashboard needs the token from a remote client and sets the cookie', async () => {
