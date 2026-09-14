@@ -87,3 +87,33 @@ test('invalid JSON on stdin still exits 0 silently', async () => {
   assert.equal(code, 0);
   assert.equal(out, '');
 });
+
+test('SessionStart waits for a server that comes up late, then delivers', async () => {
+  const probe = http.createServer();
+  await new Promise(r => probe.listen(0, '127.0.0.1', r));
+  const port = probe.address().port;
+  await new Promise(r => probe.close(r));
+  const home = tmpHomeWithConfig(port, 'e'.repeat(32));
+  const got = [];
+  const late = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', d => { body += d; });
+    req.on('end', () => {
+      if (req.url === '/api/health') { res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}'); return; }
+      got.push({ url: req.url, token: req.headers['x-dc-token'], body });
+      res.writeHead(204).end();
+    });
+  });
+  const timer = setTimeout(() => late.listen(port, '127.0.0.1'), 600);
+  const r = await runHook({ hook_event_name: 'SessionStart', session_id: 's1', cwd: '/p/x' },
+    { DESK_COMPANION_HOME: home, DESK_COMPANION_NO_SPAWN: '1' });
+  clearTimeout(timer);
+  late.close();
+  assert.equal(r.code, 0);
+  assert.equal(r.stdout, '');
+  assert.equal(got.length, 1);
+  assert.equal(got[0].url, '/api/hook');
+  assert.equal(got[0].token, 'e'.repeat(32));
+  assert.equal(JSON.parse(got[0].body).hook_event_name, 'SessionStart');
+  assert.ok(r.ms < 3500, `took ${r.ms} ms`);
+});
