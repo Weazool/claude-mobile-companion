@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "desk-companion",
+  "description": "desk-companion: a live Claude Code dashboard for your phone",
+  "owner": { "name": "Weazool" },
+  "plugins": [
+    {
+      "name": "desk-companion",
+      "description": "Live Claude Code dashboard with an animated companion, served to a phone on your Wi-Fi",
+      "author": { "name": "Weazool" },
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

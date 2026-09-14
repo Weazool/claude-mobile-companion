@@ -1,0 +1,10 @@
+{
+  "name": "desk-companion",
+  "version": "0.1.0",
+  "description": "Live Claude Code dashboard with an animated companion, served to a phone on your Wi-Fi",
+  "author": { "name": "Weazool" },
+  "license": "MIT",
+  "keywords": ["dashboard", "hooks", "usage", "limits", "companion"],
+  "homepage": "https://github.com/Weazool/claude-mobile-companion",
+  "repository": "https://github.com/Weazool/claude-mobile-companion"
+}
