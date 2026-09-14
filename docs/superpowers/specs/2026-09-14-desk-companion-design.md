@@ -61,7 +61,7 @@ Registered in `hooks/hooks.json` as a `command` hook for each event listed above
 
 It does the following:
 - Reads the hook JSON from stdin and adds `receivedAt` (epoch ms) and `envEffort` (`process.env.CLAUDE_EFFORT`, if set).
-- **Sanitises before sending.** It forwards only `hook_event_name`, `session_id`, `cwd`, `transcript_path`, `model`, `effort`, `tool_name`, a derived `target`, a derived `build` flag, `notification_type`, `error`, `source`, and `permission_mode` when present.
+- **Sanitises before sending.** Of the hook JSON it forwards only `hook_event_name`, `session_id`, `cwd`, `transcript_path`, `model`, `effort`, `tool_name`, a derived `target`, a derived `build` flag, `notification_type`, `error`, `source`, and `permission_mode` when present, plus the two fields it adds itself (receivedAt, envEffort).
   - `target` is the basename of `tool_input.file_path` / `notebook_path` / `path`. For Bash it is up to three leading words of the command, stopping at the first word that doesn't match `^[\w.\-/]+$`, capped at 24 characters.
   - For Bash, `build` is the result of testing the **full** command against the build/test pattern (§3). Only the boolean leaves the forwarder.
   - Prompts, tool inputs and tool outputs are never forwarded.
@@ -82,14 +82,14 @@ Routes:
 | Route | Auth | Purpose |
 |---|---|---|
 | `POST /api/hook` | loopback address **and** `x-dc-token` | Ingest one sanitised hook event |
-| `GET /api/health` | loopback | `{ok, version, pid}` |
+| `GET /api/health` | loopback | `{ok, pid}` |
 | `GET /` | `?k=<token>` or cookie | The dashboard page; sets an HttpOnly `dc` cookie |
 | `GET /events` | cookie or `?k=` | SSE stream: `snapshot` on connect and on every change; `event` for discrete moments; `ping` every 20 s |
 | `GET /web/*` | cookie or `?k=` | Static page assets, including `/web/sprites/*`. Exception: `manifest.webmanifest` and `icon.png` are public, because browsers fetch manifests without cookies |
-| `GET /pair`, `GET /api/pair-info` | loopback only | Pairing page: phone URL as text and as QR code, plus a status summary |
+| `GET /pair`, `GET /api/pair-info` | loopback only | Pairing page: phone URL as text and as QR code, a status summary, and a live preview of the dashboard (loopback needs no token) |
 | `POST /api/dev/limits` | loopback **and** `x-dc-token` | Test helper: set the limits shown, for the fake-event driver |
 
-All other requests get 403. Static paths are resolved inside `src/web/` only; `..` and absolute paths are rejected.
+Requests without the token get 403; an authenticated request for an unknown path gets 404, and any other non-GET request gets 405. Static paths are resolved inside `src/web/` only; `..` and absolute paths are rejected.
 
 ### 3. Sessions: `src/server/sessions.mjs` (pure logic, unit-tested)
 
@@ -110,7 +110,7 @@ Activity from events (the `detail` string is shown in the speech bubble):
 | `PreToolUse` Read, Grep, Glob, LS, WebFetch, WebSearch, NotebookRead | `reading` | `Reading <target>` / `Searching` / `Browsing` |
 | `PreToolUse` Edit, Write, MultiEdit, NotebookEdit | `working` | `Editing <target>` / `Writing <target>` |
 | `PreToolUse` Bash with `build: true` (the forwarder matched the build/test pattern below) | `compiling` | `Running <target>` |
-| `PreToolUse` other Bash, Task/Agent, any other tool | `working` | `Running <target>` / `Delegating` / `<tool_name>` |
+| `PreToolUse` other Bash, Task/Agent, any other tool | `working` | `Running <target>` / `Delegating` / `<tool_name>, max 24 chars; for MCP tools (mcp__<server>__<tool>) only the tool part, made readable ("Search threads")` |
 | `PreToolUse` AskUserQuestion, ExitPlanMode | unchanged; sets `needsYou` | `Has a question` / `Plan ready for review` |
 | `PostToolUse` | `thinking` | `Thinking…` |
 | `Notification` | unchanged; sets `needsYou` | `Needs permission` / `Waiting for you` |
@@ -172,6 +172,7 @@ Plain HTML/CSS/JS served as-is: no build step, no framework, no CDN.
 - **Portrait:** stage on top (about 40% of the height), rings in a row, then the list.
 - **List length:** up to 5 rows; beyond that, a "+N more" line.
 - **Countdowns** are computed on the page from `resetsAt` and re-rendered every 30 s, e.g. "1h 48m" or "Thu 09:00" when more than 24 h away.
+- `#app` is sized with dynamic viewport units (100dvw/100dvh) and the controls are offset by `env(safe-area-inset-*)`, so iPhone browser toolbars and the notch never hide them; in portrait the stage is padded so the speech bubble stays clear of the controls.
 
 **Controls.** Small icons, top right, 45% opacity:
 - **✕ Close.** A black overlay covers the page until tapped (a "screen off" for night). On Android, if in full screen, it also exits full screen. A page cannot close its own tab on iOS, so no attempt is made.
@@ -272,7 +273,7 @@ It is a plugin **skill**, not a command file, because Claude Code substitutes `$
 - prints the phone URL `http://<LAN-IPv4>:<port>/?k=<token>`, with `http://<hostname>.local:<port>/?k=<token>` as an alternative;
 - opens `http://localhost:<port>/pair` in the PC's default browser.
 
-The pair page shows the QR code, the URL, and a status line: sessions tracked, limits status, and connected pages. The QR code is rendered in the PC's browser by `qrcode-generator` 1.4.4 (Kazuhiko Arase, MIT), vendored at `src/web/vendor/qrcode.js`.
+The pair page shows the QR code, the URL, and a status line: sessions tracked, limits status, and connected pages. Next to the QR code it shows a live preview of the dashboard, since loopback clients need no token. The QR code is rendered in the PC's browser by `qrcode-generator` 1.4.4 (Kazuhiko Arase, MIT), vendored at `src/web/vendor/qrcode.js`.
 
 Keeping the screen awake uses `nosleep.js` 0.12.0 (MIT), vendored at `src/web/vendor/NoSleep.min.js`. It uses the Wake Lock API when available, and otherwise the silent-video technique.
 
@@ -280,7 +281,7 @@ Keeping the screen awake uses `nosleep.js` 0.12.0 (MIT), vendored at `src/web/ve
 
 - **Page access.** Reaching the page and its stream needs the 128-bit token, in the URL or the HttpOnly cookie set from it.
 - **Event injection.** Only loopback clients that present the token can post events. Other devices on the LAN can't inject events.
-- **What reaches the phone:** project folder names, model, effort, context %, tool names, file basenames, and the first two words of safe-looking Bash commands. Never prompts, file contents, full paths or command arguments beyond that.
+- **What reaches the phone:** project folder names, model, effort, context %, tool names (MCP: tool part only), file basenames, and up to three leading safe words of Bash commands (24 characters max). Never prompts, file contents, full paths or command arguments beyond that.
 - **Credentials.** The plugin never reads Claude credentials or tokens. Limits come from Claude Code's own `get_usage`.
 - **Transport.** HTTP only, on the LAN. HTTPS is out of scope; the token is not a secret against someone sniffing the same Wi-Fi.
 
@@ -327,10 +328,10 @@ Home/lock screen widgets, native apps, cost display, API-key billing, multiple P
 
 ## Risks to verify early (in the plan's first tasks)
 
-1. ~~`get_usage` invocation~~: confirmed during planning (§4). Open: the response shape once signed in, including whether `model_scoped` lists Fable on CLI 2.1.245. Verify after `claude auth login`.
+1. ~~`get_usage` invocation~~: confirmed. Once the CLI is signed in (2.1.245), the response has `rate_limits.five_hour` / `seven_day` and `model_scoped` with `display_name` "Fable". A live check read 29% / 19% / 8%.
 2. ~~Hook events~~: `StopFailure` exists since 2.1.78, and since 2.1.101 an unknown hook event no longer breaks settings loading.
-3. **Plugin loading in the desktop app** (see Install).
-4. **iOS behaviour over plain HTTP:** the Home Screen web app opens full screen, and the silent-video keep-awake works on the user's iPhone.
+3. ~~Plugin loading in the desktop app~~: confirmed 2026-09-15. Installed from the local marketplace (user scope), the plugin's hooks fire in the desktop app's Code tab, and that session appears on the dashboard with model, effort and activity.
+4. **iOS behaviour over plain HTTP:** the user browses with Chrome on iPhone. The controls were first hidden by the toolbars and are fixed with dynamic viewport units and safe-area insets (see §6). Still to confirm on the device: Home Screen full screen, and whether keep-awake holds over HTTP. The settings panel already points to Auto-Lock → Never.
 5. ~~Context window size~~: 1 M except Haiku, measured on this machine's transcripts (§3).
 
 ## File layout
