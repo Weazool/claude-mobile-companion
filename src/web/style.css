@@ -91,8 +91,8 @@ html, body {
 .panel .hint { color: var(--dim); font-size: 12px; line-height: 1.4; margin: 8px 0 12px; }
 .panel button { width: 100%; padding: 10px; border-radius: 10px; border: 0; background: #2d6cdf; color: #fff; font-size: 15px; }
 
-/* Portrait: keep the bubble below the controls row.
-   .controls occupies top(3cqmin) + button line-height(4.4cqmin, pinned below) + padding(2cqmin) = 9.4cqmin;
-   11cqmin padding-top leaves a real 1.6cqmin margin instead of a font-metric-dependent razor edge. */
-#app.portrait .stage { padding-top: calc(11cqmin + env(safe-area-inset-top, 0px)); }
-#app.portrait #mascot { width: min(52cqw, 26cqh); }
+/* Portrait: the bubble starts below the controls row and the creature centres in the space left.
+   .controls ends at 3cqmin + 4.4cqmin (line-height 1) + 2cqmin padding = 9.4cqmin; the stage is not
+   centred, so its 12cqmin padding-top is the bubble's exact top. Fits for height/width >= 1.17. */
+#app.portrait .stage { justify-content: flex-start; padding-top: calc(12cqmin + env(safe-area-inset-top, 0px)); }
+#app.portrait #mascot { width: min(52cqw, 24cqh); margin-block: auto; }
