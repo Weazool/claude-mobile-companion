@@ -5,7 +5,7 @@ export const DEFAULT_MOOD = { warn: 50, low: 80, crit: 95, sleepAfterMin: 5, pin
 
 const ACTIVE = new Set(['thinking', 'reading', 'working', 'compiling']);
 const IDLEISH = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'done', 'cool', 'celebrate', 'sleep', 'yawn', 'wake', 'error']);
-const QUIET = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding']);
+const QUIET = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver']);
 const DWELL_MS = 1500;
 const pctOf = w => (w && Number.isFinite(w.pct) ? w.pct : null);
 const dayOf = t => new Date(t).toDateString();
@@ -105,7 +105,8 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
   }
 
   function maybeCelebrate(now) {
-    if (!st.pendingCelebrate || busy(focus())) return;
+    const tr = live(now);
+    if (!st.pendingCelebrate || busy(focus()) || (tr && tr.kind === 'done')) return; // a live "Your turn" plays out first
     st.pendingCelebrate = false;
     st.asleep = false;
     st.transient = { kind: 'celebrate', since: now, until: now + 13640 };
@@ -142,12 +143,18 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
         case 'stop':
           touch(now);
           st.errors = 0;
-          if (!f || f.id === ev.sessionId || !busy(f)) { st.transient = { kind: 'done', since: now, until: now + 3000 }; st.plays = ['surprised']; }
+          if (!f || f.id === ev.sessionId || !busy(f)) {
+            // The Stop snapshot, sent just before this event, may have started a celebration: run it after "Your turn".
+            const tr = st.transient;
+            if (tr && tr.kind === 'celebrate' && now - tr.since < 1000) st.pendingCelebrate = true;
+            st.transient = { kind: 'done', since: now, until: now + 3000 };
+            st.plays = ['surprised'];
+          }
           break;
         case 'error':
           touch(now);
           st.errors += 1;
-          st.transient = { kind: st.errors >= 3 ? 'angry' : 'error', since: now, until: now + 5000 };
+          if (!f || f.id === ev.sessionId || !busy(f)) st.transient = { kind: st.errors >= 3 ? 'angry' : 'error', since: now, until: now + 5000 };
           break;
         case 'sessionStart':
           touch(now);

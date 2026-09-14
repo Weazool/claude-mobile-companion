@@ -55,7 +55,9 @@ export class Player {
     if (next.length === this.base.length && next.every((n, i) => n === this.base[i])) return;
     this.base = next;
     this.bi = 0;
-    if (this.cur.isBase) this._toBase(); // a running one-shot finishes first, then the new base plays
+    // A running one-shot finishes first, then the new base plays. A looping clip that is not the base
+    // (happy, chained from jumping_joy after a base change mid-jump) would never finish, so it yields now.
+    if (this.cur.isBase || (this.cur.loop && !this.queue.length)) this._toBase();
   }
 
   play(names) {

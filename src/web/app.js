@@ -111,21 +111,34 @@ function seen() {
   $('offline').hidden = true;
 }
 
+let es = null;       // the current EventSource
+let reconnectAt = 0; // when the page last replaced a silent connection itself
+
 function connect() {
-  const es = new EventSource('/events' + location.search);
-  es.addEventListener('snapshot', e => {
+  if (es) es.close();
+  const src = new EventSource('/events' + location.search);
+  es = src;
+  src.addEventListener('snapshot', e => {
     snap = JSON.parse(e.data);
     skew = snap.serverTime - Date.now();
     seen();
     render();
     apply(mood.onSnapshot(snap, Date.now()));
   });
-  es.addEventListener('event', e => { seen(); onEvent(JSON.parse(e.data)); });
-  es.addEventListener('ping', seen);
-  es.onerror = () => {
+  src.addEventListener('event', e => { seen(); onEvent(JSON.parse(e.data)); });
+  src.addEventListener('ping', seen);
+  src.onerror = () => {
+    if (src !== es) return; // already replaced
     if (downSince === null) downSince = Date.now();
-    if (es.readyState === EventSource.CLOSED) setTimeout(connect, 5000); // e.g. a 403 after a restart
+    if (src.readyState === EventSource.CLOSED) setTimeout(() => { if (src === es) connect(); }, 5000); // e.g. a 403 after a restart
   };
+}
+
+// A half-open socket (the phone slept, the PC dropped it) never raises an error, so the page
+// replaces a connection that has gone silent. connect() closes the old one.
+function reconnect(now) {
+  reconnectAt = now;
+  connect();
 }
 
 let offline = false;
@@ -137,7 +150,12 @@ setInterval(() => {
     offline = down;
     apply(mood.setOffline(down, now));
   }
+  if (now - lastMsgAt > 45000 && now - reconnectAt >= 15000) reconnect(now);
 }, 1000);
+document.addEventListener('visibilitychange', () => {
+  const now = Date.now();
+  if (document.visibilityState === 'visible' && now - lastMsgAt > 25000) reconnect(now);
+});
 setInterval(renderRings, 30000);
 
 // ---------- controls ----------
@@ -149,30 +167,40 @@ function applyLayout() {
   app.style.setProperty('--rot', `${settings.rotation}deg`);
   app.classList.toggle('landscape', layout === 'landscape');
   app.classList.toggle('portrait', layout === 'portrait');
+  for (const r of [0, 90, 180, 270]) app.classList.toggle(`rot${r}`, r === settings.rotation); // safe-area mapping in style.css
 }
 window.addEventListener('resize', applyLayout);
 applyLayout();
 
+// Full screen and keep-awake need a tap. The controls stop propagation, so they call this themselves.
+const noSleep = window.NoSleep ? new window.NoSleep() : null;
+const standalone = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+function activate() {
+  const el = document.documentElement;
+  if (!standalone && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  if (settings.keepAwake && noSleep && !noSleep.isEnabled) Promise.resolve(noSleep.enable()).catch(() => {});
+}
+document.addEventListener('click', activate);
+// The OS pauses the keep-awake video (or drops the wake lock) while the page is hidden; disable it so the next tap re-arms it.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && noSleep && noSleep.isEnabled) noSleep.disable();
+});
+
 $('btnRotate').addEventListener('click', e => {
   e.stopPropagation();
+  activate();
   settings = saveSettings(store, { ...settings, rotation: nextRotation(settings.rotation) });
   applyLayout();
 });
 
 $('btnClose').addEventListener('click', e => {
   e.stopPropagation();
+  activate(); // first: it requests full screen only when not in it, so the exit below still applies
+  $('settings').hidden = true;
   $('blank').hidden = false; // a page can't close itself on iOS: blank the screen until tapped
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 });
 $('blank').addEventListener('click', () => { $('blank').hidden = true; });
-
-const noSleep = window.NoSleep ? new window.NoSleep() : null;
-const standalone = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
-document.addEventListener('click', () => {
-  const el = document.documentElement;
-  if (!standalone && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
-  if (settings.keepAwake && noSleep && !noSleep.isEnabled) Promise.resolve(noSleep.enable()).catch(() => {});
-});
 
 const form = $('settings');
 function fillSettings() {
@@ -198,7 +226,7 @@ function readSettings() {
   if (!settings.keepAwake && noSleep && noSleep.isEnabled) noSleep.disable();
   apply(mood.tick(Date.now()));
 }
-$('btnSettings').addEventListener('click', e => { e.stopPropagation(); fillSettings(); form.hidden = false; });
+$('btnSettings').addEventListener('click', e => { e.stopPropagation(); activate(); fillSettings(); form.hidden = false; });
 form.addEventListener('change', readSettings);
 $('settingsDone').addEventListener('click', () => { form.hidden = true; fillSettings(); });
 

@@ -61,6 +61,19 @@ test('jumping_joy chains to happy; a new base then takes over at once', () => {
   assert.equal(pl.cur.hold, true);
 });
 
+test('a base change made during a chained one-shot is not lost to the loop it chains to', () => {
+  const pl = new Player({ rand: () => 0.99 });
+  pl.play('jumping_joy');
+  run(pl, 320);
+  pl.setBase('working');
+  assert.equal(pl.cur.name, 'jumping_joy'); // the one-shot finishes first
+  run(pl, 640);
+  assert.equal(pl.cur.name, 'happy'); // chained and looping, but not the base
+  pl.setBase('idle');
+  assert.equal(pl.cur.name, 'idle');
+  assert.equal(pl.cur.hold, true);
+});
+
 test('a two-item base cycles surprised and curious', () => {
   const pl = new Player({ rand: () => 0.99 });
   pl.setBase(['surprised', 'curious']);

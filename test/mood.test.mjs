@@ -109,6 +109,14 @@ test('week or Fable near the cap only shows while idle', () => {
   assert.equal(m.onSnapshot(snap([sess('reading', { detail: 'r' })], { fable: { pct: 100, resetsAt: null } }), T0 + 2).base, 'reading');
 });
 
+test('a week or Fable limit at 100% still yawns and sleeps once quiet', () => {
+  const m = createMood({ sleepAfterMin: 5 }, { rand: mid });
+  assert.equal(m.onSnapshot(snap([sess('done')], { fable: { pct: 100, resetsAt: null } }), T0).base, 'overloaded');
+  assert.equal(m.tick(T0 + 4 * MIN), null);
+  assert.deepEqual(m.tick(T0 + 5 * MIN), { base: 'yawning', play: [], bubble: null, dim: false });
+  assert.deepEqual(m.tick(T0 + 5 * MIN + 2500), { base: 'sleeping', play: [], bubble: { text: 'Zzz…', tone: '' }, dim: true });
+});
+
 test('a reset celebrates (jumping joy, happy, cool, idle) and waits while busy', () => {
   const m = createMood({}, { rand: mid });
   m.onSnapshot(snap([sess('done')], five(100)), T0);
@@ -123,6 +131,20 @@ test('a reset celebrates (jumping joy, happy, cool, idle) and waits while busy',
   assert.deepEqual(busy.onSnapshot(snap([sess('done')], five(3)), T0 + 5000).play, ['jumping_joy']);
 });
 
+test('a celebration that waited for work survives the stop that ends the work', () => {
+  const m = createMood({}, { rand: mid });
+  m.onSnapshot(snap([sess('working', { detail: 'x' })], five(40)), T0);
+  assert.equal(m.onSnapshot(snap([sess('working', { detail: 'x' })], five(3)), T0 + 1000), null);
+  m.onSnapshot(snap([sess('done')], five(3)), T0 + 5000); // the server sends the Stop snapshot first,
+  const s = m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 5005); // then the stop event
+  assert.deepEqual([s.base, s.play], ['happy_eyes', ['surprised']]);
+  assert.equal(m.onSnapshot(snap([sess('done')], five(3)), T0 + 6000), null); // "Your turn" is not cut short
+  assert.equal(m.tick(T0 + 7000), null);
+  const c = m.tick(T0 + 8005); // the done moment has passed
+  assert.ok(c && c.play.includes('jumping_joy'), JSON.stringify(c));
+  assert.equal(c.base, 'happy');
+});
+
 test('errors show for 5 s; the third in a row is angry; a prompt resets the count', () => {
   const m = createMood({}, { rand: mid });
   m.onSnapshot(snap([sess('error', { detail: 'Error' })]), T0);
@@ -132,6 +154,25 @@ test('errors show for 5 s; the third in a row is angry; a prompt resets the coun
   assert.equal(m.tick(T0 + 5004).base, 'idle');
   m.onEvent({ type: 'prompt', sessionId: 's1' }, T0 + 6000);
   assert.equal(m.onEvent({ type: 'error', sessionId: 's1' }, T0 + 7000).base, 'error');
+});
+
+test('an error from a background session does not interrupt a busy focus session, but still counts', () => {
+  const m = createMood({}, { rand: mid });
+  const two = detail => snap([sess('working', { id: 'A', detail }), sess('error', { id: 'B', detail: 'Error' })], {}, 'A');
+  m.onSnapshot(two('a'), T0);
+  assert.equal(m.onEvent({ type: 'error', sessionId: 'B' }, T0 + 10), null);
+  assert.deepEqual(m.onSnapshot(two('b'), T0 + 20), { base: 'working', play: [], bubble: { text: 'b', tone: '' }, dim: false });
+  assert.equal(m.onEvent({ type: 'error', sessionId: 'A' }, T0 + 1000).base, 'error');
+  assert.equal(m.onEvent({ type: 'error', sessionId: 'A' }, T0 + 2000).base, 'angry');
+});
+
+test('a new session: curious while idle, nothing while busy', () => {
+  const m = createMood({}, { rand: mid });
+  m.onSnapshot(snap([sess('done')]), T0);
+  assert.deepEqual(m.onEvent({ type: 'sessionStart', sessionId: 's2' }, T0 + 10), { base: 'idle', play: ['curious'], bubble: null, dim: false });
+  const b = createMood({}, { rand: mid });
+  b.onSnapshot(snap([sess('working', { detail: 'x' })]), T0);
+  assert.equal(b.onEvent({ type: 'sessionStart', sessionId: 's2' }, T0 + 10), null);
 });
 
 test('quiet for sleepAfter: yawn, then sleep dimmed; activity wakes with yawn, surprised, love', () => {
