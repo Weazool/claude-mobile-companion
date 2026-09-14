@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { normPct, parseUsage, fetchUsage, createLimitsPoller, CLAUDE_ARGS } from '../src/server/limits.mjs';
@@ -72,6 +75,39 @@ test('fetchUsage: initialize, then get_usage, then parse', async () => {
   assert.equal(r.asOf, 9);
   assert.equal(rec.opts.env.DESK_COMPANION_INTERNAL, '1');
   assert.ok(CLAUDE_ARGS.includes('--safe-mode'));
+});
+
+test('fetchUsage runs claude in the data dir, with no current-directory search for claude.cmd', async () => {
+  const prev = process.env.DESK_COMPANION_HOME;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dc-lim-'));
+  process.env.DESK_COMPANION_HOME = home;
+  try {
+    const rec = {};
+    await fetchUsage({ spawnImpl: fakeSpawn((m, out) => out(reply(m.request_id, 'error', {})), rec) });
+    assert.equal(rec.opts.cwd, path.join(home, '.desk-companion'));
+    assert.equal(rec.opts.env.NoDefaultCurrentDirectoryInExePath, '1');
+    assert.equal(rec.opts.env.DESK_COMPANION_INTERNAL, '1');
+  } finally {
+    if (prev === undefined) delete process.env.DESK_COMPANION_HOME; else process.env.DESK_COMPANION_HOME = prev;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('fetchUsage survives an asynchronous EPIPE on the child stdin and still resolves', async () => {
+  let child;
+  const spawnImpl = () => {
+    child = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.stdin = new Writable({ write(chunk, enc, cb) { cb(Object.assign(new Error('write EPIPE'), { code: 'EPIPE' })); } });
+    return child;
+  };
+  const p = fetchUsage({ spawnImpl, timeoutMs: 1000, killAfterMs: 10, kill: () => {} });
+  await new Promise(r => setTimeout(r, 20)); // the stdin 'error' event fires asynchronously
+  child.emit('exit', 1);
+  assert.equal((await p).reason, 'exit');
+  // A child without a stdin pipe is tolerated too.
+  const bare = await fetchUsage({ spawnImpl: () => { const c = new EventEmitter(); c.stdout = new PassThrough(); setTimeout(() => c.emit('exit', 1), 5); return c; }, killAfterMs: 10, kill: () => {} });
+  assert.equal(bare.reason, 'exit');
 });
 
 test('fetchUsage: init error, timeout and spawn failure are unavailable', async () => {

@@ -30,3 +30,10 @@ test('pair page loads the vendored QR library and the pair-info API', () => {
   assert.ok(html.includes("fetch('/api/pair-info')"));
   assert.ok(html.includes('<iframe id="dash" src="/"'));
 });
+
+test('pair page alternatives are clickable, and data only ever goes in as text', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'src/web/pair.html'), 'utf8');
+  assert.ok(html.includes('data-url'));
+  assert.equal(html.match(/innerHTML/g).length, 1); // the generated QR SVG only
+  assert.match(html, /\.innerHTML = qr\.createSvgTag\(/);
+});

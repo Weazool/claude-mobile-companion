@@ -1,4 +1,5 @@
 import { spawn as nodeSpawn } from 'node:child_process';
+import { dataDir } from './paths.mjs';
 
 // On Windows the child is cmd.exe (shell: true); taskkill /T also ends the claude process under it.
 export function killTree(child) {
@@ -43,10 +44,13 @@ export function parseUsage(resp, now) {
   return { status: 'ok', asOf: now, fiveHour: windowOf(rl.five_hour), week: windowOf(rl.seven_day), fable: windowOf(fable) };
 }
 
-export function fetchUsage({ spawnImpl = nodeSpawn, command = 'claude', timeoutMs = 20000, now = Date.now, killAfterMs = 2000, kill = killTree } = {}) {
+// The child runs in the data dir, never in a project folder, and with NoDefaultCurrentDirectoryInExePath set,
+// so cmd.exe cannot pick up a claude.cmd/.bat/.exe planted in its current directory.
+export function fetchUsage({ spawnImpl = nodeSpawn, command = 'claude', timeoutMs = 20000, now = Date.now, killAfterMs = 2000, kill = killTree, cwd = dataDir() } = {}) {
   return new Promise(resolve => {
     const fail = reason => ({ ...EMPTY, reason });
-    const opts = { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, env: { ...process.env, DESK_COMPANION_INTERNAL: '1' } };
+    const opts = { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, cwd,
+                   env: { ...process.env, DESK_COMPANION_INTERNAL: '1', NoDefaultCurrentDirectoryInExePath: '1' } };
     let child;
     try {
       child = process.platform === 'win32'
@@ -56,6 +60,9 @@ export function fetchUsage({ spawnImpl = nodeSpawn, command = 'claude', timeoutM
       resolve(fail('spawn'));
       return;
     }
+    // EPIPE arrives as an asynchronous 'error' event when claude exits before our write lands; unhandled, it
+    // would end the server.
+    if (child.stdin) child.stdin.on('error', () => {});
     let buf = '';
     let settled = false;
     let exited = false;

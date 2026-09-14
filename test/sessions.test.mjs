@@ -63,6 +63,38 @@ test('a turn: start, prompt, notification, tool, stop', () => {
   assert.equal(st.list()[0].detail, 'Your turn');
 });
 
+test('classify: Notification types', () => {
+  const n = notification_type => classify({ hook_event_name: 'Notification', notification_type });
+  assert.deepEqual(n('permission_prompt'), { needsYou: true, detail: 'Needs permission', discrete: 'needsYou' });
+  assert.deepEqual(n('elicitation_dialog'), { needsYou: true, detail: 'Has a question', discrete: 'needsYou' });
+  assert.deepEqual(n('idle_prompt'), { detail: 'Waiting for you' });
+  assert.equal(n('auth_success'), null);
+  assert.deepEqual(n('something_new'), { needsYou: true, detail: 'Needs you', discrete: 'needsYou' });
+  assert.deepEqual(n(undefined), { needsYou: true, detail: 'Needs you', discrete: 'needsYou' });
+});
+
+test('Notification types through the store: session A is done, session B is compiling', () => {
+  const after = type => {
+    const st = new SessionStore();
+    st.apply({ ...ev('PreToolUse', { tool_name: 'Bash', target: 'npm test', build: true }), session_id: 'B' }, 1000);
+    st.apply({ ...ev('Stop'), session_id: 'A' }, 2000);
+    const r = st.apply({ ...ev('Notification', { notification_type: type }), session_id: 'A' }, 62000);
+    const a = st.list().find(s => s.id === 'A');
+    return { r, needsYou: a.needsYou, detail: a.detail, activity: a.activity, focus: st.focusId() };
+  };
+  assert.deepEqual(after('permission_prompt'),
+    { r: { discrete: 'needsYou' }, needsYou: true, detail: 'Needs permission', activity: 'done', focus: 'A' });
+  assert.deepEqual(after('elicitation_dialog'),
+    { r: { discrete: 'needsYou' }, needsYou: true, detail: 'Has a question', activity: 'done', focus: 'A' });
+  // idle_prompt comes about a minute after every Stop: a softer detail, never needsYou, never the focus.
+  assert.deepEqual(after('idle_prompt'),
+    { r: { discrete: null }, needsYou: false, detail: 'Waiting for you', activity: 'done', focus: 'B' });
+  assert.deepEqual(after('auth_success'),
+    { r: null, needsYou: false, detail: 'Your turn', activity: 'done', focus: 'B' });
+  assert.deepEqual(after('something_new'),
+    { r: { discrete: 'needsYou' }, needsYou: true, detail: 'Needs you', activity: 'done', focus: 'A' });
+});
+
 test('StopFailure distinguishes rate limits from other errors', () => {
   const st = new SessionStore();
   assert.deepEqual(st.apply(ev('StopFailure', { error: 'rate_limit' }), 1), { discrete: 'rateLimited' });

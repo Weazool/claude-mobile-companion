@@ -40,6 +40,15 @@ function classifyTool(name, target, build) {
   return { ...r, activity: 'working', detail: toolLabel(name) || 'Working' };
 }
 
+// Only prompts that block Claude need you. idle_prompt arrives about a minute after every Stop, so it only
+// softens the detail: it must not take the focus from a working session or keep the companion awake.
+function classifyNotification(type) {
+  if (type === 'auth_success') return null;
+  if (type === 'idle_prompt') return { detail: 'Waiting for you' };
+  const detail = type === 'permission_prompt' ? 'Needs permission' : type === 'elicitation_dialog' ? 'Has a question' : 'Needs you';
+  return { needsYou: true, detail, discrete: 'needsYou' };
+}
+
 // Returns the changes one sanitised hook event makes to its session (spec §3 table), or null.
 export function classify(evt) {
   switch (evt.hook_event_name) {
@@ -47,11 +56,7 @@ export function classify(evt) {
     case 'SessionEnd': return { remove: true };
     case 'UserPromptSubmit': return { activity: 'thinking', detail: 'Thinking…', needsYou: false, discrete: 'prompt' };
     case 'PostToolUse': return { activity: 'thinking', detail: 'Thinking…', needsYou: false };
-    case 'Notification': {
-      const t = evt.notification_type;
-      const detail = t === 'permission_prompt' ? 'Needs permission' : t === 'idle_prompt' ? 'Waiting for you' : 'Needs you';
-      return { needsYou: true, detail, discrete: 'needsYou' };
-    }
+    case 'Notification': return classifyNotification(evt.notification_type);
     case 'Stop': return { activity: 'done', detail: 'Your turn', needsYou: false, discrete: 'stop' };
     case 'StopFailure':
       return evt.error === 'rate_limit'

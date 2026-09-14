@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { createApp, tokenMatches, isLoopback } from '../src/server/http.mjs';
+import { createApp, tokenMatches, isLoopback, isLoopbackHost } from '../src/server/http.mjs';
 import { buildSnapshot, EMPTY_LIMITS } from '../src/server/snapshot.mjs';
 
 const TOKEN = 'f'.repeat(32);
@@ -40,6 +40,7 @@ function req(port, method, p, headers = {}, body) {
       res.on('data', d => { b += d; });
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b }));
     });
+    r.setTimeout(3000, () => r.destroy(new Error(`no response to ${method} ${p}`)));
     r.on('error', reject);
     r.end(body);
   });
@@ -79,6 +80,20 @@ test('tokenMatches is exact', () => {
   assert.equal(tokenMatches(undefined, TOKEN), false);
 });
 
+test('tokenMatches compares bytes, so non-ASCII input is just a mismatch', () => {
+  assert.equal(tokenMatches('é'.repeat(32), TOKEN), false); // 32 chars, 64 bytes
+  assert.equal(tokenMatches('é'.repeat(16), TOKEN), false); // 16 chars, 32 bytes
+});
+
+test('a non-ASCII token in the query or the cookie gets 403 and the server keeps serving', async t => {
+  const { app, port } = await start();
+  t.after(() => app.close());
+  assert.equal((await req(port, 'GET', '/?k=' + '%C3%A9'.repeat(32))).status, 403);
+  assert.equal((await req(port, 'GET', `/?k=${TOKEN}`)).status, 200);
+  assert.equal((await req(port, 'GET', '/', { cookie: 'dc=' + 'é'.repeat(32) })).status, 403);
+  assert.equal((await req(port, 'GET', `/?k=${TOKEN}`)).status, 200);
+});
+
 test('isLoopback accepts IPv4, IPv6 and IPv4-mapped loopback only', () => {
   const r = a => isLoopback({ socket: { remoteAddress: a } });
   assert.equal(r('127.0.0.1'), true);
@@ -87,6 +102,35 @@ test('isLoopback accepts IPv4, IPv6 and IPv4-mapped loopback only', () => {
   assert.equal(r('192.168.1.5'), false);
   assert.equal(r('::ffff:192.168.1.5'), false);
   assert.equal(r(undefined), false);
+});
+
+test('isLoopbackHost accepts only loopback host names, on any port', () => {
+  for (const h of ['localhost:1', '127.0.0.1:5', '[::1]:9', 'LOCALHOST', 'localhost', '127.0.0.1:52193']) {
+    assert.equal(isLoopbackHost(h), true, h);
+  }
+  for (const h of ['evil.example', 'evil.example:52193', '127.0.0.1.evil.example', 'localhost.evil.example:1', '', undefined, '::1', '192.168.1.5:52193']) {
+    assert.equal(isLoopbackHost(h), false, String(h));
+  }
+});
+
+test('a loopback address with a foreign Host is not exempt (DNS rebinding)', async t => {
+  const { app, port, hooks, devLimits, loopback } = await start();
+  t.after(() => app.close());
+  loopback(true);
+  const evil = { host: `evil.example:${port}` };
+  for (const p of ['/', '/api/pair-info', '/pair', '/api/health', '/web/pair.html', '/web/style.css', '/events']) {
+    assert.equal((await req(port, 'GET', p, evil)).status, 403, p);
+  }
+  const body = JSON.stringify({ hook_event_name: 'Stop', session_id: 's' });
+  assert.equal((await req(port, 'POST', '/api/hook', { ...evil, 'x-dc-token': TOKEN }, body)).status, 403);
+  assert.equal((await req(port, 'POST', '/api/dev/limits', { ...evil, 'x-dc-token': TOKEN }, '{}')).status, 403);
+  assert.deepEqual([hooks, devLimits], [[], []]);
+  // It can still log in with the token, but that never opens the loopback-only routes.
+  assert.equal((await req(port, 'GET', `/?k=${TOKEN}`, evil)).status, 200);
+  assert.equal((await req(port, 'GET', `/api/pair-info?k=${TOKEN}`, evil)).status, 403);
+  // Loopback names on any port stay exempt.
+  assert.equal((await req(port, 'GET', '/', { host: `localhost:${port}` })).status, 200);
+  assert.equal((await req(port, 'GET', '/api/pair-info', { host: `localhost:${port}` })).status, 200);
 });
 
 test('pair.html stays loopback-only under /web/', async () => {
@@ -106,6 +150,17 @@ test('dashboard needs the token from a remote client and sets the cookie', async
   assert.match(ok.headers['set-cookie'][0], new RegExp(`^dc=${TOKEN}; HttpOnly`));
   assert.equal((await req(port, 'GET', '/', { cookie: `dc=${TOKEN}` })).status, 200);
   app.close();
+});
+
+test('loopback requests get no token cookie (cookies are not port-scoped)', async t => {
+  const { app, port, loopback } = await start();
+  t.after(() => app.close());
+  loopback(true);
+  for (const p of ['/', `/?k=${TOKEN}`]) {
+    const r = await req(port, 'GET', p);
+    assert.equal(r.status, 200, p);
+    assert.equal(r.headers['set-cookie'], undefined, p);
+  }
 });
 
 test('static files: token or loopback required, manifest public, no traversal', async () => {

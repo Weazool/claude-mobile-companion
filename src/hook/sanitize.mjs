@@ -1,21 +1,39 @@
 import path from 'node:path';
 
-// Spec §3 build/test pattern. It is tested against the FULL command here; only the boolean leaves the forwarder.
+// Spec §3 build/test pattern. It is tested here against the command after any leading `cd <dir> &&` segments
+// and NAME=value assignments; only the boolean leaves the forwarder.
 export const BUILD_RE = /^(npm|pnpm|yarn|bun)\s+(run\s+)?(test|build)\b|^(pytest|jest|vitest|tsc|make|mvn|gradle)\b|^(cargo|go|dotnet)\s+(build|test)\b|^pio\s+run\b/;
 
-const SAFE_WORD = /^[\w.\-/]+$/;
+// Programs whose first argument is a subcommand worth showing: `git status`, `npm test`.
+export const SUBCOMMAND_PROGRAMS = new Set(['git', 'npm', 'pnpm', 'yarn', 'bun', 'npx', 'cargo', 'go', 'dotnet', 'docker',
+  'kubectl', 'gh', 'pip', 'pip3', 'uv', 'poetry', 'make', 'gradle', 'mvn', 'deno', 'brew', 'winget', 'claude']);
+const PROGRAM_RE = /^[A-Za-z0-9][\w.+-]{0,23}$/;
+const SUBCOMMAND_RE = /^[a-z][a-z0-9-]{0,15}$/;
+// A leading `cd <dir> &&` or `cd <dir>;` segment, or a `NAME=value ` assignment.
+const PREFIX = /^(?:cd\s+(?:"[^"]*"|'[^']*'|[^\s"';&|])+\s*(?:&&|;)|[A-Za-z_]\w*=(?:"[^"]*"|'[^']*'|[^\s"'])*(?=\s))\s*/;
+// The first shell word, with its quotes kept, so a quoted path stays one word.
+const WORD = /^(?:"[^"]*"?|'[^']*'?|[^\s"'])+/;
 const PASS = ['tool_name', 'notification_type', 'source', 'permission_mode'];
 const str = v => (typeof v === 'string' ? v : '');
 
-// Up to three leading words, stopping at the first word that could carry a secret (quotes, =, $ …).
+// The command without its leading `cd <dir> &&` / `cd <dir>;` segments and NAME=value assignments.
+export function commandBody(command) {
+  let s = String(command || '').trim();
+  for (let m = PREFIX.exec(s); m; m = PREFIX.exec(s)) s = s.slice(m[0].length);
+  return s;
+}
+
+// What the phone may see of a command: the program's name and, for common dev tools, one plain subcommand
+// word. Arguments carry passwords, tokens and paths, so nothing else from the command line is forwarded.
 export function bashTarget(command) {
-  const words = String(command || '').trim().split(/\s+/).filter(Boolean);
-  const out = [];
-  for (const w of words.slice(0, 3)) {
-    if (!SAFE_WORD.test(w)) break;
-    out.push(w);
-  }
-  return out.join(' ').slice(0, 24);
+  const s = commandBody(command);
+  const first = WORD.exec(s);
+  if (!first) return '';
+  const program = first[0].split(/[\\/]/).pop().replace(/\.(exe|cmd|bat)$/i, '');
+  if (!PROGRAM_RE.test(program)) return '';
+  const next = (/^\s*(\S+)/.exec(s.slice(first[0].length)) || [])[1] || '';
+  const out = SUBCOMMAND_PROGRAMS.has(program) && SUBCOMMAND_RE.test(next) ? `${program} ${next}` : program;
+  return out.slice(0, 24);
 }
 
 export function fileTarget(input) {
@@ -45,9 +63,9 @@ export function sanitize(raw, env = {}, now = Date.now()) {
   if (out.tool_name) {
     const input = r.tool_input && typeof r.tool_input === 'object' ? r.tool_input : {};
     if (out.tool_name === 'Bash') {
-      const cmd = String(input.command || '').trim();
+      const cmd = String(input.command || '');
       out.target = bashTarget(cmd);
-      out.build = BUILD_RE.test(cmd);
+      out.build = BUILD_RE.test(commandBody(cmd));
     } else {
       out.target = fileTarget(input);
     }

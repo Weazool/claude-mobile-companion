@@ -17,18 +17,55 @@ test('keeps only whitelisted fields and never leaks prompts, inputs or outputs',
   assert.doesNotMatch(JSON.stringify(e), /SECRET/);
 });
 
-test('bashTarget keeps up to three safe leading words, max 24 chars', () => {
-  assert.equal(bashTarget('npm run build'), 'npm run build');
+const bash = command => sanitize({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'Bash', tool_input: { command } });
+
+test('bashTarget: the program name, plus one subcommand for common dev tools', () => {
+  const cases = [
+    ['npm test', 'npm test'],
+    ['git status', 'git status'],
+    ['cargo build --release', 'cargo build'],
+    ['cd /c/Users/weazo/GitHub/my_claude_companion && git status', 'git status'],
+    ['mysql -uroot -pS3cr3tPw app', 'mysql'],
+    ['sshpass -p hunter2 ssh host', 'sshpass'],
+    ['redis-cli -a Pa55word ping', 'redis-cli'],
+    ['echo hunter2', 'echo'],
+    ['FOO=bar npm test', 'npm test'],
+    ['/usr/local/bin/node --test', 'node'],
+    ['"C:\\Program Files\\x.exe" y', ''],
+    ['ls -la', 'ls'],
+  ];
+  for (const [cmd, want] of cases) {
+    assert.equal(bashTarget(cmd), want, cmd);
+    assert.equal(bash(cmd).target, want, `sanitize: ${cmd}`);
+  }
+});
+
+test('bashTarget: arguments, paths and secrets never pass', () => {
+  assert.equal(bashTarget('npm run build'), 'npm run'); // was 'npm run build' (three words)
   assert.equal(bashTarget('  git   status  '), 'git status');
-  assert.equal(bashTarget('curl -H "Authorization: Bearer abc"'), 'curl -H');
+  assert.equal(bashTarget('curl -H "Authorization: Bearer abc"'), 'curl'); // was 'curl -H'
   assert.equal(bashTarget('export API_KEY=abc123'), 'export');
   assert.equal(bashTarget('echo $SECRET'), 'echo');
-  assert.equal(bashTarget('a-very-long-program-name-here --flag'), 'a-very-long-program-name');
+  assert.equal(bashTarget('a-very-long-program-name-here --flag'), ''); // was cut to 24 chars; now not a program name
   assert.equal(bashTarget(''), '');
+  assert.equal(bashTarget('cd "C:\\My Projects\\app"; cd sub && API_KEY=sk-123 TOKEN="a b" npm test'), 'npm test');
+  assert.equal(bashTarget('C:\\tools\\git.exe -C /x status'), 'git');
+  assert.equal(bashTarget('npm.cmd install left-pad'), 'npm install');
+  assert.equal(bashTarget('git push https://tok@github.com/x.git'), 'git push');
+  assert.equal(bashTarget('echo sk-ant-api03-AbCdEf'), 'echo');
+  assert.equal(bashTarget('cat /Users/bob/.ssh/id_ed25519'), 'cat');
+  assert.equal(bashTarget('cd /c/Users/bob/secret-project'), 'cd');
+  assert.equal(bashTarget('API_KEY=abc'), '');
+  assert.equal(bashTarget('$(cat secret) --x'), '');
+  assert.equal(bashTarget('kubectl a-very-long-subcommand'), 'kubectl');
+  assert.equal(bashTarget('git S3cret'), 'git');
+  const e = bash('cd /c/Users/SECRET-USER/proj && mysql -uroot -pSECRET-PW app');
+  assert.equal(e.target, 'mysql');
+  assert.doesNotMatch(JSON.stringify(e), /SECRET/);
 });
 
 test('build flag is computed from the full command', () => {
-  const b = cmd => sanitize({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'Bash', tool_input: { command: cmd } }).build;
+  const b = cmd => bash(cmd).build;
   assert.equal(b('npm run build'), true);
   assert.equal(b('npm test'), true);
   assert.equal(b('cargo test --release'), true);
@@ -36,6 +73,12 @@ test('build flag is computed from the full command', () => {
   assert.equal(b('npm install'), false);
   assert.equal(b('git status'), false);
   assert.ok(BUILD_RE.test('pytest -q'));
+});
+
+test('build flag skips leading cd segments and assignments', () => {
+  assert.deepEqual([bash('cd /x && npm run build').build, bash('cd /x && npm run build').target], [true, 'npm run']);
+  assert.equal(bash('cd /x; FOO=1 cargo test').build, true);
+  assert.equal(bash('cd /x && git status').build, false);
 });
 
 test('fileTarget takes the basename of file_path, notebook_path or path', () => {

@@ -23,6 +23,11 @@ export function readJson(file) {
   }
 }
 
+// A random port in 50000-60000.
+export function randomPort(randomBytes = crypto.randomBytes) {
+  return 50000 + (randomBytes(2).readUInt16BE(0) % 10001);
+}
+
 // Creates ~/.desk-companion/config.json on first run and repairs invalid fields.
 // Port and token persist so a bookmarked phone URL keeps working across restarts.
 export function loadOrCreateConfig(home = homeDir(), randomBytes = crypto.randomBytes) {
@@ -32,7 +37,7 @@ export function loadOrCreateConfig(home = homeDir(), randomBytes = crypto.random
   if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) cfg = {};
   let changed = false;
   if (!Number.isInteger(cfg.port) || cfg.port < 1024 || cfg.port > 65535) {
-    cfg.port = 50000 + (randomBytes(2).readUInt16BE(0) % 10001);
+    cfg.port = randomPort(randomBytes);
     changed = true;
   }
   if (typeof cfg.token !== 'string' || !/^[0-9a-f]{32}$/.test(cfg.token)) {

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Claude Code hook forwarder (spec §1). Never blocks Claude, never prints, always exits 0.
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -36,11 +37,13 @@ function request(method, port, urlPath, token, body, timeoutMs) {
   });
 }
 
+// Hooks run in the session's project folder. The server must not inherit it: Windows locks a process's cwd
+// against rename and delete. The home dir always exists; the server then moves into its data dir.
 function spawnServer() {
   if (process.env.DESK_COMPANION_NO_SPAWN) return;
   try {
     spawn(process.execPath, [path.join(ROOT, 'bin', 'server.mjs')],
-      { detached: true, stdio: 'ignore', windowsHide: true, env: process.env }).unref();
+      { detached: true, stdio: 'ignore', windowsHide: true, env: process.env, cwd: os.homedir() }).unref();
   } catch (e) {
     log(`spawn failed: ${e.message}`);
   }

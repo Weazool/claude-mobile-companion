@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // Prints the phone URLs, starting the server first if needed.
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { homeDir, loadOrCreateConfig } from '../src/server/paths.mjs';
+import { homeDir, dataFile, readJson, loadOrCreateConfig } from '../src/server/paths.mjs';
 import { phoneUrls } from '../src/server/net.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const cfg = loadOrCreateConfig(homeDir());
+let cfg = loadOrCreateConfig(homeDir());
 
 function health() {
   return new Promise(resolve => {
@@ -21,11 +22,20 @@ function health() {
   });
 }
 
+// A server that finds its port reserved moves to a new one and saves it in config.json.
+function reloadConfig() {
+  const c = readJson(dataFile('config.json', homeDir()));
+  if (c && Number.isInteger(c.port) && typeof c.token === 'string') cfg = c;
+}
+
 async function ensureServer() {
   if (await health()) return true;
-  spawn(process.execPath, [path.join(ROOT, 'bin', 'server.mjs')], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  // Never the session's project folder as the server's cwd (Windows would lock that folder).
+  spawn(process.execPath, [path.join(ROOT, 'bin', 'server.mjs')],
+    { detached: true, stdio: 'ignore', windowsHide: true, cwd: os.homedir() }).unref();
   for (let i = 0; i < 30; i++) {
     await new Promise(r => setTimeout(r, 100));
+    reloadConfig();
     if (await health()) return true;
   }
   return false;

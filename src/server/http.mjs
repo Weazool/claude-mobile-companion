@@ -10,14 +10,24 @@ const TYPES = {
 };
 const PUBLIC = new Set(['manifest.webmanifest', 'icon.png']); // browsers fetch manifests without cookies
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+const LOOPBACK_HOST = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i;
 
 export function isLoopback(req) {
   return LOOPBACK.has(req.socket.remoteAddress);
 }
 
+// DNS rebinding guard: a web page whose own name was rebound to 127.0.0.1 reaches us from a loopback
+// address, but its requests still carry its own name in Host.
+export function isLoopbackHost(host) {
+  return typeof host === 'string' && LOOPBACK_HOST.test(host);
+}
+
+// Compares bytes, not characters: 'é' is one UTF-16 unit but two UTF-8 bytes, and timingSafeEqual throws
+// on buffers of different lengths.
 export function tokenMatches(given, token) {
-  if (typeof given !== 'string' || typeof token !== 'string' || given.length !== token.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(token));
+  if (typeof given !== 'string' || typeof token !== 'string') return false;
+  const a = Buffer.from(given), b = Buffer.from(token);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 function cookies(req) {
@@ -58,13 +68,17 @@ export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, ge
     res.writeHead(200, { 'content-type': TYPES[path.extname(abs)] || 'application/octet-stream', 'cache-control': 'no-cache', ...extra }).end(buf);
   });
 
+  // Everything runs inside the try: the handler is async, so a throw outside it would be an unhandled
+  // rejection, which ends the process.
   const server = http.createServer(async (req, res) => {
-    let url;
-    try { url = new URL(req.url, 'http://localhost'); } catch { return deny(res, 400); }
-    const p = url.pathname;
-    const loop = isLoopbackReq(req);
-    const authed = loop || tokenMatches(url.searchParams.get('k'), token) || tokenMatches(cookies(req).dc, token);
+    let p = '';
     try {
+      let url;
+      try { url = new URL(req.url, 'http://localhost'); } catch { return deny(res, 400); }
+      p = url.pathname;
+      // The loopback exemption needs a loopback address AND a loopback Host (spec §2).
+      const loop = isLoopbackReq(req) && isLoopbackHost(req.headers.host);
+      const authed = loop || tokenMatches(url.searchParams.get('k'), token) || tokenMatches(cookies(req).dc, token);
       if (req.method === 'POST' && (p === '/api/hook' || p === '/api/dev/limits')) {
         if (!loop || !tokenMatches(req.headers['x-dc-token'], token)) return deny(res);
         const body = JSON.parse(await readBody(req, 65536));
@@ -85,8 +99,10 @@ export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, ge
       }
       if (!authed) return deny(res);
       if (p === '/') {
+        // The cookie is only for token logins from other devices. Loopback never needs it, and cookies
+        // ignore ports, so one set on localhost would be sent to every other local service.
         return serveFile(res, path.join(root, 'index.html'),
-          { 'set-cookie': `dc=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000` });
+          loop ? {} : { 'set-cookie': `dc=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000` });
       }
       if (p === '/events') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });

@@ -15,6 +15,9 @@
     code { display: block; word-break: break-all; background: #1b1b24; padding: 10px 12px; border-radius: 8px; margin: 14px 0; }
     a { color: #d97757; }
     .dim { color: #8a8a93; font-size: 14px; }
+    #alts button { display: block; width: 100%; margin: 6px 0 0; padding: 6px 10px; border: 1px solid #2a2a35; border-radius: 8px;
+                   background: none; color: #d97757; font: inherit; font-size: 13px; text-align: left; word-break: break-all; cursor: pointer; }
+    #alts button:hover { background: #1b1b24; }
   </style>
 </head>
 <body>
@@ -35,15 +38,38 @@
   </main>
   <script src="/web/vendor/qrcode.js"></script>
   <script>
-    fetch('/api/pair-info').then(r => r.json()).then(info => {
-      const url = info.urls[0];
-      if (!url) { document.getElementById('url').textContent = 'No Wi-Fi address found on this PC.'; return; }
+    let urls = [];
+    // Draws the QR code and the text for one URL. Every other address becomes a button that switches to it,
+    // for when the first address belongs to an adapter the phone can't reach. Data only goes in as text.
+    function show(url) {
       const qr = qrcode(0, 'M');
       qr.addData(url);
       qr.make();
       document.getElementById('qr').innerHTML = qr.createSvgTag(6, 0);
       document.getElementById('url').textContent = url;
-      document.getElementById('alts').textContent = info.urls.length > 1 ? 'Also: ' + info.urls.slice(1).join('  ·  ') : '';
+      const alts = document.getElementById('alts');
+      alts.textContent = '';
+      const others = urls.filter(u => u !== url);
+      if (!others.length) return;
+      const label = document.createElement('div');
+      label.textContent = 'Phone can’t connect? Try another address:';
+      alts.append(label);
+      for (const u of others) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('data-url', u);
+        b.textContent = u;
+        alts.append(b);
+      }
+    }
+    document.getElementById('alts').addEventListener('click', e => {
+      const b = e.target.closest('button[data-url]');
+      if (b) show(b.getAttribute('data-url'));
+    });
+    fetch('/api/pair-info').then(r => r.json()).then(info => {
+      urls = info.urls;
+      if (!urls[0]) { document.getElementById('url').textContent = 'No Wi-Fi address found on this PC.'; return; }
+      show(urls[0]);
       document.getElementById('status').textContent =
         `${info.sessions} session(s) tracked · limits: ${info.limits} · ${info.pages} dashboard page(s) connected`;
     });
