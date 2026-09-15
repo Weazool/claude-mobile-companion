@@ -3,7 +3,8 @@
 // The defaults reproduce the companion as it was before the map existed (mood.js and the Player's calm idle).
 
 // How a behaviour uses its animations. list: a list of names (else one name); max: the longest list;
-// oneShots: only clips that finish (loop: false), because the companion plays them and moves on.
+// oneShots: only clips that finish (loop: false). No slot needs it now: a looping clip used as a moment plays one
+// full cycle, then the companion moves on (the Player's once).
 //   base: what he does while the state lasts (a one-shot plays once, then he holds still)
 //   alt:  a base that alternates its names
 //   play: one clip, played once
@@ -12,9 +13,9 @@
 export const SLOTS = Object.freeze({
   base: Object.freeze({ list: false, max: 1, oneShots: false }),
   alt: Object.freeze({ list: true, max: 3, oneShots: false }),
-  play: Object.freeze({ list: false, max: 1, oneShots: true }),
-  seq: Object.freeze({ list: true, max: 3, oneShots: true }),
-  pick: Object.freeze({ list: true, max: 4, oneShots: true }),
+  play: Object.freeze({ list: false, max: 1, oneShots: false, moment: true }),
+  seq: Object.freeze({ list: true, max: 3, oneShots: false, moment: true }),
+  pick: Object.freeze({ list: true, max: 4, oneShots: false, moment: true }),
 });
 
 export const GROUPS = Object.freeze([
@@ -86,7 +87,8 @@ function kindOf(name, clips) {
 
 const fits = (name, slot, clips) => {
   const k = kindOf(name, clips);
-  return k !== null && (!slot.oneShots || k === 'once');
+  // A moment (play, seq, pick) can be any clip but idle: idle is the hold, not something that plays and ends.
+  return k !== null && (!slot.oneShots || k === 'once') && !(slot.moment && name === 'idle');
 };
 
 // The clip names a slot kind accepts, in the order of `clips` (idle first when it is not listed).

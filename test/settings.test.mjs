@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validate, loadSettings, saveSettings, rotationFor, nextRotation, screenBox, STORAGE_KEY } from '../src/web/settings.js';
+import { validate, loadSettings, saveSettings, rotationFor, nextRotation, STORAGE_KEY } from '../src/web/settings.js';
 import { VIEW, PALETTE } from '../src/web/clawd/index.js';
 import { decodePng } from '../tools/lib/png.mjs';
 
@@ -193,14 +193,11 @@ test('the Home Screen icon is Clawd at rest, centred on the stage colour', () =>
   assert.deepEqual(at(128, 128), rgb(PALETTE.body), 'his body in the middle');
 });
 
-test('screenBox: a Home Screen app on iPhone covers the whole screen, browsers keep the viewport', () => {
-  // Measured on the user's iPhone (430x932 screen, Home Screen app, portrait): innerHeight 873, i.e. short by the
-  // 59px status bar, while the page draws from the top of the screen, leaving a strip at the bottom uncovered.
-  assert.deepEqual(screenBox({ iw: 430, ih: 873, sw: 430, sh: 932, standalone: true }), { W: 430, H: 932 });
-  assert.deepEqual(screenBox({ iw: 932, ih: 430, sw: 430, sh: 932, standalone: true }), { W: 932, H: 430 }, 'landscape: screen size matched to the orientation');
-  assert.deepEqual(screenBox({ iw: 930, ih: 400, sw: 430, sh: 932, standalone: true }), { W: 932, H: 430 });
-  assert.deepEqual(screenBox({ iw: 430, ih: 873, sw: 430, sh: 932, standalone: false }), { W: 430, H: 873 }, 'a browser tab keeps its own viewport');
-  assert.deepEqual(screenBox({ iw: 430, ih: 700, sw: 430, sh: 932, standalone: true }), { W: 430, H: 700 }, 'only a status-bar-sized gap is filled');
-  assert.deepEqual(screenBox({ iw: 500, ih: 900, sw: 430, sh: 932, standalone: true }), { W: 500, H: 932 }, 'never smaller than the viewport');
-  assert.deepEqual(screenBox({ iw: 430, ih: 873, sw: 0, sh: 0, standalone: true }), { W: 430, H: 873 });
+test('the root background is the dashboard colour, so the strip iOS will not let a Home Screen app draw into blends in', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'src/web/style.css'), 'utf8');
+  const r = styleRules();
+  assert.equal(r.get('html').background, 'var(--bg)');
+  assert.equal(r.get('#app').background, 'var(--bg)');
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/web/manifest.webmanifest'), 'utf8'));
+  assert.equal(manifest.background_color, /--bg: (#[0-9a-f]{6})/i.exec(css)[1]);
 });

@@ -102,11 +102,11 @@ async function stopServer() {
 // A stored map as a user might leave it: good entries, and some the rig does not allow there.
 const STORED = {
   thinking: 'reading', tap: ['hop', 'love'], needsYou: ['happy_eyes'],
-  idleBlink: 'sleeping',  // a loop, where one plays once
+  idleBlink: 'sleeping',  // a loop in a moment slot: allowed now, it plays one cycle
   startle: 'nope',        // no such clip
   bogus: 'hop',           // no such behaviour
 };
-const LOADED = { ...DEFAULTS, thinking: 'reading', tap: ['hop', 'love'], needsYou: ['happy_eyes'] };
+const LOADED = { ...DEFAULTS, thinking: 'reading', tap: ['hop', 'love'], needsYou: ['happy_eyes'], idleBlink: 'sleeping' };
 
 before(async () => {
   port = await freePort();
@@ -143,7 +143,7 @@ test('server: every page gets the map right after the snapshot, and again on eve
 
   // A save replaces the whole map: what it leaves out, or gets wrong, is the default.
   const next = { thinking: 'working', yawn: 'love', idleLife: ['walk'], firstPromptOfDay: ['love', 'happy'] };
-  const want = { ...DEFAULTS, thinking: 'working', yawn: 'love', idleLife: ['walk'] };
+  const want = { ...DEFAULTS, thinking: 'working', yawn: 'love', idleLife: ['walk'], firstPromptOfDay: ['love', 'happy'] };
   const r = await post(next);
   assert.equal(r.status, 200);
   assert.deepEqual(JSON.parse(r.body), { map: want, pages: 1 });

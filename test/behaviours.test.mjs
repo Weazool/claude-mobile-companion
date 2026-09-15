@@ -98,13 +98,13 @@ test('the table and the defaults are frozen, so nobody changes the defaults by a
   assert.ok(Object.isFrozen(SLOTS) && Object.values(SLOTS).every(Object.isFrozen));
 });
 
-test('slot kinds: one name or a list, the list limits, and which take one-shots only', () => {
+test('slot kinds: one name or a list, the list limits; moments take any clip but idle', () => {
   assert.deepEqual(SLOTS, {
     base: { list: false, max: 1, oneShots: false },
     alt: { list: true, max: 3, oneShots: false },
-    play: { list: false, max: 1, oneShots: true },
-    seq: { list: true, max: 3, oneShots: true },
-    pick: { list: true, max: 4, oneShots: true },
+    play: { list: false, max: 1, oneShots: false, moment: true },
+    seq: { list: true, max: 3, oneShots: false, moment: true },
+    pick: { list: true, max: 4, oneShots: false, moment: true },
   });
 });
 
@@ -117,10 +117,10 @@ test('clipsFrom: the server (SPEC) and the page (ANIMS) see the same 26 clips an
   assert.deepEqual(clipsFrom({ a: { loop: true }, b: {} }, ['b', 'zz']), { idle: { loop: true }, b: { loop: false } }, 'names it does not know are skipped');
 });
 
-test('allowedClips: base and alt take every clip; play, seq and pick take one-shots only', () => {
+test('allowedClips: base and alt take every clip; play, seq and pick take every clip but idle', () => {
   assert.deepEqual(allowedClips('base', CLIPS).sort(), [...NAMES].sort());
   assert.deepEqual(allowedClips('alt', CLIPS).sort(), [...NAMES].sort());
-  for (const slot of ['play', 'seq', 'pick']) assert.deepEqual(allowedClips(slot, CLIPS).sort(), [...ONE_SHOTS].sort(), slot);
+  for (const slot of ['play', 'seq', 'pick']) assert.deepEqual(allowedClips(slot, CLIPS).sort(), [...NAMES].filter(n => n !== 'idle').sort(), slot);
   assert.equal(ONE_SHOTS.length, 11);
   assert.deepEqual(allowedClips('base', {}), ['idle']);
   assert.deepEqual(allowedClips('play', {}), []);
@@ -166,20 +166,20 @@ test('validateMap: an alt takes 1 to 3 names, loops or one-shots', () => {
   }
 });
 
-test('validateMap: a play takes one one-shot; a loop or idle there would never finish', () => {
-  for (const n of ONE_SHOTS) assert.equal(withOnly('turnDone', n), n, n);
-  for (const bad of [...LOOPS, 'idle', 'nope', ['love'], 7]) assert.equal(withOnly('turnDone', bad), 'surprised', JSON.stringify(bad));
+test('validateMap: a play takes one clip, a loop too (it plays one cycle), but not idle', () => {
+  for (const n of [...ONE_SHOTS, ...LOOPS].filter(n => n !== 'idle')) assert.equal(withOnly('turnDone', n), n, n);
+  for (const bad of ['idle', 'nope', ['love'], 7]) assert.equal(withOnly('turnDone', bad), 'surprised', JSON.stringify(bad));
 });
 
-test('validateMap: a seq takes 1 to 3 one-shots, a pick 1 to 4', () => {
+test('validateMap: a seq takes 1 to 3 clips, a pick 1 to 4', () => {
   assert.deepEqual(withOnly('wakeUp', ['hop']), ['hop']);
   assert.deepEqual(withOnly('wakeUp', ['hop', 'walk', 'love']), ['hop', 'walk', 'love']);
   assert.deepEqual(withOnly('wakeUp', ['hop', 'walk', 'love', 'blink']), def('wakeUp'), 'a seq of 4 is too long');
-  assert.deepEqual(withOnly('wakeUp', ['hop', 'sleeping']), def('wakeUp'), 'a loop in a seq');
+  assert.deepEqual(withOnly('wakeUp', ['hop', 'sleeping']), ['hop', 'sleeping'], 'a loop in a seq plays one cycle');
   assert.deepEqual(withOnly('tap', ['hop', 'walk', 'love', 'blink']), ['hop', 'walk', 'love', 'blink']);
   assert.deepEqual(withOnly('tap', ['hop', 'walk', 'love', 'blink', 'curious']), def('tap'), 'a pick of 5 is too long');
   assert.deepEqual(withOnly('tap', []), def('tap'));
-  assert.deepEqual(withOnly('idleGlance', ['idle']), def('idleGlance'), 'idle is a loop');
+  assert.deepEqual(withOnly('idleGlance', ['idle']), def('idleGlance'), 'idle is the hold, not a moment');
   assert.deepEqual(withOnly('idleLife', 'walk'), def('idleLife'), 'a list slot needs a list');
 });
 

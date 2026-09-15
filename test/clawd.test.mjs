@@ -950,3 +950,12 @@ test('working: Clawd types on his side of the laptop, paws half hidden behind th
   const [left] = paws(60 + 40), [, right] = paws(60 + 125 + 40);
   assert.ok(left.y1 >= KEYS_TOP - 0.05 && right.y1 >= KEYS_TOP - 0.05, 'paws touch the keys on a stroke');
 });
+
+test('Player: a looping clip played as a moment runs one cycle, then hands back to the base', () => {
+  const pl = new Player({ rand: () => 0.5 });
+  pl.setBase('working');
+  pl.play('thinking');
+  assert.equal(pl.cur.name, 'thinking');
+  for (let t = 0; t < ANIMS.thinking.dur + 600; t += 16) pl.update(16);
+  assert.equal(pl.cur.name, 'working', 'back on the base after one cycle');
+});

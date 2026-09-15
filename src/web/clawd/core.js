@@ -873,11 +873,12 @@ export class Player {
   // The idle hold: rest, with calm idle on top. life: false leaves out walks and hops.
   _hold(life = true) { return { name: 'idle', def: null, ctx: null, t: 0, dur: Infinity, loop: true, next: null, isBase: true, hold: true, life }; }
 
-  _clip(name) {
+  // once: a clip played as a moment (play, a queued clip, calm idle's own) runs one full cycle even if it loops.
+  _clip(name, once = false) {
     if (name === 'idle' && this._baseName() === 'idle') return this._hold();
     const def = this.anims[name];
     const seed = Math.floor(this.rand() * 4294967296) >>> 0;
-    return { name, def, ctx: makeCtx(def, seed), t: 0, dur: def.dur, loop: def.loop, next: def.next || null, isBase: name === this._baseName() };
+    return { name, def, ctx: makeCtx(def, seed), t: 0, dur: def.dur, loop: once ? false : def.loop, next: def.next || null, isBase: name === this._baseName() };
   }
 
   _toBase(carry = 0) {
@@ -905,14 +906,14 @@ export class Player {
     const list = [].concat(names).filter(n => this.anims[n]);
     if (!list.length) return;
     this.queue = list.slice(1);
-    this._set(this._clip(list[0]));
+    this._set(this._clip(list[0], true));
   }
 
   // One of calm idle's own clips.
   _idle(name) {
     if (!this.anims[name]) return;
     this.queue = [];
-    const c = this._clip(name);
+    const c = this._clip(name, true);
     c.idle = true;
     this._set(c);
   }
@@ -971,7 +972,7 @@ export class Player {
       if (c.loop) c.t = loopTime(c.def, c.t);
       // Calm idle's clips do not chain: a celebration picked as idle life would stay in its happy loop.
       else if (c.next && !c.idle && this.anims[c.next]) { this._set(this._clip(c.next), over); return true; }
-      else if (this.queue.length) { this._set(this._clip(this.queue.shift()), over); return true; }
+      else if (this.queue.length) { this._set(this._clip(this.queue.shift(), true), over); return true; }
       else {
         if (c.isBase) {
           if (this.base.length > 1) this.bi++;

@@ -2,7 +2,7 @@ import { limitsView, sessionMeta, dotClass, visibleSessions } from './format.js'
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
-import { loadSettings, saveSettings, validate, rotationFor, nextRotation, screenBox } from './settings.js';
+import { loadSettings, saveSettings, validate, rotationFor, nextRotation } from './settings.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -171,15 +171,10 @@ setInterval(renderRings, 30000);
 const standalone = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
 
 function applyLayout() {
-  // The area #app must cover, and its centre: in a Home Screen app iOS reports the viewport short by the
-  // status bar while drawing from the top of the screen (settings.js screenBox), so use the screen's size.
-  const { W, H } = screenBox({ iw: window.innerWidth, ih: window.innerHeight, sw: screen.width, sh: screen.height, standalone });
-  const { w, h, layout } = rotationFor(settings.rotation, W, H);
+  const { w, h, layout } = rotationFor(settings.rotation, window.innerWidth, window.innerHeight);
   const app = $('app');
   app.style.setProperty('--w', `${w}px`);
   app.style.setProperty('--h', `${h}px`);
-  app.style.setProperty('--cx', `${W / 2}px`);
-  app.style.setProperty('--cy', `${H / 2}px`);
   app.style.setProperty('--rot', `${settings.rotation}deg`);
   app.classList.toggle('landscape', layout === 'landscape');
   app.classList.toggle('portrait', layout === 'portrait');
