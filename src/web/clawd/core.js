@@ -6,6 +6,7 @@
 
 export const PALETTE = Object.freeze({
   body: '#D97757', ink: '#141413', white: '#F5F4ED', flush: '#C4463A', heart: '#E5566E', steam: '#C9C3BA',
+  paw: '#B25E40', // an arm held in front of the body, a shade darker so it reads against him (arm.shade)
   yellow: '#F2C14E', blue: '#6A9BD8', green: '#7CC47F',
   confetti: Object.freeze(['#D97757', '#F2C14E', '#6A9BD8', '#7CC47F', '#F5F4ED']),
   stage: '#0a0a0f', glow: '#1a1622',
@@ -315,8 +316,8 @@ export function rest() {
   return {
     root: { x: 0, y: 0, rot: 0, sx: 1, sy: 1 },  // everything, pivot at the ground point (0, 0): walk, jump, squash
     body: { x: 0, y: 0, rot: 0, sx: 1, sy: 1, o: 1 }, // pivot at the bottom centre (0, -2); eyes, mouth, arms ride on it
-    armL: { x: 0, y: 0, rot: 0, sx: 1, sy: 1, o: 1 }, // pivot at the shoulder (-6, -5)
-    armR: { x: 0, y: 0, rot: 0, sx: 1, sy: 1, o: 1 }, // pivot at the shoulder (6, -5)
+    armL: { x: 0, y: 0, rot: 0, sx: 1, sy: 1, o: 1, shade: 0 }, // pivot at the shoulder (-6, -5); shade 0..1 toward PALETTE.paw
+    armR: { x: 0, y: 0, rot: 0, sx: 1, sy: 1, o: 1, shade: 0 }, // pivot at the shoulder (6, -5)
     // Legs hang from hips on the body's bottom edge. By default each stretches so its lowest corner
     // stands on the ground (y = 0 in root space); lift raises the foot, len (units) overrides the length.
     legs: [0, 1, 2, 3].map(() => ({ rot: 0, lift: 0, len: null, x: 0, o: 1 })),
@@ -339,7 +340,7 @@ export function rest() {
 const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 
 const xf = (dst, a, b, k) => {
-  for (const f of ['x', 'y', 'rot', 'sx', 'sy', 'o']) if (f in dst) dst[f] = lerp(num(a && a[f], dst[f]), num(b && b[f], dst[f]), k);
+  for (const f of ['x', 'y', 'rot', 'sx', 'sy', 'o', 'shade']) if (f in dst) dst[f] = lerp(num(a && a[f], dst[f]), num(b && b[f], dst[f]), k);
 };
 const itemKey = it => it.id || it.glyph;
 const sameSlot = (a, b) => itemKey(a) === itemKey(b) && (a.on || a.space) === (b.on || b.space);
@@ -541,7 +542,8 @@ function emitEye(out, n, E, rig, side, own) {
 
 function emitArm(out, n, arm, rig, m, skin, tag) {
   const o = num(arm && arm.o, 1);
-  return o > 0.001 ? emit(out, n, rig.x, rig.y, rig.w, rig.h, skin, m, clamp(o), tag) : n;
+  const shade = clamp(num(arm && arm.shade, 0));
+  return o > 0.001 ? emit(out, n, rig.x, rig.y, rig.w, rig.h, shade > 0 ? tinted(skin, PALETTE.paw, shade) : skin, m, clamp(o), tag) : n;
 }
 
 function armMatrix(dst, arm, rig, side) {

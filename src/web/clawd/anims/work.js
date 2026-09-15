@@ -188,6 +188,11 @@ const WK_EYES = [
 ];
 const WK_WIND = [[0, 0], [1880, 0], [WK.enter - 10, 1, power2Out], [WK.enter + 45, -1.25, power3In], [WK.enter + 330, 0, backOut], [WK.dur, 0]];
 const WK_PEER = [[0, 0], [3360, 0], [3520, 1, power2Out], [3830, 1], [4000, 0, sineInOut]]; // leaning in to read
+// Paws on the keys: each arm (a 2x2 block beside the body) slides in by WK_REACH so it covers x 1..3 of the
+// keyboard's half; its bottom hovers 0.1 above the keys' top (y -2.65) and a full stroke presses it 0.25 into them.
+const WK_REACH = 5;
+const WK_HOVER = 1.25;
+const WK_PRESS = 0.35;
 
 function workingPose(t, ctx) {
   const p = rest();
@@ -202,21 +207,28 @@ function workingPose(t, ctx) {
   const slam = Math.max(0, -wind);
   const peer = keys(t, WK_PEER);
 
-  // Arms hover over the desk at the keyboard's sides and jab down on each stroke, just behind the desk
-  // top's edge (the lowest corner stays above its underside, y -1.6, so no hand shows under the desk).
-  const up = Math.max(0, wind);
-  p.armL.y = 1.1 + 0.4 * L;
-  p.armL.rot = 2 - 14 * L;
-  p.armR.y = 1.1 + 0.4 * R - 2.6 * up + 0.1 * slam;
-  p.armR.rot = 2 - 14 * R + 22 * up - 10 * slam;
-
   // Body: a small dip on every stroke, a lean toward the striking hand, a squash on the Enter, a lean in
   // to read the screen.
+  const up = Math.max(0, wind);
   const any = L + R;
   p.body.y = 0.14 * any + 0.35 * slam + 0.04 * osc(t, WK.dur / 2, 0.25) + 0.12 * peer;
   p.body.rot = 1 * (R - L) - 1.4 * up + 0.8 * slam;
   p.root.sy = 1 - 0.04 * slam;
   p.root.sx = 1 + 0.02 * slam;
+
+  // The paws reach in onto the keyboard, the white base strip in front of the lid (x within ±3.15, y -2.65
+  // to -2.2): the left paw on its left half, the right on its right half (the Enter end), drawn in front of
+  // the lid. Between strokes a paw hovers just above the keys; each stroke presses it into them with a
+  // little wrist tip. The arms hang from the body, so its dip is taken back out: the paws stay planted on
+  // the keys while he bobs. The Enter winds the right paw up high and slams it back down on the keys.
+  p.armL.x = WK_REACH;
+  p.armL.y = WK_HOVER + WK_PRESS * L - p.body.y;
+  p.armL.rot = -4 * L;
+  p.armR.x = -WK_REACH;
+  p.armR.y = WK_HOVER + WK_PRESS * R - p.body.y - 2.6 * up;
+  p.armR.rot = -4 * R + 22 * up - 6 * slam;
+  p.armL.shade = 1; // in front of the body and the lid: a shade darker, so the paws read as paws
+  p.armR.shade = 1;
 
   // Eyes down on the screen, following the line; a blink between the bursts and one while reading.
   p.eyes.y = 0.45;
@@ -232,19 +244,19 @@ function workingPose(t, ctx) {
   p.props.push({ glyph: 'laptop', on: 'root', x: 0, y: DESK_Y, s: 0.9, sy: 1 - 0.06 * slam, id: 'work_laptop', blend: 'grow' });
 
   // Key sparks: now and then (about 3 burst strokes in 10, picked by the seed) a stroke throws one up and
-  // out from under the hand; the Enter throws a yellow one.
+  // out from the key under the paw; the Enter throws a yellow one off the keyboard's right end.
   for (let i = 0; i < WK_LOUD; i++) {
     const [t0, hand] = WK_STROKES[i];
     if (t < t0 + 35 || t > t0 + 300 || hash01(ctx.seed, 100 + i) > 0.3) continue;
     const u = ramp(t, t0 + 35, t0 + 300, power2Out);
     const o = 1 - ramp(t, t0 + 150, t0 + 300, power2In);
     if (o <= 0) continue;
-    p.fx.push({ glyph: 'spark', space: 'world', x: hand * (5.8 + 3.2 * u), y: -2.9 - 4 * u + 1.4 * u * u, s: 0.8 * (1 - 0.4 * u), o, fill: PALETTE.white });
+    p.fx.push({ glyph: 'spark', space: 'world', x: hand * (3.4 + 3.2 * u), y: -2.9 - 4 * u + 1.4 * u * u, s: 0.8 * (1 - 0.4 * u), o, fill: PALETTE.white });
   }
   const so = 1 - ramp(t, WK.enter + 120, WK.enter + 360, power2In);
   if (t > WK.enter + 30 && so > 0) {
     const u = ramp(t, WK.enter + 30, WK.enter + 360, power2Out);
-    p.fx.push({ glyph: 'spark', space: 'world', x: 6.2 + 3.6 * u, y: -3.2 - 5.4 * u + 1.2 * u * u, s: 1.3 * pop(t, WK.enter + 30, 150, 2.6) * (1 - 0.45 * u), o: so });
+    p.fx.push({ glyph: 'spark', space: 'world', x: 3.6 + 3.6 * u, y: -3.2 - 5.4 * u + 1.2 * u * u, s: 1.3 * pop(t, WK.enter + 30, 150, 2.6) * (1 - 0.45 * u), o: so });
   }
   return p;
 }

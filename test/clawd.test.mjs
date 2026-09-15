@@ -813,3 +813,23 @@ test('the rasterizer fills transformed rects with coverage and opacity', () => {
   drawShapes(img, [{ x: -1, y: -1, w: 2, h: 1, fill: '#0000ff', m: [1, 0, 0, 1, 0, 0], o: 0.5 }], { view: { x: -1, y: -1 }, scale: 10 });
   assert.deepEqual(px(5, 5), [0, 0, 128]);
 });
+
+test('working: Clawd types on the keyboard, not beside the laptop', () => {
+  // The laptop's keyboard is the white base strip in front of the lid: x within ±3.15, y -2.65 .. -2.2.
+  const KEYS = { x0: -3.15, x1: 3.15, top: -2.65, bottom: -2.2 };
+  const paws = t => {
+    const s = shapesAt(evalAnim('working', t, 1));
+    return ['armL', 'armR'].map(part => bbox(s.find(x => x.part === part)));
+  };
+  // Throughout the loop both paws stay over the keyboard (the Enter wind-up lifts the right one, above it).
+  for (let t = 0; t < ANIMS.working.dur; t += 20) {
+    for (const [i, p] of paws(t).entries()) {
+      assert.ok(p.x0 >= KEYS.x0 - 0.35 && p.x1 <= KEYS.x1 + 0.35, `t=${t} ${i ? 'right' : 'left'} paw x ${p.x0.toFixed(2)}..${p.x1.toFixed(2)} is over the keyboard`);
+      assert.ok(p.y1 <= KEYS.bottom, `t=${t} ${i ? 'right' : 'left'} paw stays above the desk`);
+    }
+  }
+  // On every keystroke (the burst at 60 ms, the left then the right paw) the striking paw reaches the keys.
+  const [left] = paws(60 + 40), [, right] = paws(60 + 125 + 40);
+  assert.ok(left.y1 >= KEYS.top - 0.05, `left paw touches the keys (bottom ${left.y1.toFixed(2)})`);
+  assert.ok(right.y1 >= KEYS.top - 0.05, `right paw touches the keys (bottom ${right.y1.toFixed(2)})`);
+});
