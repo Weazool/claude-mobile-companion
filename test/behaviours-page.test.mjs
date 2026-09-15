@@ -67,7 +67,7 @@ test('the pair page links to the behaviours editor', () => {
 
 test('the README explains how to customise Clawd', () => {
   const md = read('README.md');
-  assert.match(md, /\n## Customise Clawd\n/);
+  assert.match(md, /\n## (<img [^>]*> )?Customise Clawd\n/); // the heading may carry an animated Clawd
   assert.ok(md.includes('http://localhost:<port>/behaviours'));
   assert.ok(md.includes('~/.desk-companion/behaviours.json'));
 });
