@@ -32,7 +32,7 @@ test('vendored qrcode.js encodes a phone URL to an SVG', () => {
 
 test('pair skill runs the pair script and is user-invoked only', () => {
   const md = fs.readFileSync(path.join(ROOT, 'skills/claude-companion-pair/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
-  assert.match(md, /^---\nname: pair\n/);
+  assert.match(md, /^---\nname: claude-companion-pair\n/);
   assert.match(md, /\ndisable-model-invocation: true\n/);
   assert.ok(md.includes('!`node "${CLAUDE_PLUGIN_ROOT}/bin/pair.mjs"`'));
 });
