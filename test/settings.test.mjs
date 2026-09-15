@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validate, loadSettings, saveSettings, rotationFor, nextRotation, STORAGE_KEY } from '../src/web/settings.js';
+import { validate, loadSettings, saveSettings, rotationFor, nextRotation, screenBox, STORAGE_KEY } from '../src/web/settings.js';
 import { VIEW, PALETTE } from '../src/web/clawd/index.js';
 import { decodePng } from '../tools/lib/png.mjs';
 
@@ -85,18 +85,17 @@ test('style: safe-area insets are mapped onto #app edges per rotation', () => {
   }
 });
 
-test('style: controls above the offline overlay, blank above everything, no iOS zoom', () => {
+test('style: controls above the offline overlay, blank above everything, no settings panel', () => {
   const r = styleRules();
   const z = sel => Number((r.get(sel) || {})['z-index']);
   assert.equal(z('.overlay'), 50);
   assert.equal(z('.controls'), 55);
-  assert.equal(z('.panel'), 60);
   assert.equal(z('.overlay.blank'), 80);
   const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
   assert.match(html, /<div id="offline" class="overlay"/);
   assert.match(html, /<div id="blank" class="overlay blank"/);
-  assert.equal(r.get('.panel input[type=number]')['font-size'], '16px');
-  assert.equal(r.get('.panel select')['font-size'], '16px');
+  assert.equal(r.get('.panel'), undefined, 'there is no settings panel');
+  assert.doesNotMatch(html, /btnSettings|id="settings"/, 'no settings button or form');
   assert.equal(r.get('html')['touch-action'], 'manipulation');
   assert.equal(r.get('body')['touch-action'], 'manipulation');
 });
@@ -150,8 +149,8 @@ test('style: Clawd stands in the middle of the stage, as large as it allows, wit
     const M = lengthPx(r.get('#app.portrait .stage')['--mascot'], W, H);
     assert.ok(M >= 0.95 * Math.min(0.8 * W, S - 10 * cq), `${W}x${H}: the square uses the stage`);
     check(`${W}x${H}`, S, M, W, H);
-    // The flag rises on his right (x +2..+8 of 32 units): it must stay left of the ✕ ⟲ ⚙ row where the two meet.
-    const flagRight = W / 2 + (8 / 32) * M, controlsLeft = W - 4 * cq - (3 * (4.4 + 2) + 2 * 3) * cq;
+    // The flag rises on his right (x +2..+8 of 32 units): it must stay left of the ✕ ⟲ row where the two meet.
+    const flagRight = W / 2 + (8 / 32) * M, controlsLeft = W - 4 * cq - (2 * (4.4 + 2) + 1 * 3) * cq;
     if (place(S, M).top + FLAG_TIP * M < 9.4 * cq) assert.ok(flagRight <= controlsLeft, `${W}x${H}: the flag clears the controls`);
   }
 });
@@ -192,4 +191,16 @@ test('the Home Screen icon is Clawd at rest, centred on the stage colour', () =>
   const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
   for (const [x, y] of [[0, 0], [255, 0], [0, 255], [255, 255]]) assert.deepEqual(at(x, y), rgb(PALETTE.stage), `corner ${x},${y}`);
   assert.deepEqual(at(128, 128), rgb(PALETTE.body), 'his body in the middle');
+});
+
+test('screenBox: a Home Screen app on iPhone covers the whole screen, browsers keep the viewport', () => {
+  // Measured on the user's iPhone (430x932 screen, Home Screen app, portrait): innerHeight 873, i.e. short by the
+  // 59px status bar, while the page draws from the top of the screen, leaving a strip at the bottom uncovered.
+  assert.deepEqual(screenBox({ iw: 430, ih: 873, sw: 430, sh: 932, standalone: true }), { W: 430, H: 932 });
+  assert.deepEqual(screenBox({ iw: 932, ih: 430, sw: 430, sh: 932, standalone: true }), { W: 932, H: 430 }, 'landscape: screen size matched to the orientation');
+  assert.deepEqual(screenBox({ iw: 930, ih: 400, sw: 430, sh: 932, standalone: true }), { W: 932, H: 430 });
+  assert.deepEqual(screenBox({ iw: 430, ih: 873, sw: 430, sh: 932, standalone: false }), { W: 430, H: 873 }, 'a browser tab keeps its own viewport');
+  assert.deepEqual(screenBox({ iw: 430, ih: 700, sw: 430, sh: 932, standalone: true }), { W: 430, H: 700 }, 'only a status-bar-sized gap is filled');
+  assert.deepEqual(screenBox({ iw: 500, ih: 900, sw: 430, sh: 932, standalone: true }), { W: 500, H: 932 }, 'never smaller than the viewport');
+  assert.deepEqual(screenBox({ iw: 430, ih: 873, sw: 0, sh: 0, standalone: true }), { W: 430, H: 873 });
 });

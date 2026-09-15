@@ -51,3 +51,16 @@ export function rotationFor(deg, W, H) {
   const h = turned ? W : H;
   return { w, h, layout: w >= h ? 'landscape' : 'portrait' };
 }
+
+// The area the dashboard must cover. A Home Screen web app on iPhone draws from the very top of the screen
+// but reports innerHeight short by the status bar (measured: 873 of 932 on a 430x932 screen), which left a
+// strip of the screen uncovered; there the screen's own size is the truth. Browsers keep innerWidth/Height.
+// screen.width/height are the portrait dimensions on iOS, so they are matched to the current orientation.
+export function screenBox({ iw, ih, sw, sh, standalone }) {
+  if (!standalone || !(sw > 0) || !(sh > 0)) return { W: iw, H: ih };
+  const portrait = ih >= iw;
+  const fw = portrait ? Math.min(sw, sh) : Math.max(sw, sh);
+  const fh = portrait ? Math.max(sw, sh) : Math.min(sw, sh);
+  const use = (full, inner) => (full >= inner && full - inner <= 120 ? full : inner); // only a status-bar-sized gap
+  return { W: use(fw, iw), H: use(fh, ih) };
+}

@@ -1,7 +1,7 @@
 import { limitsView, sessionMeta, dotClass, visibleSessions } from './format.js';
 import { Player, mountClawd, VIEW } from './clawd/index.js';
 import { createMood } from './mood.js';
-import { loadSettings, saveSettings, rotationFor, nextRotation } from './settings.js';
+import { loadSettings, saveSettings, validate, rotationFor, nextRotation, screenBox } from './settings.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -13,7 +13,8 @@ let downSince = null;
 
 // ---------- companion ----------
 const store = (() => { try { return window.localStorage; } catch { return null; } })();
-let settings = loadSettings(store);
+// Only the rotation is kept between visits; everything else uses the defaults (there is no settings panel).
+let settings = validate({ rotation: loadSettings(store).rotation });
 const mood = createMood(settings.mood);
 const player = new Player({ idle: settings.idle });
 const view = mountClawd($('mascot'), { view: VIEW }); // Clawd's rects, drawn into the inline <svg>
@@ -154,11 +155,18 @@ document.addEventListener('visibilitychange', () => {
 setInterval(renderRings, 30000);
 
 // ---------- controls ----------
+const standalone = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+
 function applyLayout() {
-  const { w, h, layout } = rotationFor(settings.rotation, window.innerWidth, window.innerHeight);
+  // The area #app must cover, and its centre: in a Home Screen app iOS reports the viewport short by the
+  // status bar while drawing from the top of the screen (settings.js screenBox), so use the screen's size.
+  const { W, H } = screenBox({ iw: window.innerWidth, ih: window.innerHeight, sw: screen.width, sh: screen.height, standalone });
+  const { w, h, layout } = rotationFor(settings.rotation, W, H);
   const app = $('app');
   app.style.setProperty('--w', `${w}px`);
   app.style.setProperty('--h', `${h}px`);
+  app.style.setProperty('--cx', `${W / 2}px`);
+  app.style.setProperty('--cy', `${H / 2}px`);
   app.style.setProperty('--rot', `${settings.rotation}deg`);
   app.classList.toggle('landscape', layout === 'landscape');
   app.classList.toggle('portrait', layout === 'portrait');
@@ -169,7 +177,6 @@ applyLayout();
 
 // Full screen and keep-awake need a tap. The controls stop propagation, so they call this themselves.
 const noSleep = window.NoSleep ? new window.NoSleep() : null;
-const standalone = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
 function keepAwake() {
   if (settings.keepAwake && noSleep && !noSleep.isEnabled) Promise.resolve(noSleep.enable()).catch(() => {});
 }
@@ -194,39 +201,10 @@ $('btnRotate').addEventListener('click', e => {
 $('btnClose').addEventListener('click', e => {
   e.stopPropagation();
   keepAwake(); // night mode keeps the (black) screen on, but never enters full screen
-  $('settings').hidden = true;
   $('blank').hidden = false; // a page can't close itself on iOS: blank the screen until tapped
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 });
 $('blank').addEventListener('click', () => { $('blank').hidden = true; });
-
-const form = $('settings');
-function fillSettings() {
-  const f = form.elements;
-  for (const k of ['warn', 'low', 'crit', 'sleepAfterMin']) f[k].value = settings.mood[k];
-  for (const k of ['blinksPerMin', 'glancesPerMin', 'movingPct']) f[k].value = settings.idle[k];
-  f.keepAwake.checked = settings.keepAwake;
-  const sessions = snap ? snap.sessions : [];
-  f.pinnedId.innerHTML = '<option value="">Automatic</option>'
-    + sessions.map(s => `<option value="${esc(s.id)}">${esc(s.name || s.id)}</option>`).join('');
-  f.pinnedId.value = settings.mood.pinnedId || '';
-}
-function readSettings() {
-  const f = form.elements;
-  settings = saveSettings(store, {
-    ...settings,
-    mood: { warn: f.warn.value, low: f.low.value, crit: f.crit.value, sleepAfterMin: f.sleepAfterMin.value, pinnedId: f.pinnedId.value || null },
-    idle: { blinksPerMin: f.blinksPerMin.value, glancesPerMin: f.glancesPerMin.value, movingPct: f.movingPct.value },
-    keepAwake: f.keepAwake.checked,
-  });
-  mood.setSettings(settings.mood);
-  player.setIdle(settings.idle);
-  if (!settings.keepAwake && noSleep && noSleep.isEnabled) noSleep.disable();
-  apply(mood.tick(Date.now()));
-}
-$('btnSettings').addEventListener('click', e => { e.stopPropagation(); activate(); fillSettings(); form.hidden = false; });
-form.addEventListener('change', readSettings);
-$('settingsDone').addEventListener('click', () => { form.hidden = true; fillSettings(); });
 
 // Burn-in protection: shift the whole layout by up to 4 px every 10 minutes.
 setInterval(() => {
