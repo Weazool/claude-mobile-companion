@@ -37,9 +37,17 @@ html, body {
   position: relative; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2cqmin;
   background: radial-gradient(circle at 50% 62%, #1a1622 0%, var(--bg) 70%);
 }
-#mascot { aspect-ratio: 1; mix-blend-mode: lighten; cursor: pointer; }
-#app.landscape #mascot { width: min(25.6cqw, 62cqh); }
-#app.portrait #mascot { width: min(52cqw, 28cqh); }
+/* Clawd is an inline SVG. His viewBox (-16 -28 32 32) keeps 18 units of headroom above him for the flag,
+   the Zzz and the confetti, so his body is only 12 of its 32 units (37.5% of the element's width): the
+   element is sized to the room the stage has, not to a share of it.
+   Width and height are both --mascot, so the square never depends on how a browser sizes an SVG.
+   The bubble (with text) is at most 3.6cqmin x 1.35 (line-height normal) + 2 x 1.4cqmin + 2px, about
+   7.7cqmin + 2px, and the stage's gap adds 2cqmin.
+   Landscape (cqmin = cqh): the stage is the 40cqw column, full height. 36cqw leaves 2cqw each side; 76cqh
+   leaves 24cqh, of which the bubble and the gap take under 10cqh + 2px, and the rest centres the pair.
+   76cqh binds on phones (296px at 844x390), 36cqw on tablets (369px at 1024x768). */
+#mascot { width: var(--mascot); height: var(--mascot); aspect-ratio: 1; cursor: pointer; }
+#app.landscape #mascot { --mascot: min(36cqw, 76cqh); }
 
 .bubble {
   max-width: 90%; background: #1b1b24; border: 1px solid #2c2c38; border-radius: 2.4cqmin;
@@ -105,10 +113,15 @@ html, body {
 .panel .hint { color: var(--dim); font-size: 12px; line-height: 1.4; margin: 8px 0 12px; }
 .panel button { width: 100%; padding: 10px; border-radius: 10px; border: 0; background: #2d6cdf; color: #fff; font-size: 15px; }
 
-/* Portrait: the bubble starts below the controls row and the creature centres in the space left.
+/* Portrait: the bubble starts below the controls row and Clawd centres in the space left.
    Both are measured from the top of #app's content box, below the --sa-t padding (the controls sit
    against the padding box, so their top adds --sa-t): .controls ends at 3cqmin + 4.4cqmin
    (line-height 1) + 2cqmin padding = 9.4cqmin; the stage is not centred, so its 12cqmin padding-top
-   is the bubble's exact top. Fits for content-box height/width >= 1.17. */
+   is the bubble's exact top.
+   Clawd (cqmin = cqw here): the stage is 42cqh tall and 12cqmin + the bubble (7.7cqmin + 2px) + the
+   2cqmin gap sit above him, so he may take 42cqh - 21.7cqmin - 2px; 42cqh - 24cqmin keeps 2cqmin (at
+   least 2px) in hand and binds on wide portrait screens (246px at 768x1024, 215px at 800x969). 30cqh
+   caps him on tall phones (253px at 390x844), 80cqw on very narrow ones. margin-block: auto centres him
+   in what is left, so he never reaches into .data. */
 #app.portrait .stage { justify-content: flex-start; padding-top: 12cqmin; }
-#app.portrait #mascot { width: min(52cqw, 24cqh); margin-block: auto; }
+#app.portrait #mascot { --mascot: min(80cqw, 30cqh, 42cqh - 24cqmin); margin-block: auto; }

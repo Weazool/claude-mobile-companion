@@ -1,7 +1,6 @@
 import { limitsView, sessionMeta, dotClass, visibleSessions } from './format.js';
-import { Player } from './mascot.js';
+import { Player, mountClawd, VIEW } from './clawd/index.js';
 import { createMood } from './mood.js';
-import { SHEETS, FRAME_SIZE } from './anims.js';
 import { loadSettings, saveSettings, rotationFor, nextRotation } from './settings.js';
 
 const $ = id => document.getElementById(id);
@@ -17,22 +16,8 @@ const store = (() => { try { return window.localStorage; } catch { return null; 
 let settings = loadSettings(store);
 const mood = createMood(settings.mood);
 const player = new Player({ idle: settings.idle });
-const ctx = $('mascot').getContext('2d');
-const IMG = Object.fromEntries(SHEETS.map(s => {
-  const img = new Image();
-  img.src = `/web/sprites/${s}.png${location.search}`;
-  return [s, img];
-}));
+const view = mountClawd($('mascot'), { view: VIEW }); // Clawd's rects, drawn into the inline <svg>
 let drawPending = true;
-
-function draw() {
-  const f = player.frame();
-  const img = IMG[f.sheet];
-  if (!img.complete || !img.naturalWidth) { drawPending = true; return; }
-  drawPending = false;
-  ctx.clearRect(0, 0, FRAME_SIZE, FRAME_SIZE);
-  ctx.drawImage(img, f.index * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE, 0, 0, FRAME_SIZE, FRAME_SIZE);
-}
 
 function apply(cmd) {
   if (!cmd) return;
@@ -46,7 +31,7 @@ let lastFrameAt = performance.now();
 function loop(now) {
   const dt = Math.min(100, now - lastFrameAt);
   lastFrameAt = now;
-  if (player.update(dt) || drawPending) draw();
+  if (player.update(dt) || drawPending) { view.render(player.shapes()); drawPending = false; }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

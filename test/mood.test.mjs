@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMood } from '../src/web/mood.js';
+import { createMood as makeMood } from '../src/web/mood.js';
+import { ANIMS } from '../src/web/clawd/index.js';
+
+// Every animation name a command asks for, across all the scenarios below (the last test checks them
+// against the Clawd rig the page plays them on).
+const asked = new Set();
+function createMood(...args) {
+  const m = makeMood(...args);
+  const note = c => { if (c) for (const n of [...[].concat(c.base), ...c.play]) asked.add(n); return c; };
+  return Object.fromEntries(Object.entries(m).map(([k, f]) => [k, (...a) => note(f(...a))]));
+}
 
 const T0 = Date.UTC(2026, 8, 14, 9, 0);
 const MIN = 60000;
@@ -217,4 +227,16 @@ test('offline: the companion sleeps until the connection returns', () => {
   m.onSnapshot(snap([sess('working', { detail: 'x' })]), T0);
   assert.deepEqual(m.setOffline(true, T0 + 1), { base: 'sleeping', play: [], bubble: null, dim: false });
   assert.equal(m.setOffline(false, T0 + 2).base, 'working');
+});
+
+// Keep this test last: it reads what the scenarios above asked for.
+test('every animation the scenarios asked for is a Clawd clip (base names, plays and chains)', () => {
+  assert.deepEqual([...asked].filter(n => !ANIMS[n]), [], 'names the Player would silently ignore');
+  for (const n of asked) if (ANIMS[n].next) assert.ok(ANIMS[ANIMS[n].next], `${n} chains to ${ANIMS[n].next}`);
+  assert.ok(ANIMS.jumping_joy.next === 'happy' && asked.has('happy'), 'fresh limits: jumping_joy flows into the happy base');
+  // The scenarios reach every name mood.js can emit, so the check above covers all of them.
+  assert.deepEqual([...asked].sort(), [
+    'angry', 'compiling', 'cool', 'curious', 'ending', 'error', 'happy', 'happy_eyes', 'idle', 'jumping_joy', 'look_left',
+    'love', 'low_tokens', 'overloaded', 'reading', 'sad', 'sleeping', 'surprised', 'thinking', 'working', 'yawning',
+  ]);
 });

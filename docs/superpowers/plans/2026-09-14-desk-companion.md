@@ -4,7 +4,9 @@
 
 **Goal:** A Claude Code plugin that serves a live, full-screen dashboard to a phone browser on the same Wi-Fi. It shows plan limits, active sessions and an animated companion driven by Claude Code hooks.
 
-**Architecture:** Hook commands forward sanitised events to one background Node server per user. The server tracks sessions, polls plan limits through Claude Code's `get_usage`, and pushes snapshots over Server-Sent Events to a plain HTML/JS page. The page runs the companion's state machine (`mood.js`) and a sprite player (`mascot.js`) using clawdio's sprites, re-cut and normalised by a one-time build script.
+**Architecture:** Hook commands forward sanitised events to one background Node server per user. The server tracks sessions, polls plan limits through Claude Code's `get_usage`, and pushes snapshots over Server-Sent Events to a plain HTML/JS page. The page runs the companion's state machine (`mood.js`) and draws Clawd with a live SVG rig (`src/web/clawd/`).
+
+> **Superseded in part (v0.3.0).** The companion was first built from clawdio's sprites (Tasks 11–13, and the sprite steps of Tasks 15 and 17). Those are kept below as a record of how it was built; the sprite player, the sprites and their build pipeline have since been replaced by the Clawd SVG rig (spec §8–9). `tools/lib/png.mjs` from Task 11 remains.
 
 **Tech Stack:** Node ≥ 18 (ESM, built-in modules only), `node:test`, vanilla HTML/CSS/JS, Server-Sent Events. Vendored MIT libraries: `qrcode-generator` 1.4.4 and `nosleep.js` 0.12.0.
 
@@ -24,7 +26,6 @@
 - Page: plain HTML/CSS/JS served as-is; no build step, no framework, no CDN at runtime.
 - Ring colours: 5-hour `#f5a524`, week `#35c2b0`, Fable `#a78bfa`. The number turns red (`#ff6b5b`) at ≥ 80%.
 - Defaults: mood thresholds 50 / 80 / 95; idle 26 blinks/min, 2 glances/min, 50% moving; sleep after 5 min.
-- Sprites: 8 frames of 256×256 per strip, from `cegware/clawdio` commit `76ee482fffa1cc602ca0dc524324a2880b9770e2` (MIT).
 - Every commit message ends with the trailer `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
 
 ## File Map
@@ -47,15 +48,13 @@
 | `src/server/http.mjs` | HTTP routes, auth, SSE, static files |
 | `src/web/index.html`, `style.css`, `app.js` | Dashboard page shell and wiring |
 | `src/web/format.js` | Pure display helpers (countdowns, ring tone, row text) |
-| `src/web/anims.js` | Animation table: names, sheets, timings (single source of truth) |
-| `src/web/mascot.js` | `Player`: sprite playback + calm idle |
+| `src/web/clawd/*` | Clawd, the SVG rig: clips (`anims/`), `Player` with calm idle, renderer (`svg.js`), mock page |
 | `src/web/mood.js` | `createMood`: the companion's state machine |
 | `src/web/settings.js` | Settings defaults, load/save/validate, rotation geometry |
 | `src/web/pair.html` | Pairing page (QR) |
 | `src/web/manifest.webmanifest`, `src/web/icon.png` | Home Screen web-app metadata |
-| `src/web/sprites/*` | Generated sprite strips, `sprites.json`, `LICENSE-clawdio.txt` |
 | `src/web/vendor/*` | `qrcode.js`, `NoSleep.min.js` and their licences |
-| `tools/lib/png.mjs`, `tools/lib/sprite-math.mjs`, `tools/build-sprites.mjs` | Sprite re-cut pipeline |
+| `tools/clawd-look.mjs`, `tools/lib/rast.mjs`, `tools/lib/png.mjs` | Renders Clawd's clips to PNG contact sheets, and the Home Screen icon |
 | `tools/fake-events.mjs` | Replays scenarios into a running server |
 | `test/*.test.mjs`, `test/fixtures/*` | Tests |
 

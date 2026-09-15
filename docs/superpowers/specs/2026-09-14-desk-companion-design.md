@@ -24,7 +24,7 @@ Working name: `desk-companion`; it avoids "Claude" in the product name for trade
 | Metrics | 5-hour limit, weekly limit, Fable weekly limit, per-session model, effort, context |
 | Layout | "A · Companion stage": creature on the left 40%, rings and session list on the right; portrait variant stacks them |
 | Controls | Close, Rotate, Settings |
-| Animations | clawdio sprites and state machine (cegware/clawdio, MIT), adapted to our events |
+| Animations | Clawd as a live SVG rig (26 animations, §8); the state machine is adapted from clawdio's (cegware/clawdio, MIT) to our events |
 | Idle pace | Calmer idle: 26 blinks/min, 2 glances/min, moving 50% of the time |
 | Relationship to clauled | Independent; it neither uses nor touches clauled or its status-line shim |
 | Status line | Not used, so no install step and no conflict with other status-line users |
@@ -42,12 +42,12 @@ bin/server.mjs  (one background Node process per user; no npm dependencies)
   ├─ sessions   – per-session state built from hook events + transcript tail
   ├─ limits     – polls Claude Code's get_usage for 5h / week / Fable
   ├─ snapshot   – merges both, pushes to every open page over Server-Sent Events
-  └─ http       – serves the page, sprites, SSE stream, pairing page with QR code
+  └─ http       – serves the page, SSE stream, pairing page with QR code
   ▼
 Phone browser:  src/web/index.html
   ├─ app.js     – SSE client, layout, rings, session list, controls, settings
   ├─ mood.js    – the companion's state machine (pure module, unit-tested)
-  └─ mascot.js  – sprite player (clawdio timings) + calm idle scheduler
+  └─ clawd/     – Clawd, the SVG rig: clips, player with calm idle scheduler, renderer
 ```
 
 Division of work: the server sends **facts** (sessions, limits, discrete events). The page decides **behaviour** (which animation, when to sleep, what the bubble says). All creature logic therefore lives in one tested module, `mood.js`.
@@ -89,7 +89,7 @@ Routes:
 | `GET /api/health` | loopback (address **and** Host) | `{ok, pid}` |
 | `GET /` | loopback, or `?k=<token>`, or cookie | The dashboard page; a token login from a non-loopback request also sets an HttpOnly `dc` cookie |
 | `GET /events` | loopback, cookie or `?k=` | SSE stream: `snapshot` on connect and on every change; `event` for discrete moments; `ping` every 20 s |
-| `GET /web/*` | loopback, cookie or `?k=` | Static page assets, including `/web/sprites/*`. Exception: `manifest.webmanifest` and `icon.png` are public, because browsers fetch manifests without cookies |
+| `GET /web/*` | loopback, cookie or `?k=` | Static page assets, including the rig's modules under `/web/clawd/`. Exception: `manifest.webmanifest` and `icon.png` are public, because browsers fetch manifests without cookies |
 | `GET /pair`, `GET /api/pair-info` | loopback (address **and** Host) only | Pairing page: phone URL as text and as QR code, a status summary, and a live preview of the dashboard (loopback needs no token) |
 | `POST /api/dev/limits` | loopback (address **and** Host) **and** `x-dc-token` | Test helper: set the limits shown, for the fake-event driver |
 
@@ -177,7 +177,7 @@ Discrete `event` messages, e.g. `{ "type": "stop", "sessionId": "…" }`, are al
 Plain HTML/CSS/JS served as-is: no build step, no framework, no CDN.
 
 **Layout A.** It matches the approved mockup.
-- **Landscape:** the stage takes the left 40%: a dark radial background, the speech bubble, and the creature at 64% of the stage width. The right side holds three rings (5-hour amber `#f5a524`, week teal `#35c2b0`, Fable violet `#a78bfa`, each with a reset countdown) and the session list (status dot, name, "model · effort · detail", context bar). A ring's number turns red at 80% or more.
+- **Landscape:** the stage takes the left 40%: a dark radial background, the speech bubble, and Clawd as large as the stage allows (up to 90% of its width; `style.css` explains the numbers). The right side holds three rings (5-hour amber `#f5a524`, week teal `#35c2b0`, Fable violet `#a78bfa`, each with a reset countdown) and the session list (status dot, name, "model · effort · detail", context bar). A ring's number turns red at 80% or more.
 - **Portrait:** stage on top (about 40% of the height), rings in a row, then the list.
 - **List length:** up to 5 rows; beyond that, a "+N more" line.
 - **Countdowns** are computed on the page from `resetsAt` and re-rendered every 30 s, e.g. "1h 48m" or "Thu 09:00" when more than 24 h away.
@@ -215,9 +215,9 @@ Rules, adapted from clawdio's `state_machine.cpp` (expression names are clawdio'
 |---|---|---|
 | Idle | no active focus session | calm idle (§8) |
 | Prompt | `prompt` event / activity `thinking` | `surprised` → `thinking`; `curious` once after 8 s |
-| Reading | activity `reading` | `reading` (thinking art, 110 ms/frame) |
+| Reading | activity `reading` | `reading` |
 | Writing | activity `working` | `working` |
-| Build/test | activity `compiling` | `compiling` (working art, 90 ms/frame); `look_left` once after 8 s |
+| Build/test | activity `compiling` | `compiling`; `look_left` once after 8 s |
 | Needs you | `needsYou` | base cycles `surprised` ⇄ `curious` until cleared; bubble tone `need` |
 | Finished | `stop` event | `surprised` → `happy_eyes` for 3 s → idle; bubble "Your turn" |
 | New session | `sessionStart` event | `curious` once |
@@ -235,46 +235,32 @@ Rules, adapted from clawdio's `state_machine.cpp` (expression names are clawdio'
 - **Priority**, highest first: overloaded/rate-limited; needs you; activity; limit mood; idle.
 - **Minimum dwell** between sideways activity changes is 1.5 s, as in clawdio. It stops rapid tool calls from flickering.
 
-### 8. Sprite player and calm idle: `src/web/mascot.js`
+### 8. Clawd, the SVG rig, and calm idle: `src/web/clawd/`
 
-- **Frames.** Plays 8-frame strips on a 256×256 `<canvas>` with CSS `mix-blend-mode: lighten`, so the black sprite background disappears into the dark stage.
-- **Timing.** Frame durations follow clawdio's registry, e.g. idle 150, blink 80, look 120, thinking 100, working 80, surprised 100, love 120, sleeping 200, overloaded 70 ms. The table lives in `src/web/anims.js`.
-- **Playback rules.** Loop animations wrap. A one-shot plays its chained `next` if it has one, otherwise the queued one-shots, otherwise the base. There is no tweening, and it advances at most one frame per tick with the remainder carried forward.
-- **Calm idle.** When the base is idle, the player holds idle frame 0. While standing still it runs three timers:
-  - blink: the blink strip, 640 ms;
-  - glance: `look_left` or `look_right`, 960 ms;
-  - breath: idle frames `0,1,2,3,2,1,0` at 200 ms, 1.4 s.
+- **The rig.** Clawd is drawn live in an inline `<svg id="mascot">` from a handful of rects: a 12×8 body, two 1×2 eyes, two 2×2 arm nubs and four 1×2 legs, in orange `#D97757` and ink `#141413`. The viewBox is `-16 -28 32 32`: the origin is the ground point under the body, y grows down, and the 18 units above the body leave room for the flag, the Zzz and the confetti. `svg.js` makes a pool of 72 `<rect>`s at mount and each frame writes only the attributes that changed, so animating creates no elements and a still frame writes nothing.
+- **Clips.** Each of the 26 animations (`anims/*.js`) is a pure function from time to a **pose**: offsets, turns and scales for the root, body, arms, legs, eyes and mouth, plus props (a flag, a desk and laptop, a page, dumbbells, sunglasses) and effects (Zzz, "!", "?", hearts, steam, confetti). `core.js` turns a pose into transformed rects. Loops are seamless, one-shots start and end at rest (or on their `next`'s first pose), grounded clips keep a foot on the floor, and everything stays in view; the tests check all of it. `SPEC` in `core.js` fixes the names and kinds the mood engine uses. `ANIMATING.md` is the guide for writing clips.
+- **Player.** Same semantics as before: `setBase(names)` takes a base or an alternating list (needs-you's `surprised` ⇄ `curious`); unknown names are ignored and the same base does not restart. `play(names)` queues one-shots. A one-shot plays its chained `next` (`jumping_joy` and `celebration` → `happy`), otherwise the queued one-shots, otherwise the base; a chained loop yields to a new base. `update(dt)` returns false while holding still, so the page draws only when something moves.
+- **Blend.** Every clip change blends from the pose on screen: 130 ms plus 60 ms for each unit the body, arms or legs travel, up to 450 ms, and at least 300 ms when a prop arrives or leaves. The outgoing clip keeps playing while it fades, so nothing jumps or freezes.
+- **Calm idle.** When the base is idle, the player holds the rest pose. A single one-shot base (the mood engine's `yawning`) plays once, then holds calm idle without walks or hops until the base changes. While standing still it runs four timers:
+  - blink, 160 ms;
+  - glance: `look_left` or `look_right`, 900 ms;
+  - breath, 2 s;
+  - idle life: a few steps to one side and back (`walk`, 3.2 s) or a `hop` (1 s), picked 0.6 / 0.4.
 
-  The timers count down only during stillness. Their intervals come from the settings: `B` blinks/min, `G` glances/min, moving fraction `M`.
+  The timers count down only during stillness, and calm idle's own clips yield to a new base at once. Their intervals come from the settings: `B` blinks/min, `G` glances/min, moving fraction `M`.
   - Still time per minute: `S = 60 s × (1 − M)`.
-  - Breaths per minute: `R = max(0, (60 s × M − B × 0.64 s − G × 0.96 s) / 1.4 s)`. If `R` is 0 there are no breaths, and the moving share is whatever blinks and glances produce.
-  - Mean intervals, in still time: blinks `S / B`, glances `S / G`, breaths `S / R`.
+  - Free moving time per minute: `F = max(0, 60 s × M − B × 0.16 s − G × 0.9 s)`. A quarter of it goes to idle life (mean clip 2.32 s), the rest to breaths. If `F` is 0 there are neither.
+  - Mean intervals, in still time: blinks `S / B`, glances `S / G`, breaths `S / (0.75 F / 2 s)`, idle life `S / (0.25 F / 2.32 s)`.
   - Each interval is drawn uniformly within ±40% of its mean.
 
-  With the defaults (26, 2, 50%): `S` = 30 s, `R` ≈ 8.2, and the intervals are about 1.15 s, 15 s and 3.7 s. This measured 26 / 2 / 50% over 10 simulated minutes in the brainstorm prototype.
-- **No blinks during work.** Automatic blinks run only while idle. Clawdio also blinks during work loops, which briefly removes the thinking ring or typing hands.
+  With the defaults (26, 2, 50%): `S` = 30 s, `F` ≈ 24 s, and the intervals are about 1.15 s, 15 s, 3.3 s and 11.6 s. The tests measure 26 / 2 / 50% over 10 simulated minutes.
+- **No blinks during work.** Automatic blinks run only while idle.
 
-### 9. Sprites: `tools/build-sprites.mjs` (run once; output committed)
+### 9. Looking at Clawd: `tools/clawd-look.mjs` and `mock.html`
 
-- **Input.** clawdio's source sheets, `imgs/expr_*.png`, from `cegware/clawdio` (MIT), pinned to commit `76ee482fffa1cc602ca0dc524324a2880b9770e2` (2026-08-29). The script downloads them from `raw.githubusercontent.com` into `tools/.cache/` (gitignored), and records the commit in `sprites.json`.
-- **Slicing.**
-  - Sheets with separator lines: cut at the measured separator lines.
-  - Sheets without lines (`look_left`, `love`, `low_tokens`, `overloaded`): cut by clustering non-black content.
-  - Every frame must be free of separator-line remnants.
-- **Normalisation.** This fixes the size and position jumps between animations.
-  - Find the body in each frame as the pixels close to the sheet's dominant body colour.
-  - Scale each sheet so its median body width, arms included, equals idle's.
-  - Align every frame horizontally on its body centre.
-  - Align vertically on the feet line: per frame for static-body sheets, and per sheet (the median of rest frames) for sheets whose drawn motion must survive. Those are `happy_eyes`, `surprised`, `jumping_joy`, `celebration`, `happy` and `yawning`.
-  - Result: across all sheets, body width is within ±2% of idle's and the resting feet line within ±2 px.
-- **Output.**
-  - `src/web/sprites/<name>.png`: 8 frames of 256×256 in a 2048×256 strip on a black background.
-  - `sprites.json`: the source repo and commit, plus per-sheet metrics.
-  - `LICENSE-clawdio.txt`: clawdio's MIT notice.
-  - `src/web/icon.png`: idle frame 0, used as the Home Screen icon.
-
-  Timings are not in `sprites.json`; they live in `src/web/anims.js`. The README credits clawdio.
-- **Aliases.** As in clawdio: `reading` → thinking art, `compiling` → working art, `sad` → ending art, each at its own timing.
+- **Look tool.** `node tools/clawd-look.mjs <names|all>` renders contact sheets (frames across a clip, on the stage background) to PNG without a browser; `--at name:ms` renders one large frame, `--switch from:to` the real Player changing base, and `--dim` the stage as dimmed while asleep. It draws through `tools/lib/rast.mjs`, a small rasterizer for the rig's transformed rects (3×3 supersampling), and `tools/lib/png.mjs`.
+- **Icon.** `node tools/clawd-look.mjs --icon 256 --out src/web` writes `src/web/icon.png`, the Home Screen icon: the rest pose centred on the stage colour.
+- **Mock page.** `src/web/clawd/mock.html`, served at `/web/clawd/mock.html`, plays every clip and the mood engine's sequences with the dashboard's bubbles, at 1x or 0.25x, with a freeze-and-scrub slider.
 
 ### 10. Pairing: `skills/pair/SKILL.md` → `/desk-companion:pair`
 
@@ -312,7 +298,7 @@ Keeping the screen awake uses `nosleep.js` 0.12.0 (MIT), vendored at `src/web/ve
   - `sessions.mjs`: event sequences to session state, focus rule, expiry, sanitisation;
   - `limits.mjs`: parsing fixtures in both utilisation scales, back-off schedule;
   - `mood.js`: scenario scripts with a fake clock to expected commands, including every row of the §7 table;
-  - `mascot.js` idle scheduler: 10 simulated minutes within ±10% of the targets;
+  - `clawd/` rig and player: the idle scheduler over 10 simulated minutes within ±10% of the targets, the playback rules, seamless loops, one-shots at rest, grounded feet, the view and rect budgets, and blends that never pop; every animation `mood.js` asks for is a registered clip;
   - `hook.mjs` sanitisation: tool inputs never leak; the Bash word filter;
   - model label mapping;
   - transcript tail parser on fixture JSONL.
@@ -354,11 +340,12 @@ skills/pair/SKILL.md
 bin/hook.mjs, server.mjs, pair.mjs
 src/hook/sanitize.mjs
 src/server/http.mjs, sessions.mjs, limits.mjs, transcript.mjs, snapshot.mjs, paths.mjs, net.mjs
-src/web/index.html, pair.html, app.js, format.js, anims.js, mood.js, mascot.js, settings.js, style.css,
-        manifest.webmanifest, icon.png, sprites/, vendor/qrcode.js, vendor/NoSleep.min.js
-tools/build-sprites.mjs, tools/lib/png.mjs, tools/lib/sprite-math.mjs, tools/fake-events.mjs
+src/web/index.html, pair.html, app.js, format.js, mood.js, settings.js, style.css,
+        manifest.webmanifest, icon.png, vendor/qrcode.js, vendor/NoSleep.min.js
+src/web/clawd/index.js, core.js, svg.js, anims/base.js, life.js, work.js, feelings.js, mock.html, ANIMATING.md
+tools/clawd-look.mjs, tools/lib/rast.mjs, tools/lib/png.mjs, tools/fake-events.mjs
 test/*.test.mjs, test/fixtures/
 package.json ("type": "module", "scripts": { "test": "node --test" }), README.md, LICENSE
 ```
 
-`src/web/anims.js` is the single source of truth for animation names, sheets and timings. Both the page and the sprite build import it.
+`SPEC` in `src/web/clawd/core.js` is the single source of truth for the animation names and kinds (loop, one-shot, chained) that the mood engine uses.

@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validate, loadSettings, saveSettings, rotationFor, nextRotation, STORAGE_KEY } from '../src/web/settings.js';
+import { VIEW, PALETTE } from '../src/web/clawd/index.js';
+import { decodePng } from '../tools/lib/png.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEF = {
@@ -100,9 +102,83 @@ test('style: controls above the offline overlay, blank above everything, no iOS 
   assert.equal(r.get('body')['touch-action'], 'manipulation');
 });
 
+// A length from style.css, in px, for a W x H #app: sums of cqw / cqh / cqmin / px, optionally inside min().
+function lengthPx(expr, W, H) {
+  const unit = { cqw: W / 100, cqh: H / 100, cqmin: Math.min(W, H) / 100, px: 1 };
+  const sum = s => {
+    const terms = [...s.matchAll(/([+-]?)\s*(\d*\.?\d+)(cqw|cqh|cqmin|px)\b/g)];
+    assert.ok(terms.length, `no length in "${s}"`);
+    return terms.reduce((t, [, sign, n, u]) => t + (sign === '-' ? -1 : 1) * Number(n) * unit[u], 0);
+  };
+  const m = /^min\((.*)\)$/.exec(expr.trim());
+  return m ? Math.min(...m[1].split(',').map(a => sum(a.replace(/calc\(|\)/g, '')))) : sum(expr);
+}
+
+test('style: Clawd is as large as the stage allows, clear of the bubble, the controls and the data', () => {
+  const r = styleRules();
+  const m = r.get('#mascot');
+  assert.equal(m['mix-blend-mode'], undefined, 'an SVG has no black square to blend away');
+  assert.equal(m['aspect-ratio'], '1');
+  assert.deepEqual([m.width, m.height], ['var(--mascot)', 'var(--mascot)'], 'both set, so the square never depends on how a browser sizes an SVG');
+  const b = r.get('.bubble');
+  const gap = r.get('.stage').gap;
+  // The bubble with text: line-height normal (at most 1.35 for these fonts), padding top and bottom, 1px borders.
+  const bubble = (W, H) => 1.35 * lengthPx(b['font-size'], W, H) + 2 * lengthPx(b.padding.split(' ')[0], W, H) + 2;
+  const check = (sel, W, H, room) => {
+    const M = lengthPx(r.get(sel)['--mascot'], W, H);
+    assert.ok(M <= room, `${W}x${H}: ${M.toFixed(1)}px fits (room ${room.toFixed(1)}px)`);
+    assert.ok(M >= 0.85 * room, `${W}x${H}: ${M.toFixed(1)}px uses the stage (room ${room.toFixed(1)}px)`);
+  };
+  // Landscape: the stage is the 40% column, full height, bubble and Clawd centred in it.
+  assert.equal(r.get('#app.landscape')['grid-template-columns'], '40% 60%');
+  for (const [W, H] of [[844, 390], [667, 375], [932, 430], [1024, 768]]) {
+    check('#app.landscape #mascot', W, H, Math.min(0.4 * W, H - bubble(W, H) - lengthPx(gap, W, H)));
+  }
+  // Portrait: the stage is the top 42%; the bubble starts below the controls, then the gap, then Clawd,
+  // centred by his auto margins in what is left and never reaching into .data.
+  assert.equal(r.get('#app.portrait')['grid-template-rows'], '42% minmax(0, 1fr)');
+  const ps = r.get('#app.portrait .stage');
+  assert.equal(ps['justify-content'], 'flex-start');
+  assert.equal(r.get('#app.portrait #mascot')['margin-block'], 'auto');
+  for (const [W, H] of [[390, 844], [768, 1024], [800, 969], [375, 667], [360, 800], [430, 932]]) {
+    check('#app.portrait #mascot', W, H, Math.min(W, 0.42 * H - lengthPx(ps['padding-top'], W, H) - bubble(W, H) - lengthPx(gap, W, H)));
+  }
+});
+
+test('page: Clawd is an inline SVG with the rig\'s viewBox, and every module the page loads exists', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
+  const tag = /<svg id="mascot"[^>]*>/.exec(html);
+  assert.ok(tag, 'svg#mascot');
+  assert.match(tag[0], new RegExp(`viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}"`));
+  assert.match(tag[0], /role="img"/);
+  assert.match(tag[0], /aria-label="Clawd"/);
+  assert.doesNotMatch(html, /<canvas/);
+  for (const [, p] of html.matchAll(/(?:src|href)="\/web\/([^"?]+)"/g)) assert.ok(fs.existsSync(path.join(ROOT, 'src/web', p)), `index.html loads missing /web/${p}`);
+  const seen = new Set();
+  const visit = file => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    assert.ok(fs.existsSync(file), `${path.relative(ROOT, file)} is imported but missing`);
+    const src = fs.readFileSync(file, 'utf8');
+    for (const [, spec] of src.matchAll(/\bimport\s*(?:[\w*{}\s,]+?\bfrom\s*)?['"](\.[^'"]+)['"]/g)) visit(path.resolve(path.dirname(file), spec));
+  };
+  visit(path.join(ROOT, 'src/web/app.js'));
+  assert.ok(seen.has(path.join(ROOT, 'src/web/clawd/index.js')), 'app.js draws Clawd through clawd/index.js');
+});
+
 test('web manifest keeps the tokenised start URL (no start_url) and uses the icon', () => {
   const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/web/manifest.webmanifest'), 'utf8'));
   assert.equal(m.display, 'fullscreen');
   assert.equal(m.start_url, undefined);
   assert.equal(m.icons[0].src, '/web/icon.png');
+  assert.equal(m.icons[0].sizes, '256x256');
+});
+
+test('the Home Screen icon is Clawd at rest, centred on the stage colour', () => {
+  const icon = decodePng(fs.readFileSync(path.join(ROOT, 'src/web/icon.png')));
+  assert.deepEqual([icon.width, icon.height], [256, 256]);
+  const at = (x, y) => [...icon.data.subarray((y * 256 + x) * 3, (y * 256 + x) * 3 + 3)];
+  const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  for (const [x, y] of [[0, 0], [255, 0], [0, 255], [255, 255]]) assert.deepEqual(at(x, y), rgb(PALETTE.stage), `corner ${x},${y}`);
+  assert.deepEqual(at(128, 128), rgb(PALETTE.body), 'his body in the middle');
 });

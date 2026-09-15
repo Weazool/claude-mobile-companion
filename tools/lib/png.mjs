@@ -1,6 +1,7 @@
 import zlib from 'node:zlib';
 
-// Minimal PNG codec: reads 8-bit RGB/RGBA non-interlaced (every clawdio sheet is 8-bit RGB), writes 8-bit RGB.
+// Minimal PNG codec: reads 8-bit RGB/RGBA non-interlaced, writes 8-bit RGB (tools/lib/rast.mjs's images:
+// clawd-look's contact sheets and the Home Screen icon; the tests decode the icon back).
 export function decodePng(buf) {
   if (buf.length < 8 || buf.readUInt32BE(0) !== 0x89504e47) throw new Error('not a PNG');
   let off = 8;
