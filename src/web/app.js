@@ -119,6 +119,8 @@ function seen() {
   $('offline').hidden = true;
 }
 
+const SETTLE = new URLSearchParams(location.search).has('settle');
+let settled = false;
 let es = null;       // the current EventSource
 let reconnectAt = 0; // when the page last replaced a silent connection itself
 
@@ -132,6 +134,9 @@ function connect() {
     seen();
     render();
     apply(mood.onSnapshot(snap, Date.now()));
+    // ?settle (screenshots from headless browsers, which barely run animation frames): skip the entry
+    // transitions of the first state, so the picture shows Clawd settled into it.
+    if (SETTLE && !settled) { settled = true; for (let i = 0; i < 80; i++) player.update(50); view.render(player.shapes()); }
   });
   src.addEventListener('event', e => { seen(); onEvent(JSON.parse(e.data)); });
   src.addEventListener('behaviours', e => { seen(); setBehaviours((JSON.parse(e.data) || {}).map); });

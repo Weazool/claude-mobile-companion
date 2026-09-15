@@ -67,16 +67,19 @@ html, body {
 
 .data { min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 3cqmin; padding: 6cqmin 5cqmin 4cqmin 2cqmin; }
 #app.portrait .data { justify-content: flex-start; padding: 3cqmin 5cqmin 5cqmin; }
-.rings { display: flex; gap: 4cqmin; }
-#app.portrait .rings { justify-content: center; }
-.ring { position: relative; width: 20cqmin; text-align: center; transition: opacity .4s; }
+/* The three rings share the data column's full width (one equal cell each, like the session rows below) and
+   grow with it: --ring is a cell's width, capped by the height so the sessions keep their room. */
+.rings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4cqmin; justify-items: center; }
+#app.landscape .rings { --ring: min(20cqw - 5cqmin, 32cqh); }
+#app.portrait .rings { --ring: min(33cqw - 6cqmin, 22cqh); }
+.ring { position: relative; width: var(--ring, 20cqmin); text-align: center; transition: opacity .4s; }
 .ring.stale { opacity: .45; }
 .ring svg { width: 100%; display: block; }
 .ring .track { fill: none; stroke: var(--track); stroke-width: 4; }
 .ring .val { fill: none; stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray .9s ease; }
-.ring .num { position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 5.2cqmin; font-weight: 700; }
+.ring .num { position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: calc(var(--ring, 20cqmin) * 0.26); font-weight: 700; }
 .ring .num.hot { color: var(--bad); }
-.ring .lbl { font-size: 2.7cqmin; color: var(--dim); margin-top: 1cqmin; white-space: nowrap; }
+.ring .lbl { font-size: 3cqmin; color: var(--dim); margin-top: 1cqmin; white-space: nowrap; }
 .note { font-size: 2.7cqmin; color: var(--dim); min-height: 3cqmin; }
 
 .sessions { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
