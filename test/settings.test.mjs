@@ -100,6 +100,19 @@ test('style: controls above the offline overlay, blank above everything, no sett
   assert.equal(r.get('body')['touch-action'], 'manipulation');
 });
 
+test('style: the screensaver is black, inside #app, above the dashboard and below the overlays; the old dim is gone', () => {
+  const r = styleRules();
+  const saver = r.get('#saver');
+  assert.equal(saver.background, '#000');
+  assert.ok(Number(saver['z-index']) < 50, 'offline and blank overlays stay on top');
+  assert.equal(r.get('#app.saver .controls').visibility, 'hidden');
+  assert.equal(r.get('#app.dim'), undefined, 'asleep is the screensaver now, not a dimmed dashboard');
+  assert.match(r.get('#app').transition, /translate 2s/, 'the burn-in drift is eased');
+  const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
+  const app = html.slice(html.indexOf('<main id="app"'), html.indexOf('</main>'));
+  assert.match(app, /<div id="saver" hidden>.*class="saver-card".*id="saverRings"/, '#saver rotates with #app');
+});
+
 // A length from style.css, in px, for a W x H #app: sums of cqw / cqh / cqmin / px, optionally inside min().
 function lengthPx(expr, W, H) {
   const unit = { cqw: W / 100, cqh: H / 100, cqmin: Math.min(W, H) / 100, px: 1 };

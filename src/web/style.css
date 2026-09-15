@@ -15,10 +15,12 @@ html, body {
 #app {
   position: fixed; left: 50%; top: 50%;
   width: var(--w, 100dvw); height: var(--h, 100dvh);
-  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) rotate(var(--rot, 0deg));
+  transform: translate(-50%, -50%) rotate(var(--rot, 0deg));
+  /* Burn-in drift (app.js): --dx/--dy move the whole dashboard along the physical screen, eased over 2 s. */
+  translate: var(--dx, 0px) var(--dy, 0px);
   background: var(--bg); container-type: size; display: grid; overflow: hidden;
   box-sizing: border-box; padding: var(--sa-t) var(--sa-r) var(--sa-b) var(--sa-l);
-  transition: filter 2s ease;
+  transition: translate 2s linear;
 }
 /* Safe areas. viewport-fit=cover lets the page run under the notch, the Dynamic Island and the home
    indicator; env(safe-area-inset-*) names the physical screen edges. #app is turned clockwise by --rot,
@@ -31,7 +33,6 @@ html, body {
 #app.rot90 { --sa-t: env(safe-area-inset-right, 0px); --sa-r: env(safe-area-inset-bottom, 0px); --sa-b: env(safe-area-inset-left, 0px); --sa-l: env(safe-area-inset-top, 0px); }
 #app.rot180 { --sa-t: env(safe-area-inset-bottom, 0px); --sa-r: env(safe-area-inset-left, 0px); --sa-b: env(safe-area-inset-top, 0px); --sa-l: env(safe-area-inset-right, 0px); }
 #app.rot270 { --sa-t: env(safe-area-inset-left, 0px); --sa-r: env(safe-area-inset-top, 0px); --sa-b: env(safe-area-inset-right, 0px); --sa-l: env(safe-area-inset-bottom, 0px); }
-#app.dim { filter: brightness(.32) saturate(.8); }
 #app.landscape { grid-template-columns: 40% 60%; }
 #app.portrait { grid-template-rows: 42% minmax(0, 1fr); }
 
@@ -105,4 +106,18 @@ html, body {
 .overlay[hidden] { display: none; }
 
 .overlay.blank { background: #000; z-index: 80; } /* above the controls */
+
+/* Screensaver (while Clawd sleeps): pure black, so the OLED pixels are off, and a small dim card with Clawd and
+   the rings that glides around the screen (app.js moves it inside .saver-field, which keeps clear of the notch).
+   Above the dashboard and its controls' row, below the offline and blank overlays. */
+html.saving, html.saving body, html.saving #app { background: #000; }
+#saver { position: absolute; inset: 0; z-index: 40; background: #000; overflow: hidden; }
+#saver[hidden] { display: none; }
+.saver-field { position: absolute; top: var(--sa-t); right: var(--sa-r); bottom: var(--sa-b); left: var(--sa-l); }
+.saver-card { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 1.5cqmin; opacity: .6; will-change: transform; }
+.saver-card #mascot { position: static; transform: none; width: 30cqmin; height: 30cqmin; }
+.saver-rings { display: flex; gap: 2.5cqmin; }
+.saver-rings .ring { --ring: 10cqmin; }
+.saver-rings .ring .lbl { font-size: 2.2cqmin; margin-top: .6cqmin; }
+#app.saver .controls { visibility: hidden; }
 

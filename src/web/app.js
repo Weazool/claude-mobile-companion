@@ -3,6 +3,7 @@ import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { loadSettings, saveSettings, validate, rotationFor, nextRotation } from './settings.js';
+import { drift, bounce, startState } from './saver.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -28,7 +29,37 @@ function apply(cmd) {
   if (cmd.play.length) player.play(cmd.play);
   setBubble(cmd.bubble && cmd.bubble.text, cmd.bubble && cmd.bubble.tone);
   dimmed = !!cmd.dim;
-  $('app').classList.toggle('dim', dimmed);
+  setSaver(dimmed || forceSaver);
+}
+
+// ---------- screensaver (burn-in protection while Clawd sleeps) ----------
+// The mood's dim is exactly "asleep": the screen goes black and a small card with Clawd and the rings glides
+// around it (saver.js). The live mascot SVG moves into the card and back, so the one renderer keeps drawing.
+// ?saver forces it on (checks and screenshots); a tap on the screensaver wakes Clawd and brings the dashboard back.
+let forceSaver = new URLSearchParams(location.search).has('saver');
+let saverOn = false;
+let saverState = null;
+let saverBox = null;
+function setSaver(on) {
+  if (on === saverOn) return;
+  saverOn = on;
+  const svg = $('mascot');
+  if (on) document.querySelector('.saver-card').prepend(svg);
+  else document.querySelector('.stage').appendChild(svg);
+  $('saver').hidden = !on;
+  $('app').classList.toggle('saver', on);
+  document.documentElement.classList.toggle('saving', on);
+  saverState = null;
+  saverBox = null;
+  if (on) renderRings();
+  drawPending = true;
+}
+function moveSaver(dt) {
+  const card = document.querySelector('.saver-card');
+  if (!saverBox) { const s = card.parentElement; saverBox = { W: s.clientWidth, H: s.clientHeight, w: card.offsetWidth, h: card.offsetHeight }; }
+  const { W, H, w, h } = saverBox;
+  saverState = saverState ? bounce(saverState, dt, W, H, w, h) : startState(W, H, w, h);
+  card.style.transform = `translate(${saverState.x.toFixed(1)}px, ${saverState.y.toFixed(1)}px)`;
 }
 
 // The behaviour map (edited on the PC at /behaviours) arrives on connect and after every save. It is checked
@@ -46,10 +77,12 @@ function setBehaviours(map) {
 const DIM_FRAME_MS = 50;
 let lastFrameAt = performance.now();
 let lastDrawAt = 0;
+let saverDt = 0;
 function loop(now) {
   const dt = Math.min(100, now - lastFrameAt);
   lastFrameAt = now;
   const moving = player.update(dt);
+  if (saverOn) { saverDt += dt; if (saverDt >= DIM_FRAME_MS) { moveSaver(saverDt); saverDt = 0; } }
   if (drawPending || (moving && (!dimmed || now - lastDrawAt >= DIM_FRAME_MS))) {
     view.render(player.shapes());
     drawPending = false;
@@ -59,12 +92,16 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 setInterval(() => apply(mood.tick(Date.now())), 500);
-$('mascot').addEventListener('click', () => apply(mood.onTap(Date.now())));
+$('mascot').addEventListener('click', () => { if (!saverOn) apply(mood.onTap(Date.now())); }); // in the screensaver, #saver handles the tap
 
 // ---------- rings ----------
 function renderRings() {
   const { rings, note } = limitsView(snap && snap.limits, Date.now(), skew);
-  const box = $('rings');
+  drawRings($('rings'), rings);
+  if (saverOn) drawRings($('saverRings'), rings, true);
+  $('limitsNote').textContent = note;
+}
+function drawRings(box, rings, compact = false) {
   if (!box.children.length) {
     box.innerHTML = rings.map(r => `<div class="ring" data-k="${r.key}"><svg viewBox="0 0 40 40">
       <circle class="track" cx="20" cy="20" r="16"/>
@@ -78,9 +115,8 @@ function renderRings() {
     const num = el.querySelector('.num');
     num.textContent = r.text;
     num.classList.toggle('hot', r.hot);
-    el.querySelector('.lbl').textContent = r.label + (r.reset ? ' · ' + r.reset : '');
+    el.querySelector('.lbl').textContent = r.label + (r.reset && !compact ? ' · ' + r.reset : '');
   }
-  $('limitsNote').textContent = note;
 }
 
 // ---------- sessions ----------
@@ -185,7 +221,7 @@ function applyLayout() {
   app.classList.toggle('portrait', layout === 'portrait');
   for (const r of [0, 90, 180, 270]) app.classList.toggle(`rot${r}`, r === settings.rotation); // safe-area mapping in style.css
 }
-window.addEventListener('resize', applyLayout);
+window.addEventListener('resize', () => { applyLayout(); saverBox = null; });
 applyLayout();
 
 // Full screen and keep-awake need a tap. The controls stop propagation, so they call this themselves.
@@ -218,13 +254,25 @@ $('btnClose').addEventListener('click', e => {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 });
 $('blank').addEventListener('click', () => { $('blank').hidden = true; });
+$('saver').addEventListener('click', e => {
+  e.stopPropagation();
+  activate();
+  forceSaver = false;
+  setSaver(false);
+  apply(mood.onTap(Date.now())); // wakes him: the wake-up plays and the dashboard is back
+});
 
-// Burn-in protection: shift the whole layout by up to 4 px every 10 minutes.
-setInterval(() => {
+// Burn-in protection while awake: the whole dashboard drifts slowly and continuously (saver.js drift, eased by
+// #app's 2 s transform transition), so no pixel keeps lighting the same spot.
+function applyDrift() {
   const app = $('app');
-  app.style.setProperty('--dx', `${Math.round(Math.random() * 8 - 4)}px`);
-  app.style.setProperty('--dy', `${Math.round(Math.random() * 8 - 4)}px`);
-}, 10 * 60000);
+  const { dx, dy } = drift(Date.now(), window.innerWidth, window.innerHeight); // physical screen axes
+  app.style.setProperty('--dx', `${dx.toFixed(1)}px`);
+  app.style.setProperty('--dy', `${dy.toFixed(1)}px`);
+}
+applyDrift();
+setInterval(applyDrift, 2000);
+if (forceSaver) setSaver(true);
 
 render();
 connect();

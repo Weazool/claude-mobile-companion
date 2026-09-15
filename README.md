@@ -57,6 +57,7 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
 - **✕** blanks the screen until you tap it (night mode).
 - **⟲** turns the layout 90° at a time, so it works with rotation lock on. The choice is remembered.
+- **Burn-in protection.** While Claude works, the whole dashboard drifts slowly so no pixel stays lit in one place. When Clawd falls asleep (5 quiet minutes), a screensaver takes over: the screen goes black and a small, dim Clawd with your three rings glides around it. Any Claude activity or a tap brings the dashboard back.
 
 The page keeps the screen awake while it's open. If your phone still locks, set iPhone Settings → Display & Brightness → Auto-Lock → Never, or turn on Android Developer options → Stay awake while charging.
 
