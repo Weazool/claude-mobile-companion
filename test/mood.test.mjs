@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMood as makeMood } from '../src/web/mood.js';
 import { ANIMS } from '../src/web/clawd/index.js';
+import { BEHAVIOURS } from '../src/web/behaviours.js';
 
 // Every animation name a command asks for, across all the scenarios below (the last test checks them
 // against the Clawd rig the page plays them on).
@@ -227,6 +228,133 @@ test('offline: the companion sleeps until the connection returns', () => {
   m.onSnapshot(snap([sess('working', { detail: 'x' })]), T0);
   assert.deepEqual(m.setOffline(true, T0 + 1), { base: 'sleeping', play: [], bubble: null, dim: false });
   assert.equal(m.setOffline(false, T0 + 2).base, 'working');
+});
+
+// ---------- the behaviour map ----------
+// These use makeMood directly: their remapped names are not what the defaults ask for (the last test's list).
+
+test('remapped behaviours change the animations, not the moods (the brief\'s examples)', () => {
+  const m = makeMood({}, { rand: () => 0.9, behaviours: { thinking: 'reading', startle: 'love', needsYou: ['happy_eyes'], tap: ['hop'] } });
+  m.onSnapshot(snap([sess('done')]), T0);
+  assert.deepEqual(m.onSnapshot(snap([sess('thinking', { detail: 'Thinking…' })]), T0 + 1000),
+    { base: 'reading', play: ['love'], bubble: { text: 'Thinking…', tone: '' }, dim: false });
+  assert.deepEqual(m.tick(T0 + 9000).play, ['curious'], 'still the thinking mode: it escalates after 8 s');
+  assert.deepEqual(m.onTap(T0 + 9500), { base: 'reading', play: ['hop'], bubble: { text: 'Thinking…', tone: '' }, dim: false });
+  const n = m.onSnapshot(snap([sess('thinking', { needsYou: true, detail: 'Needs permission' })]), T0 + 10000);
+  assert.deepEqual(n, { base: ['happy_eyes'], play: [], bubble: { text: 'Needs permission', tone: 'need' }, dim: false });
+});
+
+test('the dwell hold keeps the mapped animation of the mode it holds', () => {
+  const m = makeMood({}, { rand: mid, behaviours: { reading: 'sad', working: 'happy' } });
+  assert.equal(m.onSnapshot(snap([sess('reading', { detail: 'Reading a' })]), T0).base, 'sad');
+  const c = m.onSnapshot(snap([sess('working', { detail: 'Editing b' })]), T0 + 500);
+  assert.deepEqual([c.base, c.bubble.text], ['sad', 'Editing b']);
+  assert.equal(m.tick(T0 + 1600).base, 'happy');
+});
+
+test('sequences, reactions and sleep come from the map', () => {
+  const m = makeMood({ sleepAfterMin: 1 }, {
+    rand: mid,
+    behaviours: { sessionStart: 'blink', firstPromptOfDay: ['walk', 'love', 'hop'], turnDone: 'love', yourTurn: 'cool', yawn: 'love', asleep: 'cool', wakeUp: ['hop'] },
+  });
+  m.onSnapshot(snap([sess('done')]), T0);
+  assert.deepEqual(m.onEvent({ type: 'sessionStart', sessionId: 's2' }, T0 + 1).play, ['blink']);
+  assert.deepEqual(m.onEvent({ type: 'prompt', sessionId: 's1' }, T0 + 2).play, ['walk', 'love', 'hop']);
+  m.onSnapshot(snap([sess('working', { detail: 'x' })]), T0 + 1000);
+  m.onSnapshot(snap([sess('done')]), T0 + 2000);
+  const s = m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 2001);
+  assert.deepEqual([s.base, s.play, s.bubble.text], ['cool', ['love'], 'Your turn']);
+  assert.equal(m.tick(T0 + 10000).base, 'idle');
+  assert.deepEqual(m.tick(T0 + 2001 + MIN), { base: 'love', play: [], bubble: null, dim: false }, 'the yawn');
+  assert.deepEqual(m.tick(T0 + 2001 + MIN + 2500), { base: 'cool', play: [], bubble: { text: 'Zzz…', tone: '' }, dim: true });
+  const w = m.onTap(T0 + 3 * MIN);
+  assert.deepEqual([w.base, w.play, w.bubble.text, w.dim], ['idle', ['hop'], 'Hi!', false]);
+});
+
+test('a remapped celebration: its own reaction, then its base, then its afterglow', () => {
+  const m = makeMood({}, { rand: mid, behaviours: { freshLimits: 'celebration', freshLimitsAfter: 'happy_eyes', afterglow: 'sad' } });
+  m.onSnapshot(snap([sess('done')], five(100)), T0);
+  const c = m.onSnapshot(snap([sess('done')], five(2)), T0 + 1000);
+  assert.deepEqual([c.base, c.play, c.bubble.text], ['happy_eyes', ['celebration'], 'Fresh limits!']);
+  assert.equal(m.tick(T0 + 1000 + 5700).base, 'sad');
+  assert.equal(m.tick(T0 + 1000 + 13700).base, 'idle');
+});
+
+test('a tap picks from the tap list at random', () => {
+  const tap = ['hop', 'walk', 'love', 'blink'];
+  for (const [r, want] of [[0, 'hop'], [0.3, 'walk'], [0.6, 'love'], [0.99, 'blink']]) {
+    const m = makeMood({}, { rand: () => r, behaviours: { tap } });
+    m.onSnapshot(snap([sess('done')]), T0);
+    assert.deepEqual(m.onTap(T0 + 1).play, [want], `rand ${r}`);
+  }
+});
+
+test('setBehaviours: the next tick shows the current state with the new map; other states wait their turn', () => {
+  const m = makeMood({}, { rand: mid });
+  m.onSnapshot(snap([sess('thinking', { detail: 'Thinking…' })]), T0);
+  m.setBehaviours({ reading: 'hop' });
+  assert.equal(m.tick(T0 + 100), null, 'reading is not on screen: nothing to redraw');
+  m.setBehaviours({ thinking: 'working' });
+  assert.deepEqual(m.tick(T0 + 200), { base: 'working', play: [], bubble: { text: 'Thinking…', tone: '' }, dim: false });
+  m.setBehaviours({});
+  assert.equal(m.tick(T0 + 300).base, 'thinking', 'a new map replaces the old one: what it leaves out is the default again');
+  m.setBehaviours({ offline: 'cool' });
+  assert.deepEqual(m.setOffline(true, T0 + 400), { base: 'cool', play: [], bubble: null, dim: false });
+});
+
+test('every state and moment reads its animation from the map (no animation name is left in mood.js)', () => {
+  // Map every behaviour to its own made-up name, run through every state, and collect what the commands ask for.
+  const X = Object.fromEntries(BEHAVIOURS.map(b => [b.key, Array.isArray(b.default) ? [`x_${b.key}`] : `x_${b.key}`]));
+  const seen = new Set();
+  const mood = (settings = {}, rand = mid) => {
+    const m = makeMood(settings, { rand, behaviours: X });
+    const note = c => { if (c) for (const n of [...[].concat(c.base), ...c.play]) seen.add(n); return c; };
+    return Object.fromEntries(Object.entries(m).map(([k, f]) => [k, (...a) => note(f(...a))]));
+  };
+
+  const a = mood();
+  a.onSnapshot(snap([sess('done')]), T0);                                        // idle
+  a.onEvent({ type: 'prompt', sessionId: 's1' }, T0 + 1);                         // first prompt of the day
+  a.onEvent({ type: 'sessionStart', sessionId: 's2' }, T0 + 2);                   // new session
+  a.onTap(T0 + 3);                                                                // tap
+  a.onSnapshot(snap([sess('thinking', { detail: 't' })]), T0 + 1000);             // thinking, startle
+  a.tick(T0 + 9000);                                                              // still thinking
+  a.onSnapshot(snap([sess('reading', { detail: 'r' })]), T0 + 10000);             // reading
+  a.onSnapshot(snap([sess('working', { detail: 'w' })]), T0 + 10500);             // (the dwell hold: still reading)
+  a.onSnapshot(snap([sess('working', { detail: 'w' })]), T0 + 12000);             // working
+  a.onSnapshot(snap([sess('compiling', { detail: 'c' })]), T0 + 14000);           // compiling
+  a.tick(T0 + 22000);                                                             // still compiling
+  a.onSnapshot(snap([sess('compiling', { needsYou: true, detail: 'n' })]), T0 + 23000); // needs you
+  a.onSnapshot(snap([sess('done')]), T0 + 24000);
+  a.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 24001);                       // turn done, your turn
+  for (let i = 0; i < 3; i++) a.onEvent({ type: 'error', sessionId: 's1' }, T0 + 30000 + i); // error, errors in a row
+
+  const b = mood();
+  b.onSnapshot(snap([sess('done')], five(40)), T0);
+  b.onSnapshot(snap([sess('done')], five(55)), T0 + 1000);                        // 5-hour >= 50%, getting tired
+  b.onSnapshot(snap([sess('done')], five(83)), T0 + 2000);                        // >= 80%
+  b.onSnapshot(snap([sess('done')], five(96)), T0 + 3000);                        // >= 95%
+  b.onSnapshot(snap([sess('done')], { ...five(40), week: { pct: 96, resetsAt: null } }), T0 + 4000);  // week >= 95%
+  b.onSnapshot(snap([sess('done')], { ...five(40), week: { pct: 100, resetsAt: null } }), T0 + 5000); // week reached
+  b.onSnapshot(snap([sess('done')], five(100)), T0 + 6000);                       // 5-hour reached
+  b.onSnapshot(snap([sess('done')], five(2)), T0 + 7000);                         // limits reset, celebrating
+  b.tick(T0 + 7000 + 5700);                                                       // afterglow
+  mood().onSnapshot(snap([sess('rateLimited', { detail: 'Rate limited' })]), T0); // rate limited
+
+  const c = mood({}, () => 0);
+  c.onSnapshot(snap([sess('done')], five(3)), T0);
+  c.tick(T0 + 500);                                                               // cool moment
+
+  const d = mood({ sleepAfterMin: 5 });
+  d.onSnapshot(snap([sess('done')]), T0);
+  d.tick(T0 + 5 * MIN);                                                           // yawn
+  d.tick(T0 + 5 * MIN + 2500);                                                    // asleep
+  d.onTap(T0 + 6 * MIN);                                                          // wakes up
+  d.setOffline(true, T0 + 7 * MIN);                                               // PC offline
+
+  assert.deepEqual([...seen].filter(n => !n.startsWith('x_')), [], 'animation names that bypass the map');
+  const PLAYER = ['idleBlink', 'idleGlance', 'idleLife']; // calm idle's clips: app.js hands these to the Player
+  assert.deepEqual([...seen].map(n => n.slice(2)).sort(), BEHAVIOURS.map(k => k.key).filter(k => !PLAYER.includes(k)).sort());
 });
 
 // Keep this test last: it reads what the scenarios above asked for.

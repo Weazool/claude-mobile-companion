@@ -6,6 +6,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { createApp, tokenMatches, isLoopback, isLoopbackHost } from '../src/server/http.mjs';
 import { buildSnapshot, EMPTY_LIMITS } from '../src/server/snapshot.mjs';
+import { DEFAULT_MAP } from '../src/web/behaviours.js';
 
 const TOKEN = 'f'.repeat(32);
 
@@ -13,6 +14,7 @@ function webRoot() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dc-web-'));
   fs.writeFileSync(path.join(dir, 'index.html'), '<h1>dash</h1>');
   fs.writeFileSync(path.join(dir, 'pair.html'), '<h1>pair</h1>');
+  fs.writeFileSync(path.join(dir, 'behaviours.html'), '<h1>behaviours</h1>');
   fs.writeFileSync(path.join(dir, 'style.css'), 'body{}');
   fs.writeFileSync(path.join(dir, 'manifest.webmanifest'), '{}');
   return dir;
@@ -20,17 +22,30 @@ function webRoot() {
 
 async function start() {
   let loop = false;
+  let failSave = false;
   const hooks = [];
   const devLimits = [];
+  const saves = [];               // what setBehaviours was given
+  let map = { tap: ['hop'] };     // the server's current behaviour map (validation is the server's job)
   const app = createApp({
     token: TOKEN, webRoot: webRoot(),
     getSnapshot: () => ({ v: 1, hello: true }),
     onHook: e => hooks.push(e), onDevLimits: l => devLimits.push(l),
     getPairInfo: () => ({ urls: ['http://x'] }),
+    getBehaviours: () => map,
+    setBehaviours(input) {
+      saves.push(input);
+      if (failSave) throw new Error('disk full');
+      map = input.reset === true ? { reset: 'to defaults' } : { saved: input };
+      return map;
+    },
     isLoopbackReq: () => loop,
   });
   await new Promise(r => app.server.listen(0, '127.0.0.1', r));
-  return { app, hooks, devLimits, port: app.server.address().port, loopback: v => { loop = v; } };
+  return {
+    app, hooks, devLimits, saves, port: app.server.address().port,
+    loopback: v => { loop = v; }, failSave: v => { failSave = v; },
+  };
 }
 
 function req(port, method, p, headers = {}, body) {
@@ -211,19 +226,168 @@ test('health, pair and pair-info are loopback only', async () => {
   app.close();
 });
 
-test('SSE sends a snapshot on connect, then broadcasts', async () => {
+test('SSE sends a snapshot and the behaviour map on connect, then broadcasts', async t => {
   const { app, port } = await start();
+  t.after(() => app.close());
   const s = await openSse(port, `/events?k=${TOKEN}`);
+  t.after(() => s.close());
   assert.equal(s.status, 200);
-  await until(() => s.events.length >= 1);
+  await until(() => s.events.length >= 2);
   assert.deepEqual(s.events[0], { type: 'snapshot', data: { v: 1, hello: true } });
+  assert.deepEqual(s.events[1], { type: 'behaviours', data: { map: { tap: ['hop'] } } });
   await until(() => app.clients.size === 1);
   app.broadcast('event', { type: 'stop', sessionId: 's' });
-  await until(() => s.events.length >= 2);
-  assert.deepEqual(s.events[1], { type: 'event', data: { type: 'stop', sessionId: 's' } });
+  await until(() => s.events.length >= 3);
+  assert.deepEqual(s.events[2], { type: 'event', data: { type: 'stop', sessionId: 's' } });
   s.close();
   await until(() => app.clients.size === 0);
-  app.close();
+});
+
+// ---------- the behaviours editor ----------
+
+const post = (port, p, body, headers = {}) =>
+  req(port, 'POST', p, { 'content-type': 'application/json', ...headers }, typeof body === 'string' ? body : JSON.stringify(body));
+
+test('the behaviours page is loopback only, at /behaviours and under /web/', async t => {
+  const { app, port, loopback } = await start();
+  t.after(() => app.close());
+  for (const p of ['/behaviours', '/web/behaviours.html']) {
+    assert.equal((await req(port, 'GET', p)).status, 403, p);
+    assert.equal((await req(port, 'GET', `${p}?k=${TOKEN}`)).status, 403, `${p} with the token`);
+    assert.equal((await req(port, 'GET', p, { cookie: `dc=${TOKEN}` })).status, 403, `${p} with the cookie`);
+  }
+  loopback(true);
+  const page = await req(port, 'GET', '/behaviours');
+  assert.equal(page.status, 200);
+  assert.match(page.headers['content-type'], /text\/html/);
+  assert.equal(page.body, '<h1>behaviours</h1>');
+  assert.equal((await req(port, 'GET', '/web/behaviours.html')).status, 200);
+  assert.equal((await req(port, 'GET', '/behaviours', { host: `evil.example:${port}` })).status, 403, 'DNS rebinding');
+});
+
+test('the loopback-only pages cannot be reached with the token by another spelling of their path', async t => {
+  const { app, port } = await start();
+  t.after(() => app.close());
+  // %5c is a separator on Windows only (elsewhere it names a file that does not exist: 404); upper case
+  // reaches the same file on a case-insensitive disk.
+  for (const name of ['pair.html', 'behaviours.html']) {
+    for (const p of [`/web/vendor%2f..%2f${name}`, `/web/vendor%5c..%5c${name}`, `/web/${name.toUpperCase()}`]) {
+      const r = await req(port, 'GET', `${p}?k=${TOKEN}`);
+      assert.ok(r.status === 403 || r.status === 404, `${p}: ${r.status}`);
+    }
+  }
+  assert.equal((await req(port, 'GET', `/web/vendor%2f..%2fstyle.css?k=${TOKEN}`)).status, 200, 'other files are unaffected');
+});
+
+test('GET /api/behaviours: loopback or the token; the map and the defaults', async t => {
+  const { app, port, loopback } = await start();
+  t.after(() => app.close());
+  const want = { map: { tap: ['hop'] }, defaults: JSON.parse(JSON.stringify(DEFAULT_MAP)) };
+  assert.equal((await req(port, 'GET', '/api/behaviours')).status, 403);
+  for (const headers of [{}, { host: `evil.example:${port}` }]) {
+    const r = await req(port, 'GET', `/api/behaviours?k=${TOKEN}`, headers);
+    assert.equal(r.status, 200);
+    assert.match(r.headers['content-type'], /application\/json/);
+    assert.deepEqual(JSON.parse(r.body), want);
+  }
+  assert.deepEqual(JSON.parse((await req(port, 'GET', '/api/behaviours', { cookie: `dc=${TOKEN}` })).body), want);
+  loopback(true);
+  assert.deepEqual(JSON.parse((await req(port, 'GET', '/api/behaviours')).body), want);
+  assert.equal((await req(port, 'GET', '/api/behaviours', { host: `evil.example:${port}` })).status, 403, 'DNS rebinding');
+});
+
+test('POST /api/behaviours is loopback only (address AND Host): a LAN client with the token can read but not save', async t => {
+  const { app, port, saves, loopback } = await start();
+  t.after(() => app.close());
+  const map = { thinking: 'reading' };
+  assert.equal((await post(port, `/api/behaviours?k=${TOKEN}`, map)).status, 403);
+  assert.equal((await post(port, '/api/behaviours', map, { cookie: `dc=${TOKEN}`, 'x-dc-token': TOKEN })).status, 403);
+  loopback(true);
+  assert.equal((await post(port, `/api/behaviours?k=${TOKEN}`, map, { host: `evil.example:${port}` })).status, 403, 'a foreign Host');
+  assert.deepEqual(saves, []);
+  const r = await post(port, '/api/behaviours', map);
+  assert.equal(r.status, 200);
+  assert.match(r.headers['content-type'], /application\/json/);
+  assert.deepEqual(JSON.parse(r.body), { map: { saved: map }, pages: 0 });
+  assert.deepEqual(saves, [map]);
+});
+
+test('POST /api/behaviours refuses another site open in the PC\'s browser (a foreign Origin)', async t => {
+  const { app, port, saves, loopback } = await start();
+  t.after(() => app.close());
+  loopback(true);
+  // A cross-site form or no-cors fetch reaches us from a loopback address with a loopback Host; its Origin gives it away.
+  for (const origin of ['https://evil.example', `http://localhost:${port + 1}`, `http://localhost:${port}`, 'null']) {
+    assert.equal((await post(port, '/api/behaviours', { thinking: 'reading' }, { origin })).status, 403, origin);
+  }
+  assert.deepEqual(saves, []);
+  // The editor page itself: a same-origin fetch names this very server (Host is 127.0.0.1:<port> here).
+  assert.equal((await post(port, '/api/behaviours', { thinking: 'reading' }, { origin: `http://127.0.0.1:${port}` })).status, 200);
+  assert.equal(saves.length, 1);
+});
+
+test('POST /api/behaviours: 400 on bad JSON or anything but an object, 413 over 16 KB', async t => {
+  const { app, port, saves, loopback } = await start();
+  t.after(() => app.close());
+  loopback(true);
+  for (const body of ['{bad', '', '[]', 'null', '"thinking"', '42']) {
+    assert.equal((await post(port, '/api/behaviours', body)).status, 400, JSON.stringify(body));
+  }
+  const pad = n => JSON.stringify({ thinking: 'reading', pad: 'x'.repeat(n) });
+  const at = 16 * 1024 - pad(0).length;
+  assert.equal((await post(port, '/api/behaviours', pad(at + 1))).status, 413);
+  assert.equal(saves.length, 0);
+  assert.equal((await post(port, '/api/behaviours', pad(at))).status, 200, 'exactly 16 KB is fine');
+  // Without a length up front (chunked), the connection is cut once the body passes 16 KB.
+  await assert.rejects(req(port, 'POST', '/api/behaviours', { 'transfer-encoding': 'chunked' }, pad(at + 1)));
+  assert.equal(saves.length, 1);
+  assert.equal((await req(port, 'GET', '/api/behaviours')).status, 200, 'and the server keeps serving');
+});
+
+test('POST /api/behaviours: 500 when the map cannot be saved, and nothing is sent to the pages', async t => {
+  const { app, port, loopback, failSave } = await start();
+  t.after(() => app.close());
+  const s = await openSse(port, `/events?k=${TOKEN}`);
+  t.after(() => s.close());
+  await until(() => s.events.length >= 2);
+  loopback(true);
+  failSave(true);
+  const r = await post(port, '/api/behaviours', { thinking: 'reading' });
+  assert.equal(r.status, 500);
+  assert.match(r.headers['content-type'], /text\/plain/);
+  assert.equal(r.body, 'the map could not be stored (disk full)', 'a text the editor can show');
+  failSave(false);
+  assert.equal((await post(port, '/api/behaviours', { thinking: 'working' })).status, 200);
+  await until(() => s.events.length >= 3);
+  assert.deepEqual(s.events.slice(2), [{ type: 'behaviours', data: { map: { saved: { thinking: 'working' } } } }]);
+});
+
+test('a save reaches every open page as a behaviours event, and so does a reset', async t => {
+  const { app, port, saves, loopback } = await start();
+  t.after(() => app.close());
+  const a = await openSse(port, `/events?k=${TOKEN}`);
+  const b = await openSse(port, `/events?k=${TOKEN}`);
+  t.after(() => { a.close(); b.close(); });
+  await until(() => a.events.length >= 2 && b.events.length >= 2 && app.clients.size === 2);
+  loopback(true);
+  // pages: how many dashboards the map was sent to, for the editor's status line.
+  const r = await post(port, '/api/behaviours', { tap: ['love'] });
+  assert.deepEqual(JSON.parse(r.body), { map: { saved: { tap: ['love'] } }, pages: 2 });
+  const reset = await post(port, '/api/behaviours', { reset: true });
+  assert.deepEqual(JSON.parse(reset.body), { map: { reset: 'to defaults' }, pages: 2 });
+  assert.deepEqual(saves, [{ tap: ['love'] }, { reset: true }]);
+  for (const s of [a, b]) {
+    await until(() => s.events.length >= 4);
+    assert.deepEqual(s.events.slice(2), [
+      { type: 'behaviours', data: { map: { saved: { tap: ['love'] } } } },
+      { type: 'behaviours', data: { map: { reset: 'to defaults' } } },
+    ]);
+  }
+  // A page that connects later gets the map as it is now.
+  const c = await openSse(port, `/events?k=${TOKEN}`);
+  t.after(() => c.close());
+  await until(() => c.events.length >= 2);
+  assert.deepEqual(c.events[1], { type: 'behaviours', data: { map: { reset: 'to defaults' } } });
 });
 
 test('buildSnapshot shape', () => {

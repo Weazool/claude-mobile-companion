@@ -1,8 +1,12 @@
 import { formatReset } from './format.js';
+import { DEFAULT_MAP } from './behaviours.js';
 
 // The companion's state machine (spec §7), adapted from clawdio's state_machine.cpp (cegware/clawdio, MIT).
+// Modes are what is going on (thinking, needs, sleep...); which animation each one plays comes from the
+// behaviour map (behaviours.js), so the user can remap them without touching this file.
 export const DEFAULT_MOOD = { warn: 50, low: 80, crit: 95, sleepAfterMin: 5, pinnedId: null };
 
+// The active modes are named after their behaviour keys: B[mode] is the mode's animation.
 const ACTIVE = new Set(['thinking', 'reading', 'working', 'compiling']);
 const IDLEISH = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'done', 'cool', 'celebrate', 'sleep', 'yawn', 'wake', 'error']);
 const QUIET = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver']);
@@ -10,8 +14,21 @@ const DWELL_MS = 1500;
 const pctOf = w => (w && Number.isFinite(w.pct) ? w.pct : null);
 const dayOf = t => new Date(t).toDateString();
 
-export function createMood(settings = {}, { rand = Math.random } = {}) {
+// The defaults, with every behaviour the map sets. The server validates maps against the rig (validateMap);
+// here a value only has to be a name or a non-empty list, else the default stays.
+const usable = v => (typeof v === 'string' && v !== '') || (Array.isArray(v) && v.length > 0);
+function mapOf(behaviours) {
+  const B = { ...DEFAULT_MAP };
+  if (behaviours && typeof behaviours === 'object') for (const k of Object.keys(B)) if (usable(behaviours[k])) B[k] = behaviours[k];
+  return B;
+}
+const list = v => [].concat(v); // a fresh list, from one name or a list
+
+export function createMood(settings = {}, { rand = Math.random, behaviours } = {}) {
   let S = { ...DEFAULT_MOOD, ...settings };
+  let B = mapOf(behaviours);
+  // A base as the Player takes it: one name, or a fresh copy of an alternating list.
+  const base = k => (Array.isArray(B[k]) ? [...B[k]] : B[k]);
   let snap = null;
   let lastKey = null;
   let offline = false;
@@ -32,52 +49,55 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
   const busy = f => !!f && (ACTIVE.has(f.activity) || f.needsYou);
 
   function target(now) {
-    if (offline) return { mode: 'offline', base: 'sleeping', bubble: null, dim: false };
+    if (offline) return { mode: 'offline', base: base('offline'), bubble: null, dim: false };
     const f = focus();
     const L = (snap && snap.limits) || {};
     const p5 = pctOf(L.fiveHour);
     const pw = pctOf(L.week);
     const pf = pctOf(L.fable);
     if ((p5 !== null && p5 >= 100) || (f && f.activity === 'rateLimited')) {
-      const text = p5 !== null && p5 >= 100 ? `Limit reached · resets in ${formatReset(L.fiveHour.resetsAt, now) || 'soon'}` : 'Rate limited';
-      return { mode: 'overloaded', base: 'overloaded', bubble: { text, tone: 'bad' } };
+      const reached = p5 !== null && p5 >= 100;
+      const text = reached ? `Limit reached · resets in ${formatReset(L.fiveHour.resetsAt, now) || 'soon'}` : 'Rate limited';
+      return { mode: 'overloaded', base: base(reached ? 'limitReached' : 'rateLimited'), bubble: { text, tone: 'bad' } };
     }
-    if (f && f.needsYou) return { mode: 'needs', base: ['surprised', 'curious'], bubble: { text: f.detail || 'Needs you', tone: 'need' } };
+    if (f && f.needsYou) return { mode: 'needs', base: base('needsYou'), bubble: { text: f.detail || 'Needs you', tone: 'need' } };
     const tr = live(now);
-    if (tr && tr.kind === 'done') return { mode: 'done', base: 'happy_eyes', bubble: { text: 'Your turn', tone: 'good' } };
-    if (tr && (tr.kind === 'error' || tr.kind === 'angry')) return { mode: 'error', base: tr.kind, bubble: { text: 'Error', tone: 'bad' } };
-    if (f && ACTIVE.has(f.activity)) return { mode: f.activity, base: f.activity, bubble: f.detail ? { text: f.detail, tone: '' } : null };
-    if (tr && tr.kind === 'wake') return { mode: 'wake', base: 'idle', bubble: { text: tr.greet, tone: 'good' } };
+    if (tr && tr.kind === 'done') return { mode: 'done', base: base('yourTurn'), bubble: { text: 'Your turn', tone: 'good' } };
+    if (tr && (tr.kind === 'error' || tr.kind === 'angry')) {
+      return { mode: 'error', base: base(tr.kind === 'angry' ? 'errorRepeated' : 'error'), bubble: { text: 'Error', tone: 'bad' } };
+    }
+    if (f && ACTIVE.has(f.activity)) return { mode: f.activity, base: base(f.activity), bubble: f.detail ? { text: f.detail, tone: '' } : null };
+    if (tr && tr.kind === 'wake') return { mode: 'wake', base: base('idle'), bubble: { text: tr.greet, tone: 'good' } };
     if (tr && tr.kind === 'celebrate') {
       return now - tr.since < 5640
-        ? { mode: 'celebrate', base: 'happy', bubble: { text: 'Fresh limits!', tone: 'good' } }
-        : { mode: 'cool', base: 'cool', bubble: null };
+        ? { mode: 'celebrate', base: base('freshLimitsAfter'), bubble: { text: 'Fresh limits!', tone: 'good' } }
+        : { mode: 'cool', base: base('afterglow'), bubble: null };
     }
-    if (tr && tr.kind === 'cool') return { mode: 'cool', base: 'cool', bubble: null };
-    if (tr && tr.kind === 'yawn') return { mode: 'yawn', base: 'yawning', bubble: null };
-    if (st.asleep) return { mode: 'sleep', base: 'sleeping', bubble: { text: 'Zzz…', tone: '' }, dim: true };
+    if (tr && tr.kind === 'cool') return { mode: 'cool', base: base('coolMoment'), bubble: null };
+    if (tr && tr.kind === 'yawn') return { mode: 'yawn', base: base('yawn'), bubble: null };
+    if (st.asleep) return { mode: 'sleep', base: base('asleep'), bubble: { text: 'Zzz…', tone: '' }, dim: true };
     const wOver = pw !== null && pw >= 100;
     const fOver = pf !== null && pf >= 100;
-    if (wOver || fOver) return { mode: 'weekOver', base: 'overloaded', bubble: { text: `${wOver ? 'Week' : 'Fable'} limit reached`, tone: 'bad' } };
-    if (p5 !== null && p5 >= S.crit) return { mode: 'ending', base: 'ending', bubble: { text: `5-hour at ${p5}%`, tone: 'bad' } };
+    if (wOver || fOver) return { mode: 'weekOver', base: base('weeklyLimitReached'), bubble: { text: `${wOver ? 'Week' : 'Fable'} limit reached`, tone: 'bad' } };
+    if (p5 !== null && p5 >= S.crit) return { mode: 'ending', base: base('fiveHourCritical'), bubble: { text: `5-hour at ${p5}%`, tone: 'bad' } };
     const wEnd = pw !== null && pw >= 95;
     const fEnd = pf !== null && pf >= 95;
-    if (wEnd || fEnd) return { mode: 'weekEnding', base: 'ending', bubble: { text: wEnd ? `Week at ${pw}%` : `Fable at ${pf}%`, tone: 'bad' } };
-    if (p5 !== null && p5 >= S.low) return { mode: 'sad', base: 'sad', bubble: { text: `5-hour at ${p5}%`, tone: 'bad' } };
-    if (p5 !== null && p5 >= S.warn) return { mode: 'low', base: 'low_tokens', bubble: { text: `5-hour at ${p5}%`, tone: '' } };
-    return { mode: 'idle', base: 'idle', bubble: null };
+    if (wEnd || fEnd) return { mode: 'weekEnding', base: base('weeklyNearlyUsed'), bubble: { text: wEnd ? `Week at ${pw}%` : `Fable at ${pf}%`, tone: 'bad' } };
+    if (p5 !== null && p5 >= S.low) return { mode: 'sad', base: base('fiveHourLow'), bubble: { text: `5-hour at ${p5}%`, tone: 'bad' } };
+    if (p5 !== null && p5 >= S.warn) return { mode: 'low', base: base('fiveHourWarn'), bubble: { text: `5-hour at ${p5}%`, tone: '' } };
+    return { mode: 'idle', base: base('idle'), bubble: null };
   }
 
   function entryPlays(prev, next) {
-    if (prev !== null && (next === 'thinking' || next === 'working') && IDLEISH.has(prev)) return ['surprised'];
-    if (next === 'low' && prev === 'idle') return ['surprised'];
+    if (prev !== null && (next === 'thinking' || next === 'working') && IDLEISH.has(prev)) return list(B.startle);
+    if (next === 'low' && prev === 'idle') return list(B.lowWarning);
     return [];
   }
 
   function out(now) {
     let t = target(now);
     if (ACTIVE.has(t.mode) && ACTIVE.has(st.mode) && t.mode !== st.mode && now - st.since < DWELL_MS) {
-      t = { ...t, mode: st.mode, base: st.mode }; // hold the animation, still update the bubble
+      t = { ...t, mode: st.mode, base: base(st.mode) }; // hold the animation, still update the bubble
     }
     const play = st.plays;
     st.plays = [];
@@ -100,7 +120,7 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
     st.asleep = false;
     st.loveDay = dayOf(now);
     st.transient = { kind: 'wake', since: now, until: now + 2900, greet: newDay ? 'Good morning!' : 'Hi!' };
-    st.plays = ['yawning', 'surprised', 'love'];
+    st.plays = list(B.wakeUp);
     return true;
   }
 
@@ -110,7 +130,7 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
     st.pendingCelebrate = false;
     st.asleep = false;
     st.transient = { kind: 'celebrate', since: now, until: now + 13640 };
-    st.plays = ['jumping_joy'];
+    st.plays = list(B.freshLimits);
   }
 
   return {
@@ -138,7 +158,7 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
           touch(now);
           st.errors = 0;
           if (st.transient && ['done', 'error', 'angry'].includes(st.transient.kind)) st.transient = null;
-          if (!wake(now) && st.loveDay !== dayOf(now)) { st.loveDay = dayOf(now); st.plays = ['love', 'surprised']; }
+          if (!wake(now) && st.loveDay !== dayOf(now)) { st.loveDay = dayOf(now); st.plays = list(B.firstPromptOfDay); }
           break;
         case 'stop':
           touch(now);
@@ -148,7 +168,7 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
             const tr = st.transient;
             if (tr && tr.kind === 'celebrate' && now - tr.since < 1000) st.pendingCelebrate = true;
             st.transient = { kind: 'done', since: now, until: now + 3000 };
-            st.plays = ['surprised'];
+            st.plays = list(B.turnDone);
           }
           break;
         case 'error':
@@ -158,7 +178,7 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
           break;
         case 'sessionStart':
           touch(now);
-          if (!wake(now) && !busy(f)) st.plays = ['curious'];
+          if (!wake(now) && !busy(f)) st.plays = list(B.sessionStart);
           break;
         case 'needsYou':
         case 'rateLimited':
@@ -174,7 +194,10 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
     onTap(now) {
       init(now);
       touch(now);
-      if (!wake(now)) st.plays = [['love', 'surprised', 'curious'][Math.floor(rand() * 3) % 3]];
+      if (!wake(now)) {
+        const tap = list(B.tap);
+        st.plays = [tap[Math.floor(rand() * tap.length) % tap.length]];
+      }
       return out(now);
     },
 
@@ -188,7 +211,7 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
       maybeCelebrate(now);
       if (!st.escalated && now - st.since >= 8000 && (st.mode === 'thinking' || st.mode === 'compiling')) {
         st.escalated = true;
-        st.plays = [st.mode === 'thinking' ? 'curious' : 'look_left'];
+        st.plays = list(st.mode === 'thinking' ? B.stillThinking : B.stillCompiling);
       }
       if (st.mode === 'idle' && !st.transient) {
         const p5 = pctOf(snap && snap.limits && snap.limits.fiveHour);
@@ -201,6 +224,10 @@ export function createMood(settings = {}, { rand = Math.random } = {}) {
     },
 
     setSettings(partial) { S = { ...S, ...partial }; },
+
+    // A new behaviour map (a full map from the server; what it leaves out is the default). Nothing is emitted
+    // here: the caller's next tick() redraws the current state with its new animation.
+    setBehaviours(map) { B = mapOf(map); },
 
     setOffline(value, now) {
       init(now);

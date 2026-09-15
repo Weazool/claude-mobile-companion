@@ -140,7 +140,8 @@ near-black: ink props need a light outline or must sit on the body (see the flag
 9. **Keep the rect count modest.** Every rect is a DOM element on the phone. The busiest frame (love's heart
    eyes and hearts) draws 53; the test caps a clip's frame at 60.
 
-How the mood engine uses clips (`src/web/mood.js`; the page calls `setBase`, then `play`, in the same tick):
+How the mood engine uses clips by default (`src/web/mood.js`; the page calls `setBase`, then `play`, in the same
+tick). The user can remap each of these on the behaviours page (`src/web/behaviours.js` lists them):
 - surprised plays on entering thinking or working. Busy sessions flip between thinking, working and reading
   every 1.5–5 s, so those loops are often seen for only a second or two, entry blend included.
 - The needs-you base alternates surprised and curious, so both are one-shots.
@@ -212,6 +213,9 @@ is what makes it feel alive.
 - `setBase(names)`: a base or an alternating list. Unknown names are ignored, and the same base does not restart.
 - `play(names)`: a queue of one-shots. `next` chains, and a chained loop yields to a new base.
 - `setIdle({ blinksPerMin, glancesPerMin, movingPct })` sets the calm idle budget.
+- `setIdleClips({ blink, glance, life })` picks calm idle's own clips (default `blink`, `[look_left, look_right]`,
+  `[walk, hop]`): glances and life are picked uniformly, except walk and hop keep their 0.6 / 0.4. Unknown names
+  and loops are ignored, and the budget is recomputed from the new clips' lengths.
 - `update(dt)` returns false while holding still. `shapes()` returns the frame.
 
 With the base `idle` it holds rest and adds blinks, glances, breaths and idle life (walk, hop) from the moving
@@ -224,7 +228,7 @@ budget. Beyond plain playback:
 - **A base that is a single one-shot** (the mood engine's `yawning`) plays once, then holds calm idle without
   walks or hops until the base changes; it does not replay.
 - **Calm idle's own clips** (blink, glances, breath, walk, hop) yield to a new base at once. One-shots the
-  caller played still finish first.
+  caller played still finish first. They never chain: a celebration picked as idle life returns to the hold.
 
 Draw with `mountClawd(svg).render(player.shapes())`. The renderer makes its pool of `POOL_RECTS` (72) rects at
 mount and reuses them, so animating never creates an element; the busiest frame draws about 60.

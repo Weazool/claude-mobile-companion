@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0a0f">
+  <title>Clawd’s behaviours · desk-companion</title>
+  <link rel="icon" href="/web/icon.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0f; --panel: #0f0f16; --field: #16161e; --line: #1c1c25; --line-2: #2c2c38;
+      --text: #e8e6e3; --dim: #8a8a93; --faint: #62626d;
+      --clay: #D97757; --clay-hover: #e4896b; --clay-ink: #1d0f09; --clay-soft: rgba(217, 119, 87, .12); --clay-line: rgba(217, 119, 87, .45);
+      --need: #ffb020; --good: #a6e6a0; --bad: #ff9d8c;
+      --head: 88px; /* the sticky header's height, kept current by the page */
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html { background: var(--bg); scroll-behavior: smooth; }
+    body {
+      margin: 0; color: var(--text); background: var(--bg);
+      font: 14px/1.45 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
+    }
+    button, select { font: inherit; color: inherit; }
+    :focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; }
+    a { color: var(--clay); }
+    code { font: 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #c9c3ba; }
+
+    /* ---------- header ---------- */
+    .top {
+      position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line);
+      background: rgba(10, 10, 15, .88); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    }
+    .bar { max-width: 1100px; margin: 0 auto; padding: 14px 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; }
+    .brand { flex: 1 1 360px; min-width: 0; display: flex; align-items: center; gap: 14px; }
+    .logo {
+      flex: none; width: 52px; height: 52px; padding: 0; border: 1px solid var(--line-2); border-radius: 14px; cursor: pointer;
+      background: radial-gradient(circle at 50% 64%, #221c2c 0%, #0d0d13 78%); transition: border-color .15s;
+    }
+    .logo:hover { border-color: var(--clay-line); }
+    .logo svg { display: block; width: 100%; height: 100%; }
+    h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
+    .lede { margin: 2px 0 0; color: var(--dim); font-size: 13px; }
+    .actions { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; min-width: 0; }
+    .buttons { display: flex; gap: 8px; }
+    .btn {
+      font-size: 13.5px; font-weight: 600; line-height: 1; padding: 10px 18px; border-radius: 10px; cursor: pointer;
+      border: 1px solid transparent; transition: background .15s, border-color .15s, color .15s;
+    }
+    .btn.primary { background: var(--clay); color: var(--clay-ink); min-width: 84px; }
+    .btn.primary:hover:not(:disabled) { background: var(--clay-hover); }
+    .btn.ghost { background: transparent; border-color: var(--line-2); }
+    .btn.ghost:hover:not(:disabled) { background: var(--field); }
+    .btn.ghost.confirm { color: var(--clay); border-color: var(--clay); background: var(--clay-soft); }
+    .btn:disabled { cursor: default; color: #54545e; background: #16161d; }
+    .btn.ghost:disabled { background: transparent; border-color: var(--line); }
+    .status { margin: 0; min-height: 18px; max-width: 470px; text-align: right; font-size: 12.5px; color: var(--dim); }
+    .status.dirty { color: var(--clay); }
+    .status.good { color: var(--good); }
+    .status.warn { color: #ffcf70; }
+    .status.bad { color: var(--bad); }
+
+    /* ---------- behaviours ---------- */
+    main { max-width: 1100px; margin: 0 auto; padding: 6px 28px 72px; }
+    .jump { display: flex; flex-wrap: wrap; gap: 6px; margin: 20px 0 0; }
+    .jump a {
+      color: var(--dim); text-decoration: none; font-size: 12.5px; padding: 5px 12px;
+      border: 1px solid var(--line); border-radius: 999px; background: var(--panel); transition: color .15s, border-color .15s;
+    }
+    .jump a:hover { color: var(--text); border-color: var(--line-2); }
+    section { scroll-margin-top: calc(var(--head) + 8px); }
+    h2 {
+      display: flex; align-items: baseline; gap: 10px; margin: 34px 4px 10px;
+      font-size: 12px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--dim);
+    }
+    h2 .count { font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--clay); }
+    .rows { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+    .row {
+      position: relative; display: grid; grid-template-columns: 96px minmax(0, 1fr) minmax(250px, 340px);
+      gap: 8px 22px; align-items: center; padding: 14px 20px 14px 16px; scroll-margin-top: calc(var(--head) + 40px);
+    }
+    .row + .row { border-top: 1px solid var(--line); }
+    .row.unsaved::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--clay); }
+    .row.flash { animation: flash 1.8s ease-out; }
+    @keyframes flash { 0%, 35% { background: rgba(217, 119, 87, .11); } 100% { background: transparent; } }
+    .stage {
+      position: relative; width: 96px; aspect-ratio: 1; border-radius: 12px; overflow: hidden;
+      border: 1px solid var(--line); background: radial-gradient(circle at 50% 64%, #1e1927 0%, #0c0c11 78%);
+    }
+    .stage svg { display: block; width: 100%; height: 100%; }
+    .stage.dim svg { filter: brightness(.32) saturate(.8); } /* the dashboard dims the screen while he sleeps */
+    .info { min-width: 0; }
+    .head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+    .label { font-size: 15px; font-weight: 600; }
+    .pill {
+      font-size: 11px; font-weight: 600; line-height: 1.5; padding: 0 8px; border-radius: 999px;
+      color: var(--clay); background: var(--clay-soft); border: 1px solid var(--clay-line);
+    }
+    .link {
+      padding: 1px 3px; border: 0; background: none; cursor: pointer; font-size: 12px; color: var(--dim);
+      text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--line-2);
+    }
+    .link:hover { color: var(--text); text-decoration-color: var(--dim); }
+    .when { margin: 3px 0 0; font-size: 13px; color: var(--dim); }
+    .bubble {
+      display: inline-block; max-width: 100%; margin-top: 8px; padding: 2px 9px; border-radius: 8px;
+      background: #1b1b24; border: 1px solid #2c2c38; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .bubble.need { border-color: var(--need); color: #ffcf70; }
+    .bubble.good { border-color: #3f8a3f; color: var(--good); }
+    .bubble.bad { border-color: #b23a3a; color: #ff9d8c; }
+    .edit { min-width: 0; }
+    select {
+      -webkit-appearance: none; appearance: none; max-width: 100%; cursor: pointer; font-size: 14px;
+      padding: 8px 34px 8px 12px; border: 1px solid var(--line-2); border-radius: 10px;
+      background: var(--field) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 13px center / 10px 6px;
+      transition: border-color .15s;
+    }
+    select:hover { border-color: #3b3b49; }
+    select option, select optgroup { background: #16161e; color: var(--text); }
+    .one { width: 100%; }
+    .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 1px; padding: 3px 3px 3px 11px; font-size: 13px;
+      background: var(--field); border: 1px solid var(--line-2); border-radius: 999px;
+    }
+    .chip.solo { padding-right: 11px; }
+    .chip small { margin-left: 4px; font-size: 11px; color: var(--dim); }
+    .chip-x {
+      display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
+      background: none; color: var(--dim); font-size: 15px; line-height: 1; cursor: pointer;
+    }
+    .chip-x:hover { background: #262631; color: var(--text); }
+    .sep { font-size: 12px; color: var(--faint); }
+    .add {
+      padding: 4px 28px 4px 11px; font-size: 13px; color: var(--dim); border-style: dashed; border-radius: 999px;
+      background-color: transparent; background-position: right 10px center;
+    }
+    .add:hover { color: var(--text); }
+    .hint { margin: 7px 2px 0; font-size: 12px; color: var(--faint); }
+
+    /* ---------- all animations ---------- */
+    .sub { margin: -4px 4px 14px; font-size: 13px; color: var(--dim); }
+    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; align-items: start; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; transition: border-color .15s; }
+    .card:hover { border-color: var(--line-2); }
+    .card.on { border-color: var(--clay-line); box-shadow: inset 0 0 0 1px var(--clay-line); }
+    .card-main { display: block; width: 100%; padding: 10px 10px 12px; border: 0; background: none; text-align: left; cursor: pointer; }
+    .card .stage { width: 100%; }
+    .card-name { display: block; margin-top: 9px; font-size: 13.5px; font-weight: 600; }
+    .card-meta { display: block; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+    .card-count { display: block; margin-top: 2px; font-size: 11.5px; color: var(--faint); }
+    .card.on .card-count { color: var(--clay); }
+    .uses { display: flex; flex-direction: column; padding: 6px; border-top: 1px solid var(--line); }
+    .use {
+      display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; border: 0; border-radius: 8px;
+      background: none; font-size: 12.5px; text-align: left; cursor: pointer;
+    }
+    .use::after { content: "↑"; color: var(--faint); }
+    .use:hover { background: var(--field); }
+    .none { margin: 3px 8px 4px; font-size: 12px; color: var(--dim); }
+    .foot { margin: 40px 4px 0; font-size: 12px; color: var(--faint); }
+    .foot a { color: var(--dim); }
+
+    @media (max-width: 860px) {
+      .row { grid-template-columns: 88px minmax(0, 1fr); }
+      .row .stage { width: 88px; }
+      .edit { grid-column: 2; }
+    }
+    @media (max-width: 560px) {
+      .bar { padding: 12px 16px; gap: 10px; }
+      .logo { width: 44px; height: 44px; }
+      .actions { width: 100%; align-items: stretch; }
+      .buttons { justify-content: flex-end; }
+      .status { text-align: left; max-width: none; }
+      main { padding: 4px 12px 56px; }
+      .row { grid-template-columns: 72px minmax(0, 1fr); gap: 8px 14px; padding: 12px 14px 12px 12px; }
+      .row .stage { width: 72px; }
+      .edit { grid-column: 1 / -1; }
+      select { font-size: 16px; } /* iOS zooms into smaller fields */
+      .gallery { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .row.flash { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top" id="top">
+    <div class="bar">
+      <div class="brand">
+        <button id="logo" class="logo" type="button" aria-label="Tap Clawd" title="Tap Clawd: he plays one of your Tapped animations"></button>
+        <div>
+          <h1>Clawd’s behaviours</h1>
+          <p class="lede">Choose the animation Clawd plays for each moment. Save, and your phone switches over at once.</p>
+        </div>
+      </div>
+      <div class="actions">
+        <div class="buttons">
+          <button id="reset" class="btn ghost" type="button" disabled>Reset to defaults</button>
+          <button id="save" class="btn primary" type="button" disabled>Save</button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite">Loading…</p>
+      </div>
+    </div>
+  </header>
+  <main>
+    <nav id="jump" class="jump" aria-label="Sections"></nav>
+    <div id="groups"></div>
+    <section id="animations">
+      <h2>All animations</h2>
+      <p class="sub">Every clip in Clawd’s rig, playing live. Click one to see which behaviours use it.</p>
+      <div id="gallery" class="gallery"></div>
+    </section>
+    <p class="foot">
+      Your choices are saved on this PC in <code>~/.desk-companion/behaviours.json</code>.
+      <a href="/pair">Pair a phone</a> · <a href="/" target="_blank" rel="noopener">Open the dashboard</a>
+    </p>
+  </main>
+  <script type="module" src="/web/behaviours-page.js"></script>
+</body>
+</html>

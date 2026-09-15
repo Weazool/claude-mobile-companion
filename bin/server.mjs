@@ -11,6 +11,8 @@ import { buildSnapshot, EMPTY_LIMITS } from '../src/server/snapshot.mjs';
 import { createApp } from '../src/server/http.mjs';
 import { phoneUrls, listenWithFallback } from '../src/server/net.mjs';
 import { createLimitsPoller, fetchUsage } from '../src/server/limits.mjs';
+import { validateMap, clipsFrom } from '../src/web/behaviours.js';
+import { SPEC } from '../src/web/clawd/core.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = path.join(ROOT, 'src', 'web');
@@ -18,6 +20,8 @@ const HOME = path.resolve(homeDir()); // absolute, because start() changes the c
 const DATA = dataDir(HOME);
 const STATE = dataFile('server.json', HOME);
 const CONFIG = dataFile('config.json', HOME);
+const BEHAVIOURS = dataFile('behaviours.json', HOME);
+const CLIPS = clipsFrom(SPEC); // the rig's clips and kinds: what a behaviour map may name
 const LISTEN_ATTEMPTS = 5;
 const log = msg => appendLog(dataFile('server.log', HOME), msg, 1024 * 1024);
 
@@ -68,12 +72,32 @@ function savePort(config, port) {
   fs.writeFileSync(CONFIG, JSON.stringify({ ...base, port }, null, 2) + '\n');
 }
 
+// The behaviour map the editor at /behaviours saved: every behaviour, anything missing, unreadable or not
+// allowed by the rig being its default.
+const loadBehaviours = () => validateMap(readJson(BEHAVIOURS), CLIPS);
+
+// Stores a new map from the editor, validated, and returns it. The file is written whole to a temp file
+// that then replaces it, so a crash never leaves half a map. { reset: true } deletes the file: the defaults.
+// Throws when the disk refuses, leaving the file as it was.
+function saveBehaviours(input) {
+  if (input && input.reset === true) {
+    try { fs.unlinkSync(BEHAVIOURS); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    return validateMap({}, CLIPS);
+  }
+  const map = validateMap(input, CLIPS);
+  const tmp = `${BEHAVIOURS}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(map, null, 2) + '\n');
+  fs.renameSync(tmp, BEHAVIOURS);
+  return map;
+}
+
 async function start() {
   const config = loadOrCreateConfig(HOME);
   process.chdir(DATA); // never hold a project folder: Windows locks a process's cwd against rename and delete
   if (await health(config.port)) return; // another instance already serves this port
   const store = new SessionStore({ contextWindow: config.contextWindow });
   let limits = EMPTY_LIMITS;
+  let behaviours = loadBehaviours();
   let onStop = () => {};
   const snapshot = () => buildSnapshot(store, limits, Date.now());
 
@@ -95,6 +119,12 @@ async function start() {
       app.broadcast('snapshot', snapshot());
     },
     getPairInfo: () => ({ urls: phoneUrls(config), sessions: store.list().length, limits: limits.status }),
+    // The editor's save: createApp sends the result to every page (the SSE behaviours event).
+    getBehaviours: () => behaviours,
+    setBehaviours(input) {
+      behaviours = saveBehaviours(input);
+      return behaviours;
+    },
   });
 
   // A reserved or foreign-held port moves the server to a new port, saved once bound, so the hook and the

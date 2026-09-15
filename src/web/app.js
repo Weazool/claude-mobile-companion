@@ -1,6 +1,7 @@
 import { limitsView, sessionMeta, dotClass, visibleSessions } from './format.js';
-import { Player, mountClawd, VIEW } from './clawd/index.js';
+import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
+import { validateMap, clipsFrom } from './behaviours.js';
 import { loadSettings, saveSettings, validate, rotationFor, nextRotation, screenBox } from './settings.js';
 
 const $ = id => document.getElementById(id);
@@ -28,6 +29,17 @@ function apply(cmd) {
   setBubble(cmd.bubble && cmd.bubble.text, cmd.bubble && cmd.bubble.tone);
   dimmed = !!cmd.dim;
   $('app').classList.toggle('dim', dimmed);
+}
+
+// The behaviour map (edited on the PC at /behaviours) arrives on connect and after every save. It is checked
+// against this page's rig (not its internal clips) in case the page and the server ever differ; the current
+// state then re-renders at once with its new animation. The same map again changes nothing.
+const CLIPS = clipsFrom(ANIMS, NAMES);
+function setBehaviours(map) {
+  const B = validateMap(map, CLIPS);
+  mood.setBehaviours(B);
+  player.setIdleClips({ blink: B.idleBlink, glance: B.idleGlance, life: B.idleLife });
+  apply(mood.tick(Date.now()));
 }
 
 // Asleep (dimmed), Clawd's slow breathing needs no more than 20 redraws a second: spare the phone overnight.
@@ -122,6 +134,7 @@ function connect() {
     apply(mood.onSnapshot(snap, Date.now()));
   });
   src.addEventListener('event', e => { seen(); onEvent(JSON.parse(e.data)); });
+  src.addEventListener('behaviours', e => { seen(); setBehaviours((JSON.parse(e.data) || {}).map); });
   src.addEventListener('ping', seen);
   src.onerror = () => {
     if (src !== es) return; // already replaced

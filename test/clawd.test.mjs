@@ -741,6 +741,120 @@ test('the dashboard\'s flows: yawn then sleep, wake, "Your turn", fresh limits',
   assert.deepEqual(flow([[0, pl => { pl.setBase('happy'); pl.play('jumping_joy'); }]], 3000), ['jumping_joy', 'happy']);
 });
 
+// ---------- Player: calm idle's clips from the behaviour map (setIdleClips) ----------
+
+const IDLE_DEFAULTS = { blink: 'blink', glance: ['look_left', 'look_right'], life: ['walk', 'hop'] };
+
+// Runs calm idle for ms and lists each of its own clips as it starts: [what (blink, glance, life, breath), clip],
+// plus every clip that was on screen (a chained successor included).
+function idleRun(pl, ms, step = 16) {
+  const starts = [];
+  const shown = new Set();
+  for (let t = 0; t < ms; t += step) {
+    const before = { ...pl.counts };
+    pl.update(step);
+    for (const k of ['blink', 'glance', 'life', 'breath']) if (pl.counts[k] > before[k]) starts.push([k, pl.cur.name]);
+    shown.add(pl.cur.hold ? 'hold' : pl.cur.name);
+  }
+  const of = k => [...new Set(starts.filter(s => s[0] === k).map(s => s[1]))].sort();
+  return { starts, shown, of };
+}
+
+test('setIdleClips: with no call, calm idle blinks, glances left and right, walks and hops as before', () => {
+  const pl = new Player({ rand: lcg(42) });
+  assert.deepEqual(pl.idleClips, IDLE_DEFAULTS);
+  const r = idleRun(pl, 10 * 60000);
+  assert.deepEqual(r.of('blink'), ['blink']);
+  assert.deepEqual(r.of('glance'), ['look_left', 'look_right']);
+  assert.deepEqual(r.of('life'), ['hop', 'walk']);
+  assert.deepEqual(r.of('breath'), ['breath']);
+});
+
+test('setIdleClips with the defaults changes nothing: the same seed plays the same calm idle', () => {
+  const a = new Player({ rand: lcg(7) });
+  const b = new Player({ rand: lcg(7) });
+  b.setIdleClips({ blink: 'blink', glance: ['look_left', 'look_right'], life: ['walk', 'hop'] });
+  assert.deepEqual(b.plan, a.plan);
+  assert.deepEqual(b.t, a.t, 'no timer was redrawn');
+  assert.deepEqual(idleRun(b, 3 * 60000).starts, idleRun(a, 3 * 60000).starts);
+});
+
+test('setIdleClips: calm idle plays the configured clips, and budgets with their lengths', () => {
+  const idle = { blinksPerMin: 4, glancesPerMin: 4, movingPct: 60 };
+  const pl = new Player({ rand: lcg(5), idle });
+  pl.setIdleClips({ blink: 'love', glance: ['hop', 'curious', 'surprised'], life: ['celebration'] });
+  assert.deepEqual(pl.idleClips, { blink: 'love', glance: ['hop', 'curious', 'surprised'], life: ['celebration'] });
+  const A = ANIMS;
+  assert.deepEqual(pl.plan, idlePlan(idle, {
+    blink: A.love.dur, glance: (A.hop.dur + A.curious.dur + A.surprised.dur) / 3, breath: A.breath.dur, life: A.celebration.dur,
+  }));
+  assert.notDeepEqual(pl.plan, new Player({ rand: lcg(5), idle }).plan, 'longer clips leave less of the moving budget');
+  const r = idleRun(pl, 10 * 60000);
+  assert.deepEqual(r.of('blink'), ['love']);
+  assert.deepEqual(r.of('glance'), ['curious', 'hop', 'surprised']);
+  assert.deepEqual(r.of('life'), ['celebration']);
+  // celebration chains to happy, a loop: calm idle's own clips go back to the hold instead, or he would stay happy.
+  assert.equal(r.shown.has('happy'), false);
+  for (const n of ['blink', 'look_left', 'look_right', 'walk']) assert.equal(r.shown.has(n), false, `${n} is no longer calm idle's`);
+});
+
+test('setIdleClips: glance and life pick uniformly; walk and hop keep their 0.6 / 0.4 weights', () => {
+  let r = 0;
+  const pl = new Player({ rand: () => r });
+  const picks = (fn, rs) => rs.map(v => { r = v; return pl[fn](); });
+  assert.deepEqual(picks('_pickGlance', [0, 0.4999, 0.5, 0.99]), ['look_left', 'look_left', 'look_right', 'look_right'], 'as before: rand < 0.5 looks left');
+  assert.deepEqual(picks('_pickLife', [0, 0.59, 0.61, 0.99]), ['walk', 'walk', 'hop', 'hop'], 'as before: walk 0.6, hop 0.4');
+  pl.setIdleClips({ glance: ['look_right', 'hop', 'blink'], life: ['hop', 'walk'] });
+  assert.deepEqual(picks('_pickGlance', [0.1, 0.5, 0.9]), ['look_right', 'hop', 'blink']);
+  assert.deepEqual(picks('_pickLife', [0, 0.49, 0.51, 0.99]), ['hop', 'hop', 'walk', 'walk'], 'hop then walk is uniform');
+  pl.setIdleClips({ life: ['walk', 'hop', 'love'] });
+  assert.deepEqual(picks('_pickLife', [0.3, 0.5, 0.9]), ['walk', 'hop', 'love']);
+  pl.setIdleClips({ life: ['walk', 'hop'] });
+  assert.deepEqual(picks('_pickLife', [0.55, 0.65]), ['walk', 'hop'], 'walk and hop: the weights again');
+});
+
+test('setIdleClips: unknown names and loops are ignored, falling back to the defaults', () => {
+  const pl = new Player({ rand: lcg(1) });
+  const fresh = new Player({ rand: lcg(1) });
+  pl.setIdleClips({ blink: 'nope', glance: ['nope', 'thinking', 'idle'], life: [] });
+  assert.deepEqual(pl.idleClips, IDLE_DEFAULTS);
+  pl.setIdleClips({ blink: 'sleeping', glance: ['nope', 'hop'], life: ['walk', 'nope', 'constructor'] });
+  assert.deepEqual(pl.idleClips, { blink: 'blink', glance: ['hop'], life: ['walk'] }, 'the known names in a list stay');
+  pl.setIdleClips({ glance: 'hop', life: 'love' });
+  assert.deepEqual(pl.idleClips, { ...IDLE_DEFAULTS, glance: ['hop'], life: ['love'] }, 'one name for a list; a missing field is its default');
+  for (const reset of [{}, undefined, null, 'blink']) {
+    pl.setIdleClips({ blink: 'love' });
+    pl.setIdleClips(reset);
+    assert.deepEqual(pl.idleClips, IDLE_DEFAULTS, JSON.stringify(reset));
+    assert.deepEqual(pl.plan, fresh.plan, 'back to the defaults, back to the default plan');
+  }
+});
+
+test('setIdleClips and setIdle keep each other: the budget and the clips both hold', () => {
+  const A = ANIMS;
+  const pl = new Player({ rand: lcg(2) });
+  pl.setIdleClips({ blink: 'love' });
+  pl.setIdle({ blinksPerMin: 10 });
+  const glance = (A.look_left.dur + A.look_right.dur) / 2;
+  const life = 0.6 * A.walk.dur + 0.4 * A.hop.dur;
+  assert.deepEqual(pl.plan, idlePlan({ blinksPerMin: 10 }, { blink: A.love.dur, glance, breath: A.breath.dur, life }));
+  pl.setIdleClips({ blink: 'curious' });
+  assert.deepEqual(pl.plan, idlePlan({ blinksPerMin: 10 }, { blink: A.curious.dur, glance, breath: A.breath.dur, life }));
+});
+
+test('setIdleClips leaves the base alone and calm idle\'s clips still yield to a new base', () => {
+  const pl = new Player({ rand: lcg(3), idle: { movingPct: 95, blinksPerMin: 0, glancesPerMin: 0 } });
+  pl.setIdleClips({ life: ['love'] });
+  let guard = 0;
+  while (!(pl.cur.idle && pl.cur.name === 'love') && guard++ < 40000) pl.update(16);
+  assert.equal(pl.cur.name, 'love', 'idle life played love');
+  pl.setBase('thinking');
+  assert.equal(pl.cur.name, 'thinking');
+  pl.setIdleClips({ life: ['hop'] });
+  assert.equal(pl.cur.name, 'thinking');
+  assert.deepEqual(pl.base, ['thinking']);
+});
+
 // ---------- svg renderer (fake DOM) ----------
 
 function fakeSvg() {

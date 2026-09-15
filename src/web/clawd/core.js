@@ -732,6 +732,11 @@ function travel(A, B) {
 }
 export const LIFE = Object.freeze([['walk', 0.6], ['hop', 0.4]]); // idle life, with pick weights
 export const LIFE_SHARE = 0.25; // of the moving budget left after blinks and glances; breaths get the rest
+// Calm idle's own clips until setIdleClips says otherwise (the behaviour map's idleBlink, idleGlance, idleLife).
+const IDLE_CLIPS = Object.freeze({
+  blink: 'blink', glance: Object.freeze(['look_left', 'look_right']), life: Object.freeze(LIFE.map(([n]) => n)),
+});
+const sameList = (a, b) => a.length === b.length && a.every((n, i) => n === b[i]);
 
 // Calm idle's budget (spec §8), with Clawd's clip lengths: mean intervals, counted in still time only.
 export function idlePlan({ blinksPerMin = 26, glancesPerMin = 2, movingPct = 50 } = {}, { blink = 160, glance = 900, breath = 2000, life = 2000 } = {}) {
@@ -758,7 +763,7 @@ const HOLD_POSE = rest();
 // - A base that is a single one-shot (the mood engine's yawning) plays once, then holds calm idle (without
 //   walks or hops) until the base changes, instead of replaying and being cut off mid-yawn.
 // - Calm idle's own clips (blink, glances, breaths, walk, hop) yield to a new base at once; one-shots the
-//   caller played still finish first.
+//   caller played still finish first. Which clips calm idle uses is setIdleClips' choice; they never chain.
 export class Player {
   constructor({ anims = ANIMS, idle = {}, rand = Math.random, blendMs = BLEND_MS } = {}) {
     this.anims = anims;
@@ -776,34 +781,60 @@ export class Player {
     this._pool = [];
     this._cmpA = [];
     this._cmpB = [];
+    this.idleClips = { blink: IDLE_CLIPS.blink, glance: [...IDLE_CLIPS.glance], life: [...IDLE_CLIPS.life] };
+    this._life = LIFE; // idle life's pick weights: [[name, weight]]
     this.setIdle(idle);
     this._toBase();
   }
 
-  // The clip lengths idlePlan budgets with; life is the pick-weighted mean of the registered life clips.
+  // The clip lengths idlePlan budgets with: the glances' mean, and the pick-weighted mean of the life clips.
   _durs() {
     const a = this.anims;
     const d = n => (a[n] ? a[n].dur : 0);
-    const life = LIFE.filter(([n]) => a[n]);
+    const { blink, glance } = this.idleClips;
+    const life = this._life.filter(([n]) => a[n]);
     const w = life.reduce((s, [, p]) => s + p, 0);
     return {
-      blink: d('blink'),
-      glance: (d('look_left') + d('look_right')) / 2,
+      blink: d(blink),
+      glance: glance.reduce((s, n) => s + d(n), 0) / glance.length,
       breath: d('breath'),
       life: w ? life.reduce((s, [n, p]) => s + (p / w) * a[n].dur, 0) : 0,
     };
   }
 
   setIdle(idle) {
+    this.idleOpts = idle; // kept for setIdleClips, which re-plans with the same budget
     this.plan = idlePlan(idle, this._durs());
-    if (!this.anims.blink) this.plan.blinkMs = Infinity;
-    if (!this.anims.look_left || !this.anims.look_right) this.plan.glanceMs = Infinity;
-    if (!this.anims.breath) this.plan.breathMs = Infinity;
-    if (!LIFE.some(([n]) => this.anims[n])) this.plan.lifeMs = Infinity;
+    const has = n => !!this.anims[n];
+    if (!has(this.idleClips.blink)) this.plan.blinkMs = Infinity;
+    if (!this.idleClips.glance.every(has)) this.plan.glanceMs = Infinity;
+    if (!has('breath')) this.plan.breathMs = Infinity;
+    if (!this._life.some(([n]) => has(n))) this.plan.lifeMs = Infinity;
     this.t = {
       blink: this._draw(this.plan.blinkMs), glance: this._draw(this.plan.glanceMs),
       breath: this._draw(this.plan.breathMs), life: this._draw(this.plan.lifeMs),
     };
+  }
+
+  // Calm idle's own clips: { blink: name, glance: [names], life: [names] } (the behaviour map's idleBlink,
+  // idleGlance and idleLife). Glance and life are picked uniformly, except life ['walk', 'hop'], which keeps
+  // LIFE's 0.6 / 0.4. Unknown names and loops (which would never hand back to the hold) are ignored; a field
+  // left with no clip, or missing, is its default. The idle plan is recomputed with the new clips' lengths
+  // (timers redrawn); the same clips again change nothing. The base and a clip already playing are untouched.
+  setIdleClips(clips) {
+    const c = clips !== null && typeof clips === 'object' ? clips : {};
+    const ok = n => typeof n === 'string' && Object.prototype.hasOwnProperty.call(this.anims, n) && !this.anims[n].loop;
+    const names = (v, dflt) => { const l = [].concat(v).filter(ok); return l.length ? l : [...dflt]; };
+    const next = {
+      blink: ok(c.blink) ? c.blink : IDLE_CLIPS.blink,
+      glance: names(c.glance, IDLE_CLIPS.glance),
+      life: names(c.life, IDLE_CLIPS.life),
+    };
+    const cur = this.idleClips;
+    if (next.blink === cur.blink && sameList(next.glance, cur.glance) && sameList(next.life, cur.life)) return;
+    this.idleClips = next;
+    this._life = sameList(next.life, IDLE_CLIPS.life) ? LIFE : next.life.map(n => [n, 1]);
+    this.setIdle(this.idleOpts);
   }
 
   _draw(mean) { return Number.isFinite(mean) ? mean * (0.6 + 0.8 * this.rand()) : Infinity; } // uniform, ±40% of the mean
@@ -914,11 +945,11 @@ export class Player {
       if (this.t.glance <= 0) {
         this.t.glance = this._draw(this.plan.glanceMs);
         this.counts.glance++;
-        this._idle(this.rand() < 0.5 ? 'look_left' : 'look_right');
+        this._idle(this._pickGlance());
       } else if (this.t.blink <= 0) {
         this.t.blink = this._draw(this.plan.blinkMs);
         this.counts.blink++;
-        this._idle('blink');
+        this._idle(this.idleClips.blink);
       } else if (c.life && this.t.life <= 0) {
         this.t.life = this._draw(this.plan.lifeMs);
         this.counts.life++;
@@ -938,7 +969,8 @@ export class Player {
     if (c.t >= c.dur) {
       const over = c.t - c.dur;
       if (c.loop) c.t = loopTime(c.def, c.t);
-      else if (c.next && this.anims[c.next]) { this._set(this._clip(c.next), over); return true; }
+      // Calm idle's clips do not chain: a celebration picked as idle life would stay in its happy loop.
+      else if (c.next && !c.idle && this.anims[c.next]) { this._set(this._clip(c.next), over); return true; }
       else if (this.queue.length) { this._set(this._clip(this.queue.shift()), over); return true; }
       else {
         if (c.isBase) {
@@ -954,8 +986,14 @@ export class Player {
     return true;
   }
 
+  // One rand() each, as before: the default glances look left below 0.5, right above.
+  _pickGlance() {
+    const g = this.idleClips.glance;
+    return g[Math.min(g.length - 1, Math.floor(this.rand() * g.length))];
+  }
+
   _pickLife() {
-    const life = LIFE.filter(([n]) => this.anims[n]);
+    const life = this._life.filter(([n]) => this.anims[n]);
     let r = this.rand() * life.reduce((s, [, p]) => s + p, 0);
     for (const [n, p] of life) if ((r -= p) < 0) return n;
     return life[life.length - 1][0];
