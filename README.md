@@ -14,7 +14,7 @@ Everything runs on your own machine. The plugin starts a small web server on you
 
 <p align="center">
   <img src="docs/images/dashboard-landscape.png" width="68%" alt="The dashboard on a phone held sideways: Clawd typing at his laptop while Claude runs a command, the 5-hour, week and Fable limit rings, and the active session">
-  <img src="docs/images/dashboard-portrait.png" width="25%" alt="The same dashboard upright">
+  <img src="docs/images/dashboard-phone-portrait.png" width="25%" alt="The same dashboard upright">
 </p>
 
 <p align="center"><img src="docs/images/clawd/working.png" height="64" alt="working"> <img src="docs/images/clawd/thinking.png" height="64" alt="thinking"> <img src="docs/images/clawd/reading.png" height="64" alt="reading"> <img src="docs/images/clawd/compiling.png" height="64" alt="compiling"> <img src="docs/images/clawd/surprised.png" height="64" alt="surprised"> <img src="docs/images/clawd/cool.png" height="64" alt="cool"> <img src="docs/images/clawd/overloaded.png" height="64" alt="overloaded"> <img src="docs/images/clawd/celebration.png" height="64" alt="celebration"> <img src="docs/images/clawd/love.png" height="64" alt="love"> <img src="docs/images/clawd/sleeping.png" height="64" alt="sleeping"></p>
