@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0f">
+  <title>Clawd rig</title>
+  <style>
+    :root { color-scheme: dark; --bg: #0a0a0f; --text: #e8e6e3; --dim: #8a8a93; --line: #2c2c38; --need: #ffb020; --good: #a6e6a0; }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { background: var(--bg); color: var(--text); font: 14px/1.4 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif; }
+    body { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 24px max(12px, env(safe-area-inset-left)); }
+    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 10px; }
+    h1 { font-size: 15px; font-weight: 600; }
+    #readout { color: var(--dim); font: 12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; min-height: 1.4em; }
+    .stage {
+      position: relative; height: 340px; border-radius: 14px; overflow: hidden;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+      background: radial-gradient(circle at 50% 62%, #1a1622 0%, var(--bg) 70%);
+      transition: filter 1s ease;
+    }
+    .stage.dim { filter: brightness(.32) saturate(.8); }
+    #clawd { width: 280px; height: 280px; display: block; }
+    .bubble {
+      max-width: 90%; background: #1b1b24; border: 1px solid var(--line); border-radius: 10px;
+      padding: 5px 11px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; visibility: hidden;
+    }
+    .bubble.show { visibility: visible; }
+    .bubble.need { border-color: var(--need); color: #ffcf70; }
+    .bubble.good { border-color: #3f8a3f; color: var(--good); }
+    .bubble.bad { border-color: #b23a3a; color: #ff9d8c; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 12px 0 6px; color: var(--dim); font-size: 13px; }
+    .controls label { display: inline-flex; align-items: center; gap: 6px; }
+    .controls input[type=range] { width: min(320px, 60vw); }
+    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .seg button { background: none; border: 0; color: var(--dim); padding: 4px 10px; font: inherit; cursor: pointer; }
+    .seg button.on { background: #262633; color: var(--text); }
+    h2 { font-size: 12px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 6px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      background: #16161e; color: var(--text); border: 1px solid var(--line); border-radius: 999px;
+      padding: 5px 11px; font: inherit; font-size: 13px; cursor: pointer;
+    }
+    .chip small { color: var(--dim); margin-left: 5px; font-size: 11px; }
+    .chip.on { border-color: #8f8a83; background: #22222c; }
+    .chip:disabled { opacity: .35; cursor: default; }
+    .note { color: var(--dim); font-size: 12px; margin-top: 14px; max-width: 70ch; }
+    code { font: 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #c9c3ba; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Clawd rig</h1>
+    <div id="readout"></div>
+  </header>
+  <section id="stage" class="stage">
+    <div id="bubble" class="bubble"></div>
+    <svg id="clawd" xmlns="http://www.w3.org/2000/svg" aria-label="Clawd"></svg>
+  </section>
+  <div class="controls">
+    <span class="seg" id="speed"><button data-speed="0.25">0.25x</button><button data-speed="1" class="on">1x</button></span>
+    <label><input type="checkbox" id="freeze"> Freeze</label>
+    <label>t <input type="range" id="scrub" min="0" max="1000" value="0" step="1" disabled></label>
+    <label>seed <input type="number" id="seed" value="1" min="0" step="1" style="width:5em"></label>
+  </div>
+  <div id="groups"></div>
+  <p class="note">
+    Chips for loops set the base; one-shots play once over the current base. Flows replay the mood engine's sequences
+    (<code>src/web/mood.js</code>) on this page's clock, so the clip changes look as they will on the dashboard. Freeze stops
+    the player and the slider scrubs the selected clip. Freeze a frame from the URL with
+    <code>?anim=walk&amp;t=1200&amp;seed=2</code>, or from the console with <code>clawdDebug.freeze('hop', 420)</code>,
+    <code>clawdDebug.play('walk')</code> and <code>clawdDebug.flow('flow_turn')</code>.
+  </p>
+  <script type="module">
+    import { Player, ANIMS, SPEC, NAMES, evalAnim, shapesAt, mountClawd } from './index.js';
+
+    // The dashboard's bubbles for each state (src/web/mood.js and the server's session details).
+    const BUBBLE = {
+      thinking: ['Thinking…', ''], reading: ['Reading app.js', ''], working: ['Editing server.mjs', ''], compiling: ['Running npm test', ''],
+      surprised: ['Needs permission', 'need'], curious: ['Needs permission', 'need'], needs: ['Needs permission', 'need'],
+      happy_eyes: ['Your turn', 'good'], sleeping: ['Zzz…', ''], overloaded: ['Limit reached · resets in 3h 00m', 'bad'],
+      celebration: ['Fresh limits!', 'good'], jumping_joy: ['Fresh limits!', 'good'], happy: ['Fresh limits!', 'good'],
+      low_tokens: ['5-hour at 62%', ''], sad: ['5-hour at 84%', 'bad'], ending: ['5-hour at 96%', 'bad'],
+      error: ['Error', 'bad'], angry: ['Error', 'bad'], wake: ['Hi!', 'good'],
+    };
+    const DIM = new Set(['sleeping']); // the dashboard dims the screen while asleep: sleeping must read dimmed
+
+    const $ = id => document.getElementById(id);
+    const view = mountClawd($('clawd'));
+    const player = new Player();
+    let speed = 1;
+    let frozen = null; // { name, ms, seed } while frozen
+    let selected = 'calm';
+    let last = performance.now();
+    let draw = true;
+    let flow = null; // { steps, t, i } while a flow runs
+    let rects = 0;
+
+    // ---------- the dashboard's flows (src/web/mood.js), as it calls setBase and play ----------
+    const base = (names, bubble) => { player.setBase(names); setBubble(bubble); };
+    const FLOWS = {
+      flow_sleep: {
+        label: 'Yawn, then sleep', hint: 'yawning base, sleeping 2.5 s later',
+        steps: [[0, () => base('yawning', '')], [2500, () => base('sleeping', 'sleeping')]],
+      },
+      flow_wake: {
+        label: 'Wake up', hint: 'asleep, then yawning, surprised, love',
+        steps: [[0, () => base('sleeping', 'sleeping')], [4000, () => { base('idle', 'wake'); player.play(['yawning', 'surprised', 'love']); }], [6900, () => setBubble('')]],
+      },
+      flow_turn: {
+        label: 'Your turn', hint: 'needs you, then surprised, happy_eyes',
+        steps: [[0, () => base(['surprised', 'curious'], 'needs')], [4300, () => { base('happy_eyes', 'happy_eyes'); player.play('surprised'); }], [7300, () => base('idle', '')]],
+      },
+      flow_fresh: {
+        label: 'Fresh limits', hint: 'jumping_joy, happy, cool',
+        steps: [[0, () => { base('happy', 'happy'); player.play('jumping_joy'); }], [5640, () => base('cool', '')], [13640, () => base('idle', '')]],
+      },
+      flow_busy: {
+        label: 'Busy session', hint: 'thinking, working, reading, compiling',
+        steps: [
+          [0, () => { base('thinking', 'thinking'); player.play('surprised'); }], [2600, () => base('working', 'working')],
+          [5200, () => base('reading', 'reading')], [6700, () => base('thinking', 'thinking')], [8300, () => base('compiling', 'compiling')],
+          [11300, () => base('working', 'working')], [13500, () => base('thinking', 'thinking')], [15000, () => base('idle', '')],
+        ],
+      },
+      flow_limits: {
+        label: 'Limits run down', hint: 'low_tokens, sad, ending, overloaded',
+        steps: [
+          [0, () => { base('low_tokens', 'low_tokens'); player.play('surprised'); }], [8000, () => base('sad', 'sad')],
+          [16000, () => base('ending', 'ending')], [22400, () => base('overloaded', 'overloaded')], [30000, () => base('idle', '')],
+        ],
+      },
+    };
+    function startFlow(key) {
+      flow = { steps: FLOWS[key].steps, t: 0, i: 0 };
+      runFlow(0);
+      draw = true;
+    }
+    function runFlow(dt) {
+      if (!flow) return;
+      flow.t += dt;
+      while (flow.i < flow.steps.length && flow.steps[flow.i][0] <= flow.t) flow.steps[flow.i++][1]();
+      if (flow.i >= flow.steps.length) flow = null;
+    }
+
+    function setBubble(key) {
+      const [text, tone] = BUBBLE[key] || ['', ''];
+      const b = $('bubble');
+      b.textContent = text;
+      b.className = `bubble${text ? ' show' : ''}${tone ? ` ${tone}` : ''}`;
+      $('stage').classList.toggle('dim', DIM.has(key));
+    }
+
+    function mark(key) {
+      selected = key;
+      for (const c of document.querySelectorAll('.chip')) c.classList.toggle('on', c.dataset.key === key);
+      const def = ANIMS[key];
+      $('scrub').max = def ? def.dur : 1000;
+    }
+
+    function choose(key) {
+      mark(key);
+      flow = null;
+      if (frozen) { setBubble(key); freeze(key in ANIMS ? key : 'idle', 0, seedValue()); return; }
+      if (FLOWS[key]) return startFlow(key);
+      setBubble(key);
+      if (key === 'calm') return player.setBase('idle');
+      if (key === 'needs') return player.setBase(['surprised', 'curious']);
+      const def = ANIMS[key];
+      if (!def) return;
+      if (def.loop) player.setBase(key);
+      else player.play(key);
+      draw = true;
+    }
+
+    const seedValue = () => Math.max(0, parseInt($('seed').value, 10) || 0);
+
+    function freeze(name, ms, seed = seedValue()) {
+      if (!ANIMS[name]) throw new Error(`unknown clip ${name}`);
+      const t = Math.max(0, Math.min(ANIMS[name].dur, Number(ms) || 0));
+      frozen = { name, ms: t, seed };
+      $('freeze').checked = true;
+      $('scrub').disabled = false;
+      $('scrub').max = ANIMS[name].dur;
+      $('scrub').value = t;
+      if (selected !== name) mark(name);
+      view.render(shapesAt(evalAnim(name, t, seed)));
+      readout();
+    }
+
+    function unfreeze() {
+      frozen = null;
+      $('freeze').checked = false;
+      $('scrub').disabled = true;
+      draw = true;
+    }
+
+    function readout() {
+      const r = $('readout');
+      if (frozen) { r.textContent = `frozen · ${frozen.name} @ ${Math.round(frozen.ms)} ms / ${ANIMS[frozen.name].dur} · seed ${frozen.seed}`; return; }
+      const c = player.cur;
+      const n = player.counts;
+      const clip = c.hold ? `idle (${player.dirty || player.blend ? 'settling' : 'holding still'})` : `${c.name} ${Math.round(c.t)}/${c.dur} ms`;
+      r.textContent = `${clip} · base ${player.base.join(' ↔ ')}${player.queue.length ? ` · queue ${player.queue.join(', ')}` : ''}`
+        + `${player.blend ? ` · blend ${Math.round(player.blend.dur)} ms` : ''} · ${rects} rects`
+        + ` · blinks ${n.blink} glances ${n.glance} breaths ${n.breath} life ${n.life}`;
+    }
+
+    // ---------- chips ----------
+    const groups = [
+      ['Calm idle', [['calm', 'Calm idle'], ['needs', 'Needs you', 'surprised ↔ curious']]],
+      ['Flows', Object.entries(FLOWS).map(([k, f]) => [k, f.label, f.hint])],
+      ...['base', 'life', 'work', 'feelings'].map(owner => [owner, NAMES.filter(n => SPEC[n].owner === owner).map(n => [n, n])]),
+    ];
+    for (const [title, list] of groups) {
+      const h = document.createElement('h2');
+      h.textContent = title;
+      const box = document.createElement('div');
+      box.className = 'chips';
+      for (const [key, label, hint] of list) {
+        const b = document.createElement('button');
+        b.className = 'chip';
+        b.dataset.key = key;
+        const def = ANIMS[key];
+        const special = key === 'calm' || key === 'needs' || key in FLOWS;
+        const kind = special ? hint || '' : def ? (def.loop ? (def.loopFrom ? 'loop, intro' : 'loop') : def.next ? `→ ${def.next}` : 'once') : 'pending';
+        b.innerHTML = `${label}${kind ? `<small>${kind}</small>` : ''}`;
+        if (key === 'needs' && !(ANIMS.surprised && ANIMS.curious)) b.disabled = true;
+        else if (!special && !def) { b.disabled = true; b.title = 'not registered'; }
+        b.addEventListener('click', () => choose(key));
+        box.appendChild(b);
+      }
+      $('groups').append(h, box);
+    }
+
+    // ---------- controls ----------
+    for (const b of document.querySelectorAll('#speed button')) {
+      b.addEventListener('click', () => {
+        speed = Number(b.dataset.speed);
+        for (const o of document.querySelectorAll('#speed button')) o.classList.toggle('on', o === b);
+      });
+    }
+    $('freeze').addEventListener('change', e => {
+      if (e.target.checked) freeze(ANIMS[selected] ? selected : player.cur.hold ? 'idle' : player.cur.name, player.cur.hold ? 0 : player.cur.t);
+      else unfreeze();
+    });
+    $('scrub').addEventListener('input', e => { if (frozen) freeze(frozen.name, e.target.value, frozen.seed); });
+    $('seed').addEventListener('change', () => { if (frozen) freeze(frozen.name, frozen.ms, seedValue()); });
+
+    // ---------- the page's one animation loop ----------
+    function loop(now) {
+      const dt = Math.min(100, now - last) * speed;
+      last = now;
+      if (!frozen) {
+        runFlow(dt);
+        if (player.update(dt) || draw) {
+          const s = player.shapes();
+          rects = s.length;
+          view.render(s);
+          draw = false;
+        }
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+    setInterval(() => { if (!frozen) readout(); }, 100);
+
+    window.clawdDebug = {
+      player,
+      freeze: (name, ms = 0, seed) => freeze(name, ms, seed ?? seedValue()),
+      unfreeze,
+      play(name) { unfreeze(); choose(name); },
+      flow(key) { unfreeze(); choose(key); },
+    };
+
+    // ?anim=name&t=ms[&seed=n] freezes that frame (for screenshots).
+    const q = new URLSearchParams(location.search);
+    mark('calm');
+    if (q.get('seed')) $('seed').value = q.get('seed');
+    if (q.get('anim') && ANIMS[q.get('anim')]) {
+      setBubble(q.get('anim'));
+      freeze(q.get('anim'), Number(q.get('t')) || 0, seedValue());
+    }
+    readout();
+  </script>
+</body>
+</html>
