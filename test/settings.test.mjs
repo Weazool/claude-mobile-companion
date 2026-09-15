@@ -113,39 +113,46 @@ function lengthPx(expr, W, H) {
   return m ? Math.min(...m[1].split(',').map(a => sum(a.replace(/calc\(|\)/g, '')))) : sum(expr);
 }
 
-test('style: Clawd stands on the stage floor as large as it allows; the bubble floats in his free headroom', () => {
+test('style: Clawd stands in the middle of the stage, as large as it allows, with the bubble as a caption under his feet', () => {
   const r = styleRules();
   const m = r.get('#mascot');
   assert.equal(m['mix-blend-mode'], undefined, 'an SVG has no black square to blend away');
   assert.equal(m['aspect-ratio'], '1');
   assert.deepEqual([m.width, m.height], ['var(--mascot)', 'var(--mascot)'], 'both set, so the square never depends on how a browser sizes an SVG');
-  assert.deepEqual([m.position, m.bottom], ['absolute', '0'], 'he stands on the stage floor');
+  // His middle (y -5 of the viewBox -28..4) is 23/32 = 71.875% down the square; that point is the stage centre.
+  assert.deepEqual([m.position, m.top], ['absolute', 'calc(50% - 0.71875 * var(--mascot))'], 'his middle is the stage centre');
   const b = r.get('.bubble');
   assert.equal(b.position, 'absolute', 'the bubble never pushes Clawd around when it comes and goes');
-  assert.equal(b.top, 'calc(100% - 0.98 * var(--mascot))');
+  assert.equal(b.top, 'calc(50% + 0.18 * var(--mascot))', 'a caption just under his feet (15.6% of the square below his middle)');
   // The bubble with text: line-height normal (at most 1.35 for these fonts), padding top and bottom, 1px borders.
   const bubbleH = (W, H) => 1.35 * lengthPx(b['font-size'], W, H) + 2 * lengthPx(b.padding.split(' ')[0], W, H) + 2;
-  const CONTROLS = 9.4; // cqmin below the top: 3 + 4.4 (glyph at line-height 1) + 2 padding
-  const FLAG_TIP = 0.19; // share of the square, from its top, that only Zzz and confetti ever reach
-  const bubbleTop = (S, M) => S - 0.98 * M;
+  const FLAG_TIP = 0.19; // share of the square, from its top, that only Zzz and confetti tails ever reach
+  const FEET = 0.875;    // the ground line, as a share of the square from its top
+  const place = (S, M) => ({ top: S / 2 - 0.71875 * M, feet: S / 2 - 0.71875 * M + FEET * M, caption: S / 2 + 0.18 * M });
+  const check = (label, S, M, W, H) => {
+    const p = place(S, M);
+    assert.ok(p.top + FLAG_TIP * M >= 0, `${label}: the flag's tip stays in view`);
+    assert.ok(p.caption > p.feet, `${label}: the caption sits under his feet`);
+    assert.ok(p.caption + bubbleH(W, H) <= S, `${label}: the caption stays inside the stage`);
+  };
   // Landscape: the stage is the full-height 40% column.
   assert.equal(r.get('#app.landscape')['grid-template-columns'], '40% 60%');
   for (const [W, H] of [[844, 390], [667, 375], [932, 430], [1024, 768]]) {
     const M = lengthPx(r.get('#app.landscape .stage')['--mascot'], W, H);
     assert.ok(M <= 0.4 * W + 0.5 && M <= H, `${W}x${H}: the ${M.toFixed(1)}px square fits the column`);
     assert.ok(M >= 0.9 * Math.min(0.4 * W, H), `${W}x${H}: the square uses the column`);
-    assert.ok(bubbleTop(H, M) + bubbleH(W, H) <= H - M + FLAG_TIP * M, `${W}x${H}: the bubble clears the flag`);
+    check(`${W}x${H}`, H, M, W, H);
   }
   // Portrait: the stage is the top 42%, and the controls sit in its top-right corner.
   assert.equal(r.get('#app.portrait')['grid-template-rows'], '42% minmax(0, 1fr)');
   for (const [W, H] of [[390, 844], [375, 667], [360, 800], [430, 932], [768, 1024], [800, 969]]) {
     const S = 0.42 * H, cq = Math.min(W, H) / 100;
     const M = lengthPx(r.get('#app.portrait .stage')['--mascot'], W, H);
-    assert.ok(S - M >= CONTROLS * cq, `${W}x${H}: the square starts below the controls`);
     assert.ok(M >= 0.95 * Math.min(0.8 * W, S - 10 * cq), `${W}x${H}: the square uses the stage`);
-    assert.ok(bubbleTop(S, M) >= CONTROLS * cq, `${W}x${H}: the bubble starts below the controls`);
-    // Phones only: on tablet-shaped portrait windows the (larger) bubble may touch the flag's tip.
-    if (H / W > 1.6) assert.ok(bubbleTop(S, M) + bubbleH(W, H) <= S - M + FLAG_TIP * M, `${W}x${H}: the bubble clears the flag`);
+    check(`${W}x${H}`, S, M, W, H);
+    // The flag rises on his right (x +2..+8 of 32 units): it must stay left of the ✕ ⟲ ⚙ row where the two meet.
+    const flagRight = W / 2 + (8 / 32) * M, controlsLeft = W - 4 * cq - (3 * (4.4 + 2) + 2 * 3) * cq;
+    if (place(S, M).top + FLAG_TIP * M < 9.4 * cq) assert.ok(flagRight <= controlsLeft, `${W}x${H}: the flag clears the controls`);
   }
 });
 

@@ -34,24 +34,26 @@ html, body {
 #app.portrait { grid-template-rows: 42% minmax(0, 1fr); }
 
 /* Clawd's stage. His SVG viewBox (-16 -28 32 32) keeps the top of the square free for the flag, the Zzz and
-   the confetti: his body is 12 of its 32 units (37.5% of the width), feet on the 87.5% line, and nothing but
-   Zzz/confetti ever reaches the top 19% (the flag's tip). So the square is as large as the stage allows and
-   stands on the stage floor, and the bubble floats inside that free top band instead of taking a row of its
-   own: Clawd is as big as the old sprite, and the layout never moves when the bubble comes and goes.
+   the confetti: his body is 12 of its 32 units (37.5% of the width) and runs from y -10 to his feet at y 0,
+   so his middle (y -5) sits 23/32 = 71.875% down the square. The square is as large as the stage allows and
+   is placed so that middle is the stage's centre: Clawd stands in the middle of the stage, as big as the old
+   sprite. Only effect tails (the last Z, confetti peaks) can reach the top 15% of the square, which may run
+   past the stage top; the flag's tip (19%) always stays in view.
+   The bubble is a caption just under his feet (87.5% of the square, i.e. 15.6% of it below his middle): it
+   never covers the flag, the "!" or the Zzz above him, and the layout never moves when it comes and goes.
    --mascot (the square's side) lives on the stage so the bubble can use it too.
-   Landscape (cqmin = cqh): the stage is the full-height 40cqw column; 4cqmin keeps the square off the top.
-   Portrait (cqmin = cqw): the stage is the top 42cqh; the controls end 9.4cqmin below the top
-   (3cqmin + 4.4cqmin at line-height 1 + 2cqmin padding), so the square starts at least 10cqmin down. */
-.stage { position: relative; min-height: 0; background: radial-gradient(circle at 50% 62%, #1a1622 0%, var(--bg) 70%); }
+   Landscape (cqmin = cqh): the stage is the full-height 40cqw column.
+   Portrait (cqmin = cqw): the stage is the top 42cqh, with the controls in its top-right corner. */
+.stage { position: relative; min-height: 0; background: radial-gradient(circle at 50% 50%, #1a1622 0%, var(--bg) 70%); }
 #app.landscape .stage { --mascot: min(40cqw, 100cqh - 4cqmin); }
 #app.portrait .stage { --mascot: min(80cqw, 42cqh - 10cqmin); }
 #mascot {
-  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  position: absolute; left: 50%; top: calc(50% - 0.71875 * var(--mascot)); transform: translateX(-50%);
   width: var(--mascot); height: var(--mascot); aspect-ratio: 1; cursor: pointer;
 }
 
 .bubble {
-  position: absolute; z-index: 1; left: 50%; transform: translateX(-50%); top: calc(100% - 0.98 * var(--mascot));
+  position: absolute; z-index: 1; left: 50%; transform: translateX(-50%); top: calc(50% + 0.18 * var(--mascot));
   max-width: 90%; background: #1b1b24; border: 1px solid #2c2c38; border-radius: 2.4cqmin;
   padding: 1.4cqmin 2.6cqmin; font-size: 3.6cqmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   visibility: hidden; transition: border-color .3s, color .3s;
