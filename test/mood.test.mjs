@@ -230,7 +230,8 @@ test('offline: the companion sleeps until the connection returns', () => {
 });
 
 // Keep this test last: it reads what the scenarios above asked for.
-test('every animation the scenarios asked for is a Clawd clip (base names, plays and chains)', () => {
+test('every animation the scenarios asked for is a Clawd clip (base names, plays and chains)', t => {
+  if (!asked.size) return t.skip('run the whole file: this test checks what the scenarios above asked for');
   assert.deepEqual([...asked].filter(n => !ANIMS[n]), [], 'names the Player would silently ignore');
   for (const n of asked) if (ANIMS[n].next) assert.ok(ANIMS[ANIMS[n].next], `${n} chains to ${ANIMS[n].next}`);
   assert.ok(ANIMS.jumping_joy.next === 'happy' && asked.has('happy'), 'fresh limits: jumping_joy flows into the happy base');

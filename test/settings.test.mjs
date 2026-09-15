@@ -80,7 +80,6 @@ test('style: safe-area insets are mapped onto #app edges per rotation', () => {
   assert.equal(app.padding, 'var(--sa-t) var(--sa-r) var(--sa-b) var(--sa-l)');
   assert.equal(r.get('.controls').top, 'calc(3cqmin + var(--sa-t))');
   assert.equal(r.get('.controls').right, 'calc(4cqmin + var(--sa-r))');
-  assert.equal(r.get('#app.portrait .stage')['padding-top'], '12cqmin');
   for (const [sel, d] of r) {
     for (const [k, v] of Object.entries(d)) if (v.includes('env(')) assert.match(k, /^--sa-[trbl]$/, `raw env() in ${sel} { ${k} }`);
   }
@@ -114,34 +113,39 @@ function lengthPx(expr, W, H) {
   return m ? Math.min(...m[1].split(',').map(a => sum(a.replace(/calc\(|\)/g, '')))) : sum(expr);
 }
 
-test('style: Clawd is as large as the stage allows, clear of the bubble, the controls and the data', () => {
+test('style: Clawd stands on the stage floor as large as it allows; the bubble floats in his free headroom', () => {
   const r = styleRules();
   const m = r.get('#mascot');
   assert.equal(m['mix-blend-mode'], undefined, 'an SVG has no black square to blend away');
   assert.equal(m['aspect-ratio'], '1');
   assert.deepEqual([m.width, m.height], ['var(--mascot)', 'var(--mascot)'], 'both set, so the square never depends on how a browser sizes an SVG');
+  assert.deepEqual([m.position, m.bottom], ['absolute', '0'], 'he stands on the stage floor');
   const b = r.get('.bubble');
-  const gap = r.get('.stage').gap;
+  assert.equal(b.position, 'absolute', 'the bubble never pushes Clawd around when it comes and goes');
+  assert.equal(b.top, 'calc(100% - 0.98 * var(--mascot))');
   // The bubble with text: line-height normal (at most 1.35 for these fonts), padding top and bottom, 1px borders.
-  const bubble = (W, H) => 1.35 * lengthPx(b['font-size'], W, H) + 2 * lengthPx(b.padding.split(' ')[0], W, H) + 2;
-  const check = (sel, W, H, room) => {
-    const M = lengthPx(r.get(sel)['--mascot'], W, H);
-    assert.ok(M <= room, `${W}x${H}: ${M.toFixed(1)}px fits (room ${room.toFixed(1)}px)`);
-    assert.ok(M >= 0.85 * room, `${W}x${H}: ${M.toFixed(1)}px uses the stage (room ${room.toFixed(1)}px)`);
-  };
-  // Landscape: the stage is the 40% column, full height, bubble and Clawd centred in it.
+  const bubbleH = (W, H) => 1.35 * lengthPx(b['font-size'], W, H) + 2 * lengthPx(b.padding.split(' ')[0], W, H) + 2;
+  const CONTROLS = 9.4; // cqmin below the top: 3 + 4.4 (glyph at line-height 1) + 2 padding
+  const FLAG_TIP = 0.19; // share of the square, from its top, that only Zzz and confetti ever reach
+  const bubbleTop = (S, M) => S - 0.98 * M;
+  // Landscape: the stage is the full-height 40% column.
   assert.equal(r.get('#app.landscape')['grid-template-columns'], '40% 60%');
   for (const [W, H] of [[844, 390], [667, 375], [932, 430], [1024, 768]]) {
-    check('#app.landscape #mascot', W, H, Math.min(0.4 * W, H - bubble(W, H) - lengthPx(gap, W, H)));
+    const M = lengthPx(r.get('#app.landscape .stage')['--mascot'], W, H);
+    assert.ok(M <= 0.4 * W + 0.5 && M <= H, `${W}x${H}: the ${M.toFixed(1)}px square fits the column`);
+    assert.ok(M >= 0.9 * Math.min(0.4 * W, H), `${W}x${H}: the square uses the column`);
+    assert.ok(bubbleTop(H, M) + bubbleH(W, H) <= H - M + FLAG_TIP * M, `${W}x${H}: the bubble clears the flag`);
   }
-  // Portrait: the stage is the top 42%; the bubble starts below the controls, then the gap, then Clawd,
-  // centred by his auto margins in what is left and never reaching into .data.
+  // Portrait: the stage is the top 42%, and the controls sit in its top-right corner.
   assert.equal(r.get('#app.portrait')['grid-template-rows'], '42% minmax(0, 1fr)');
-  const ps = r.get('#app.portrait .stage');
-  assert.equal(ps['justify-content'], 'flex-start');
-  assert.equal(r.get('#app.portrait #mascot')['margin-block'], 'auto');
-  for (const [W, H] of [[390, 844], [768, 1024], [800, 969], [375, 667], [360, 800], [430, 932]]) {
-    check('#app.portrait #mascot', W, H, Math.min(W, 0.42 * H - lengthPx(ps['padding-top'], W, H) - bubble(W, H) - lengthPx(gap, W, H)));
+  for (const [W, H] of [[390, 844], [375, 667], [360, 800], [430, 932], [768, 1024], [800, 969]]) {
+    const S = 0.42 * H, cq = Math.min(W, H) / 100;
+    const M = lengthPx(r.get('#app.portrait .stage')['--mascot'], W, H);
+    assert.ok(S - M >= CONTROLS * cq, `${W}x${H}: the square starts below the controls`);
+    assert.ok(M >= 0.95 * Math.min(0.8 * W, S - 10 * cq), `${W}x${H}: the square uses the stage`);
+    assert.ok(bubbleTop(S, M) >= CONTROLS * cq, `${W}x${H}: the bubble starts below the controls`);
+    // Phones only: on tablet-shaped portrait windows the (larger) bubble may touch the flag's tip.
+    if (H / W > 1.6) assert.ok(bubbleTop(S, M) + bubbleH(W, H) <= S - M + FLAG_TIP * M, `${W}x${H}: the bubble clears the flag`);
   }
 });
 

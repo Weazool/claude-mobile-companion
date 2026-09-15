@@ -33,23 +33,25 @@ html, body {
 #app.landscape { grid-template-columns: 40% 60%; }
 #app.portrait { grid-template-rows: 42% minmax(0, 1fr); }
 
-.stage {
-  position: relative; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2cqmin;
-  background: radial-gradient(circle at 50% 62%, #1a1622 0%, var(--bg) 70%);
+/* Clawd's stage. His SVG viewBox (-16 -28 32 32) keeps the top of the square free for the flag, the Zzz and
+   the confetti: his body is 12 of its 32 units (37.5% of the width), feet on the 87.5% line, and nothing but
+   Zzz/confetti ever reaches the top 19% (the flag's tip). So the square is as large as the stage allows and
+   stands on the stage floor, and the bubble floats inside that free top band instead of taking a row of its
+   own: Clawd is as big as the old sprite, and the layout never moves when the bubble comes and goes.
+   --mascot (the square's side) lives on the stage so the bubble can use it too.
+   Landscape (cqmin = cqh): the stage is the full-height 40cqw column; 4cqmin keeps the square off the top.
+   Portrait (cqmin = cqw): the stage is the top 42cqh; the controls end 9.4cqmin below the top
+   (3cqmin + 4.4cqmin at line-height 1 + 2cqmin padding), so the square starts at least 10cqmin down. */
+.stage { position: relative; min-height: 0; background: radial-gradient(circle at 50% 62%, #1a1622 0%, var(--bg) 70%); }
+#app.landscape .stage { --mascot: min(40cqw, 100cqh - 4cqmin); }
+#app.portrait .stage { --mascot: min(80cqw, 42cqh - 10cqmin); }
+#mascot {
+  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: var(--mascot); height: var(--mascot); aspect-ratio: 1; cursor: pointer;
 }
-/* Clawd is an inline SVG. His viewBox (-16 -28 32 32) keeps 18 units of headroom above him for the flag,
-   the Zzz and the confetti, so his body is only 12 of its 32 units (37.5% of the element's width): the
-   element is sized to the room the stage has, not to a share of it.
-   Width and height are both --mascot, so the square never depends on how a browser sizes an SVG.
-   The bubble (with text) is at most 3.6cqmin x 1.35 (line-height normal) + 2 x 1.4cqmin + 2px, about
-   7.7cqmin + 2px, and the stage's gap adds 2cqmin.
-   Landscape (cqmin = cqh): the stage is the 40cqw column, full height. 36cqw leaves 2cqw each side; 76cqh
-   leaves 24cqh, of which the bubble and the gap take under 10cqh + 2px, and the rest centres the pair.
-   76cqh binds on phones (296px at 844x390), 36cqw on tablets (369px at 1024x768). */
-#mascot { width: var(--mascot); height: var(--mascot); aspect-ratio: 1; cursor: pointer; }
-#app.landscape #mascot { --mascot: min(36cqw, 76cqh); }
 
 .bubble {
+  position: absolute; z-index: 1; left: 50%; transform: translateX(-50%); top: calc(100% - 0.98 * var(--mascot));
   max-width: 90%; background: #1b1b24; border: 1px solid #2c2c38; border-radius: 2.4cqmin;
   padding: 1.4cqmin 2.6cqmin; font-size: 3.6cqmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   visibility: hidden; transition: border-color .3s, color .3s;
@@ -113,15 +115,3 @@ html, body {
 .panel .hint { color: var(--dim); font-size: 12px; line-height: 1.4; margin: 8px 0 12px; }
 .panel button { width: 100%; padding: 10px; border-radius: 10px; border: 0; background: #2d6cdf; color: #fff; font-size: 15px; }
 
-/* Portrait: the bubble starts below the controls row and Clawd centres in the space left.
-   Both are measured from the top of #app's content box, below the --sa-t padding (the controls sit
-   against the padding box, so their top adds --sa-t): .controls ends at 3cqmin + 4.4cqmin
-   (line-height 1) + 2cqmin padding = 9.4cqmin; the stage is not centred, so its 12cqmin padding-top
-   is the bubble's exact top.
-   Clawd (cqmin = cqw here): the stage is 42cqh tall and 12cqmin + the bubble (7.7cqmin + 2px) + the
-   2cqmin gap sit above him, so he may take 42cqh - 21.7cqmin - 2px; 42cqh - 24cqmin keeps 2cqmin (at
-   least 2px) in hand and binds on wide portrait screens (246px at 768x1024, 215px at 800x969). 30cqh
-   caps him on tall phones (253px at 390x844), 80cqw on very narrow ones. margin-block: auto centres him
-   in what is left, so he never reaches into .data. */
-#app.portrait .stage { justify-content: flex-start; padding-top: 12cqmin; }
-#app.portrait #mascot { --mascot: min(80cqw, 30cqh, 42cqh - 24cqmin); margin-block: auto; }

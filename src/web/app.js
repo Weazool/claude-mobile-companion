@@ -18,20 +18,30 @@ const mood = createMood(settings.mood);
 const player = new Player({ idle: settings.idle });
 const view = mountClawd($('mascot'), { view: VIEW }); // Clawd's rects, drawn into the inline <svg>
 let drawPending = true;
+let dimmed = false;
 
 function apply(cmd) {
   if (!cmd) return;
   player.setBase(cmd.base);
   if (cmd.play.length) player.play(cmd.play);
   setBubble(cmd.bubble && cmd.bubble.text, cmd.bubble && cmd.bubble.tone);
-  $('app').classList.toggle('dim', cmd.dim);
+  dimmed = !!cmd.dim;
+  $('app').classList.toggle('dim', dimmed);
 }
 
+// Asleep (dimmed), Clawd's slow breathing needs no more than 20 redraws a second: spare the phone overnight.
+const DIM_FRAME_MS = 50;
 let lastFrameAt = performance.now();
+let lastDrawAt = 0;
 function loop(now) {
   const dt = Math.min(100, now - lastFrameAt);
   lastFrameAt = now;
-  if (player.update(dt) || drawPending) { view.render(player.shapes()); drawPending = false; }
+  const moving = player.update(dt);
+  if (drawPending || (moving && (!dimmed || now - lastDrawAt >= DIM_FRAME_MS))) {
+    view.render(player.shapes());
+    drawPending = false;
+    lastDrawAt = now;
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
