@@ -1,6 +1,6 @@
 ---
-name: pair
-description: Show the desk-companion phone link and open a QR code to scan. Use when the user wants to open desk-companion on their phone.
+name: claude-companion-pair
+description: Show the Claude companion phone link and open a QR code to scan. Use when the user wants to open the desk companion on their phone.
 disable-model-invocation: true
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/pair.mjs")
 ---

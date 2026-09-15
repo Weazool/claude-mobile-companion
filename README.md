@@ -41,7 +41,7 @@ Restart your Claude Code sessions so the hooks load. The first time the server s
 
 ## Pair your phone
 
-In Claude Code, run `/desk-companion:pair`. A page opens in your PC's browser with a QR code and a live preview of the dashboard; scan the code with your phone. On the PC itself, `http://localhost:<port>/` opens the dashboard without the token. The port is in `~/.desk-companion/config.json` (Windows: `%USERPROFILE%\.desk-companion\config.json`).
+In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser with a QR code and a live preview of the dashboard; scan the code with your phone. On the PC itself, `http://localhost:<port>/` opens the dashboard without the token. The port is in `~/.desk-companion/config.json` (Windows: `%USERPROFILE%\.desk-companion\config.json`).
 
 - **iPhone** (Safari or Chrome): Share → Add to Home Screen, then open it from the icon for full screen.
 - **Android:** the first tap goes full screen.
@@ -55,7 +55,7 @@ The page keeps the screen awake while it's open. If your phone still locks, set 
 
 ## Customise Clawd
 
-You choose which animation Clawd plays for each thing he reacts to: Claude thinking, a permission prompt, your limits running low, a tap, falling asleep and more. On the PC, open **Customise Clawd's behaviours →** on the pair page, or go to `http://localhost:<port>/behaviours`. The page only opens on the PC itself.
+You choose which animation Clawd plays for each thing he reacts to: Claude thinking, a permission prompt, your limits running low, a tap, falling asleep and more. In Claude Code, run `/claude-companion-configure`, open **Customise Clawd's behaviours →** on the pair page, or go to `http://localhost:<port>/behaviours`. The page only opens on the PC itself.
 
 Every behaviour has a live preview, and a gallery at the bottom plays all 26 animations. Pick animations per behaviour and click **Save**: the phone switches over at once, with no reload. **Reset to defaults** puts everything back. The map is stored in `~/.desk-companion/behaviours.json` (Windows: `%USERPROFILE%\.desk-companion\behaviours.json`).
 
@@ -73,7 +73,7 @@ Prompts, file contents and command arguments are never sent. The plugin never re
 
 - **The phone can't connect.** Open `/pair` on the PC and click one of the other addresses under the QR code. The first one isn't always the real Wi-Fi adapter: a virtual adapter, such as VirtualBox or Hyper-V, can sort first.
 - **Windows Firewall.** The first time the server starts, allow Node on **Private networks** when asked.
-- **A new port after a restart.** Windows sometimes reserves the configured port block. The server then switches to a new port by itself and logs the switch. Re-pair with `/desk-companion:pair`.
+- **A new port after a restart.** Windows sometimes reserves the configured port block. The server then switches to a new port by itself and logs the switch. Re-pair with `/claude-companion-pair`.
 - **Logs** are in `~/.desk-companion/server.log` and `hook.log` (Windows: `%USERPROFILE%\.desk-companion\`).
 
 ## Development
@@ -89,7 +89,7 @@ node tools/clawd-look.mjs --icon 256 --out src/web   # regenerate the Home Scree
 
 `src/web/clawd/mock.html` plays every animation and the mood engine's sequences in a browser. It's served at `/web/clawd/mock.html`, e.g. `http://localhost:<port>/web/clawd/mock.html`. `src/web/clawd/ANIMATING.md` is the guide to writing animations.
 
-Hooks and `/desk-companion:pair` start the server from Claude Code's plugin cache whenever none is running, for example after a reboot, a crash or the `--stop` above. So after any change under `bin/`, `src/`, `skills/` or `hooks/`, bump `version` in `package.json` and `.claude-plugin/plugin.json`, then run:
+Hooks and `/claude-companion-pair` start the server from Claude Code's plugin cache whenever none is running, for example after a reboot, a crash or the `--stop` above. So after any change under `bin/`, `src/`, `skills/` or `hooks/`, bump `version` in `package.json` and `.claude-plugin/plugin.json`, then run:
 
 ```bash
 claude plugin marketplace update desk-companion

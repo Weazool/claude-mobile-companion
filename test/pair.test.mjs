@@ -31,7 +31,7 @@ test('vendored qrcode.js encodes a phone URL to an SVG', () => {
 });
 
 test('pair skill runs the pair script and is user-invoked only', () => {
-  const md = fs.readFileSync(path.join(ROOT, 'skills/pair/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
+  const md = fs.readFileSync(path.join(ROOT, 'skills/claude-companion-pair/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
   assert.match(md, /^---\nname: pair\n/);
   assert.match(md, /\ndisable-model-invocation: true\n/);
   assert.ok(md.includes('!`node "${CLAUDE_PLUGIN_ROOT}/bin/pair.mjs"`'));
@@ -51,8 +51,16 @@ test('pair page alternatives are clickable, and data only ever goes in as text',
   assert.match(html, /\.innerHTML = qr\.createSvgTag\(/);
 });
 
+test('configure skill opens the behaviours page, user-invoked only, with its command pre-approved', () => {
+  const md = fs.readFileSync(path.join(ROOT, 'skills/claude-companion-configure/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(md, /^---\nname: claude-companion-configure\n/);
+  assert.match(md, /\ndisable-model-invocation: true\n/);
+  assert.ok(md.includes('!`node "${CLAUDE_PLUGIN_ROOT}/bin/pair.mjs" --configure`'));
+  assert.ok(md.includes('\nallowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/pair.mjs" --configure)\n'));
+});
+
 test('pair skill pre-approves its injected command, so it does not abort under default permissions', () => {
-  const md = fs.readFileSync(path.join(ROOT, 'skills/pair/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
+  const md = fs.readFileSync(path.join(ROOT, 'skills/claude-companion-pair/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
   // Must match the injected `!` line's command exactly, or the permission check still fails.
   assert.ok(md.includes('\nallowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/pair.mjs")\n'));
 });

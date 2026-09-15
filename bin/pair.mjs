@@ -50,10 +50,11 @@ if (urls.length > 1) {
   console.log('Alternatives:');
   for (const u of urls.slice(1)) console.log('  ' + u);
 }
+const configure = process.argv.includes('--configure'); // open the behaviours page instead of the QR page
 if (up && !process.argv.includes('--no-open')) {
-  const page = `http://localhost:${cfg.port}/pair`;
+  const page = `http://localhost:${cfg.port}/${configure ? 'behaviours' : 'pair'}`;
   const opener = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', page]] // '' is start's window title
     : process.platform === 'darwin' ? ['open', [page]] : ['xdg-open', [page]];
   try { spawn(opener[0], opener[1], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch { /* no browser */ }
-  console.log(`A QR code and a live dashboard preview opened in your browser: ${page}`);
+  console.log(configure ? `Clawd's behaviours page opened in your browser: ${page}` : `A QR code and a live dashboard preview opened in your browser: ${page}`);
 }

@@ -188,9 +188,10 @@ const WK_EYES = [
 ];
 const WK_WIND = [[0, 0], [1880, 0], [WK.enter - 10, 1, power2Out], [WK.enter + 45, -1.25, power3In], [WK.enter + 330, 0, backOut], [WK.dur, 0]];
 const WK_PEER = [[0, 0], [3360, 0], [3520, 1, power2Out], [3830, 1], [4000, 0, sineInOut]]; // leaning in to read
-// Paws on the keys: each arm (a 2x2 block beside the body) slides in by WK_REACH so it covers x 1..3 of the
-// keyboard's half; its bottom hovers 0.1 above the keys' top (y -2.65) and a full stroke presses it 0.25 into them.
-const WK_REACH = 5;
+// Paws on the keys, on Clawd's side of the laptop: each arm (a 2x2 block beside the body) slides in by WK_REACH
+// so it straddles the lid's edge (x ±2.7): its inner half is behind the lid, its outer half shows beside it. Its
+// bottom hovers 0.1 above the keys' top (y -2.65) and a full stroke presses it 0.25 into them.
+const WK_REACH = 4.3;
 const WK_HOVER = 1.25;
 const WK_PRESS = 0.35;
 
@@ -216,9 +217,8 @@ function workingPose(t, ctx) {
   p.root.sy = 1 - 0.04 * slam;
   p.root.sx = 1 + 0.02 * slam;
 
-  // The paws reach in onto the keyboard, the white base strip in front of the lid (x within ±3.15, y -2.65
-  // to -2.2): the left paw on its left half, the right on its right half (the Enter end), drawn in front of
-  // the lid. Between strokes a paw hovers just above the keys; each stroke presses it into them with a
+  // The paws reach in onto the keyboard on Clawd's side of the laptop: the lid is drawn in front of them, so
+  // each paw is half hidden behind its edge, the left paw on the left, the right on the right (the Enter end). Between strokes a paw hovers just above the keys; each stroke presses it into them with a
   // little wrist tip. The arms hang from the body, so its dip is taken back out: the paws stay planted on
   // the keys while he bobs. The Enter winds the right paw up high and slams it back down on the keys.
   p.armL.x = WK_REACH;
@@ -241,7 +241,7 @@ function workingPose(t, ctx) {
   // On a clip change the desk fades (one colour, so it fades cleanly) and the laptop folds up out of it or
   // down into it (blend: 'grow'); a fading laptop would show as a pale bib on the body.
   p.props.push({ glyph: 'work_desk', on: 'root', x: 0, y: DESK_Y, z: 1, id: 'work_desk' });
-  p.props.push({ glyph: 'laptop', on: 'root', x: 0, y: DESK_Y, s: 0.9, sy: 1 - 0.06 * slam, id: 'work_laptop', blend: 'grow' });
+  p.props.push({ glyph: 'laptop', on: 'root', x: 0, y: DESK_Y, z: 1, s: 0.9, sy: 1 - 0.06 * slam, id: 'work_laptop', blend: 'grow' }); // in front of the paws
 
   // Key sparks: now and then (about 3 burst strokes in 10, picked by the seed) a stroke throws one up and
   // out from the key under the paw; the Enter throws a yellow one off the keyboard's right end.

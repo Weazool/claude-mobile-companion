@@ -928,22 +928,25 @@ test('the rasterizer fills transformed rects with coverage and opacity', () => {
   assert.deepEqual(px(5, 5), [0, 0, 128]);
 });
 
-test('working: Clawd types on the keyboard, not beside the laptop', () => {
-  // The laptop's keyboard is the white base strip in front of the lid: x within ±3.15, y -2.65 .. -2.2.
-  const KEYS = { x0: -3.15, x1: 3.15, top: -2.65, bottom: -2.2 };
-  const paws = t => {
-    const s = shapesAt(evalAnim('working', t, 1));
-    return ['armL', 'armR'].map(part => bbox(s.find(x => x.part === part)));
-  };
-  // Throughout the loop both paws stay over the keyboard (the Enter wind-up lifts the right one, above it).
+test('working: Clawd types on his side of the laptop, paws half hidden behind the lid', () => {
+  // The lid spans x ±2.7 (laptop at 0.9 scale); the keys' top is y -2.65 and the desk top y -2.2.
+  const LID = 2.7, KEYS_TOP = -2.65, DESK = -2.2;
+  const at = t => shapesAt(evalAnim('working', t, 1));
+  const paws = t => { const s = at(t); return ['armL', 'armR'].map(part => bbox(s.find(x => x.part === part))); };
   for (let t = 0; t < ANIMS.working.dur; t += 20) {
     for (const [i, p] of paws(t).entries()) {
-      assert.ok(p.x0 >= KEYS.x0 - 0.35 && p.x1 <= KEYS.x1 + 0.35, `t=${t} ${i ? 'right' : 'left'} paw x ${p.x0.toFixed(2)}..${p.x1.toFixed(2)} is over the keyboard`);
-      assert.ok(p.y1 <= KEYS.bottom, `t=${t} ${i ? 'right' : 'left'} paw stays above the desk`);
+      const side = i ? 1 : -1, name = i ? 'right' : 'left';
+      assert.ok(Math.min(p.x0 * side, p.x1 * side) < LID && Math.max(p.x0 * side, p.x1 * side) > LID, `t=${t} ${name} paw straddles the lid's edge`);
+      assert.ok(Math.max(Math.abs(p.x0), Math.abs(p.x1)) < LID + 1.4, `t=${t} ${name} paw stays close to the laptop`);
+      assert.ok(p.y1 <= DESK, `t=${t} ${name} paw stays above the desk`);
     }
   }
-  // On every keystroke (the burst at 60 ms, the left then the right paw) the striking paw reaches the keys.
+  // The laptop is drawn after (in front of) both paws.
+  const s = at(500);
+  const last = part => s.map(x => x.part).lastIndexOf(part);
+  const firstLaptop = s.findIndex(x => /laptop/.test(String(x.part)));
+  assert.ok(firstLaptop > last('armL') && firstLaptop > last('armR'), 'the lid covers the paws');
+  // On a keystroke the striking paw reaches the keys.
   const [left] = paws(60 + 40), [, right] = paws(60 + 125 + 40);
-  assert.ok(left.y1 >= KEYS.top - 0.05, `left paw touches the keys (bottom ${left.y1.toFixed(2)})`);
-  assert.ok(right.y1 >= KEYS.top - 0.05, `right paw touches the keys (bottom ${right.y1.toFixed(2)})`);
+  assert.ok(left.y1 >= KEYS_TOP - 0.05 && right.y1 >= KEYS_TOP - 0.05, 'paws touch the keys on a stroke');
 });
