@@ -21,6 +21,15 @@ export const BACKOFF_MS = [10 * 60e3, 20 * 60e3, 30 * 60e3];
 export const STALE_MS = 15 * 60e3;
 const EMPTY = Object.freeze({ status: 'unavailable', asOf: null, fiveHour: null, week: null, fable: null });
 
+// The server inherits the env of whichever Claude session launched it: its proxy URL, host/OAuth tokens and
+// session ids. Once that session ends those are dead, and a child claude using them never gets usage again.
+const SESSION_ENV = /^(ANTHROPIC_|CLAUDE_CODE_|CLAUDE_AGENT_SDK_|CLAUDECODE$|CLAUDE_PID$)/;
+export function childEnv(env = process.env) {
+  const out = {};
+  for (const [k, v] of Object.entries(env)) if (!SESSION_ENV.test(k)) out[k] = v;
+  return { ...out, DESK_COMPANION_INTERNAL: '1', NoDefaultCurrentDirectoryInExePath: '1' };
+}
+
 export function normPct(u) {
   if (!Number.isFinite(u)) return null;
   const v = u > 0 && u < 1 && !Number.isInteger(u) ? u * 100 : u;
@@ -50,7 +59,7 @@ export function fetchUsage({ spawnImpl = nodeSpawn, command = 'claude', timeoutM
   return new Promise(resolve => {
     const fail = reason => ({ ...EMPTY, reason });
     const opts = { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, cwd,
-                   env: { ...process.env, DESK_COMPANION_INTERNAL: '1', NoDefaultCurrentDirectoryInExePath: '1' } };
+                   env: childEnv() };
     let child;
     try {
       child = process.platform === 'win32'

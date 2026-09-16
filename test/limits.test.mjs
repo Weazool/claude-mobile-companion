@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
-import { normPct, parseUsage, fetchUsage, createLimitsPoller, CLAUDE_ARGS } from '../src/server/limits.mjs';
+import { normPct, parseUsage, fetchUsage, createLimitsPoller, CLAUDE_ARGS, childEnv } from '../src/server/limits.mjs';
 
 const OK = {
   subscription_type: 'max', rate_limits_available: true,
@@ -232,4 +232,9 @@ test('poller keeps its schedule when onUpdate throws', async () => {
   await c.advance(0);
   await c.advance(5 * MIN);
   assert.deepEqual(calls, [0, 5 * MIN]);
+});
+
+test('childEnv drops the launching Claude session env but keeps the rest', () => {
+  const e = childEnv({ PATH: 'p', USERPROFILE: 'u', ANTHROPIC_BASE_URL: 'x', CLAUDE_CODE_OAUTH_SCOPES: 'x', CLAUDECODE: '1', CLAUDE_PID: '1', CLAUDE_AGENT_SDK_VERSION: '1' });
+  assert.deepEqual(e, { PATH: 'p', USERPROFILE: 'u', DESK_COMPANION_INTERNAL: '1', NoDefaultCurrentDirectoryInExePath: '1' });
 });
