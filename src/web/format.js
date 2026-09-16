@@ -27,23 +27,28 @@ export function formatReset(resetsAt, now) {
 }
 
 const nextMidnight = t => { const d = new Date(t); d.setHours(24, 0, 0, 0); return d.getTime(); };
+// Steps back to the local hour's start, not setMinutes(60), which skips the repeated hour when DST ends.
+const nextHour = t => { const d = new Date(t); return t - (d.getMinutes() * 60e3 + d.getSeconds() * 1e3 + d.getMilliseconds()) + HOUR; };
+const hourName = t => `${String(new Date(t).getHours()).padStart(2, '0')}:xx`;
+const SLIVER_MS = 60e3;
 
 // The legend's cells, as { label, at, width, current } with at and width as fractions of the window.
-// Hours are equal slots named by their start time. Days are calendar days cut at local midnight, so the
-// outlined day is today: a window from Fri 19:00 opens with a short Fri and closes with most of the next Fri.
-// A day cell under 12 hours (and so too narrow for its name) goes unnamed; DST days are 23 or 25 hours.
-// The cell holding now is current; none is once the window has ended.
+// Cells are clock hours (named 20:xx) or calendar days (named Wed), cut at the local hour or midnight, so the
+// outlined cell is this hour or today: a window from 20:20 opens with a short 20:xx and closes with a short
+// 01:xx. A cell under half its size is too narrow for its name and goes unnamed; DST days are 23 or 25 hours.
+// Resets land a fraction of a second past the hour (19:00:00.481), so a cut that close to either end is
+// skipped rather than drawn as a sliver. The cell holding now is current; none is once the window has ended.
 export function limitSlots(bar, resetsAt, now) {
   if (!Number.isFinite(resetsAt)) return [];
   const span = bar.slots * bar.slotMs;
   const start = resetsAt - span;
+  const [next, name] = bar.slotMs < DAY ? [nextHour, hourName] : [nextMidnight, weekday];
   const edges = [start];
-  if (bar.slotMs < DAY) for (let i = 1; i < bar.slots; i++) edges.push(start + i * bar.slotMs);
-  else for (let d = nextMidnight(start); d < resetsAt; d = nextMidnight(d)) edges.push(d);
+  for (let d = next(start); d < resetsAt - SLIVER_MS; d = next(d)) if (d - start >= SLIVER_MS) edges.push(d);
   edges.push(resetsAt);
   return edges.slice(0, -1).map((from, i) => {
     const to = edges[i + 1];
-    const label = bar.slotMs < DAY ? hhmm(from) : to - from >= DAY / 2 ? weekday(from) : '';
+    const label = to - from >= bar.slotMs / 2 ? name(from + SLIVER_MS) : '';
     return { label, at: (from - start) / span, width: (to - from) / span, current: now >= from && now < to };
   });
 }

@@ -45,11 +45,34 @@ test('limitSlots: a day under 12 hours goes unnamed; a DST day is 25 hours wide'
   assert.equal(cells.reduce((n, c) => n + c[1], 0), 168);
 });
 
-test('limitSlots: five equal hours named by their start time', () => {
+const hours = slots => slots.map(s => [s.label, Math.round(s.width * 300), s.current]); // width in minutes of 300
+
+test('limitSlots: 5-hour cells are clock hours, so the current one is this hour', () => {
   process.env.TZ = 'Europe/Bucharest';
-  const reset = Date.UTC(2026, 8, 16, 22, 20); // 01:20 local
-  const slots = limitSlots(five, reset, reset - 90 * 60e3);
-  assert.deepEqual(slots.map(s => s.label), ['20:20', '21:20', '22:20', '23:20', '00:20']);
-  assert.deepEqual(slots.map(s => s.width), [0.2, 0.2, 0.2, 0.2, 0.2]);
-  assert.equal(slots.findIndex(s => s.current), 3);
+  const reset = Date.UTC(2026, 8, 16, 22, 20); // 01:20 local; the window opens at 20:20
+  assert.deepEqual(hours(limitSlots(five, reset, reset - 90 * 60e3)), [ // now 23:50
+    ['20:xx', 40, false], ['21:xx', 60, false], ['22:xx', 60, false], ['23:xx', 60, true], ['00:xx', 60, false], ['', 20, false],
+  ]);
+  // Opening at 20:40, the first 20 minutes are too short to name; the last 40 minutes are 01:xx.
+  assert.deepEqual(limitSlots(five, Date.UTC(2026, 8, 16, 22, 40), 0).map(s => s.label), ['', '21:xx', '22:xx', '23:xx', '00:xx', '01:xx']);
+});
+
+test('limitSlots: a reset a fraction of a second past the hour leaves no sliver cell', () => {
+  process.env.TZ = 'Europe/Bucharest';
+  const reset = Date.UTC(2026, 8, 16, 22, 0, 0, 480); // 01:00:00.480 local
+  assert.deepEqual(hours(limitSlots(five, reset, reset - 60e3)), [
+    ['20:xx', 60, false], ['21:xx', 60, false], ['22:xx', 60, false], ['23:xx', 60, false], ['00:xx', 60, true],
+  ]);
+  const before = Date.UTC(2026, 8, 18, 15, 59, 59, 480); // 18:59:59.480 local, like a real weekly reset
+  assert.deepEqual(limitSlots(five, before, 0).map(s => s.label), ['14:xx', '15:xx', '16:xx', '17:xx', '18:xx']);
+  const midnight = Date.UTC(2026, 8, 17, 21, 0, 0, 481); // Fri 00:00:00.481 local
+  assert.deepEqual(limitSlots(week, midnight, 0).map(s => s.label), ['Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu']);
+});
+
+test('limitSlots: the hour repeated when DST ends is two cells', () => {
+  process.env.TZ = 'Europe/Bucharest'; // 04:00 EEST becomes 03:00 EET on Sun 25 Oct 2026
+  const reset = Date.UTC(2026, 9, 25, 4, 0); // 06:00 EET; the window opens at 02:00 EEST
+  assert.deepEqual(hours(limitSlots(five, reset, 0)).map(c => c.slice(0, 2)), [
+    ['02:xx', 60], ['03:xx', 60], ['03:xx', 60], ['04:xx', 60], ['05:xx', 60],
+  ]);
 });

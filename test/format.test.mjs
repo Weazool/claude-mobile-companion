@@ -16,12 +16,12 @@ test('formatReset: minutes, hours, weekday+time, now', () => {
 test('limitsView: ok limits give three bars, red at 80+, capped fill', () => {
   const now = 1_000_000;
   const v = limitsView({ status: 'ok', asOf: now, fiveHour: { pct: 83, resetsAt: now + 65 * MIN }, week: { pct: 134, resetsAt: null }, fable: null }, now, 0);
-  assert.deepEqual(v.bars.map(r => [r.key, r.text, r.hot, r.reset, r.fill, r.slotList.length]), [
-    ['fiveHour', '83%', true, 'resets in 1h 05m', 83, 5], ['week', '134%', true, '', 100, 0], ['fable', '—', false, '', 0, 0],
+  assert.deepEqual(v.bars.map(r => [r.key, r.text, r.hot, r.reset, r.fill, r.slotList.length > 0]), [
+    ['fiveHour', '83%', true, 'resets in 1h 05m', 83, true], ['week', '134%', true, '', 100, false], ['fable', '—', false, '', 0, false],
   ]);
   assert.equal(v.note, '');
   assert.equal(v.bars[0].color, '#f5a524');
-  assert.equal(v.bars[0].slotList.findIndex(s => s.current), 3); // 65 min before the reset: the 4th of 5 hours
+  assert.equal(v.bars[0].slotList.filter(s => s.current).length, 1); // the cells themselves: limit-slots.test.mjs
 });
 
 test('limitsView: stale after 15 min by server clock, signin and unavailable notes', () => {
