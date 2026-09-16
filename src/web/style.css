@@ -68,19 +68,22 @@ html, body {
 
 .data { min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 3cqmin; padding: 6cqmin 5cqmin 4cqmin 2cqmin; }
 #app.portrait .data { justify-content: flex-start; padding: 3cqmin 5cqmin 5cqmin; }
-/* The three rings share the data column's full width (one equal cell each, like the session rows below) and
-   grow with it: --ring is a cell's width, capped by the height so the sessions keep their room. */
-.rings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4cqmin; justify-items: center; }
-#app.landscape .rings { --ring: min(20cqw - 5cqmin, 32cqh); }
-#app.portrait .rings { --ring: min(33cqw - 6cqmin, 22cqh); }
-.ring { position: relative; width: var(--ring, 20cqmin); text-align: center; transition: opacity .4s; }
-.ring.stale { opacity: .45; }
-.ring svg { width: 100%; display: block; }
-.ring .track { fill: none; stroke: var(--track); stroke-width: 4; }
-.ring .val { fill: none; stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray .9s ease; }
-.ring .num { position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: calc(var(--ring, 20cqmin) * 0.26); font-weight: 700; }
-.ring .num.hot { color: var(--bad); }
-.ring .lbl { font-size: 3cqmin; color: var(--dim); margin-top: 1cqmin; white-space: nowrap; }
+/* The limits: one bar each, stacked. The name and reset sit above the bar, the percentage at its end, and the
+   legend under the bar only (same column, so its slots line up with the ticks cut into the fill). */
+.limits { display: flex; flex-direction: column; gap: 2.4cqmin; }
+.bar { --c: #888; display: grid; grid-template-columns: minmax(0, 1fr) 9cqmin; column-gap: 2cqmin; align-items: center; transition: opacity .4s; }
+.bar.stale { opacity: .45; }
+.bar-head { grid-column: 1 / -1; font-size: 2.8cqmin; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: .9cqmin; }
+.bar-head b { color: var(--text); font-weight: 600; }
+.bar-track { position: relative; height: 2.4cqmin; background: var(--track); border-radius: 1.2cqmin; overflow: hidden; }
+.bar-track i { display: block; width: 0; height: 100%; background: var(--c); border-radius: inherit; transition: width .9s ease; }
+.bar-track .ticks b { position: absolute; top: 0; bottom: 0; width: .4cqmin; margin-left: -.2cqmin; background: var(--bg); }
+.bar-num { font-size: 3.6cqmin; font-weight: 700; text-align: right; line-height: 1; }
+.bar-num.hot { color: var(--bad); }
+.bar-legend { grid-column: 1; display: flex; margin-top: .7cqmin; }
+.bar-legend span { flex: none; min-width: 0; font-size: 2.1cqmin; line-height: 1.7; color: #5f5f6a; text-align: center; white-space: nowrap; overflow: hidden; border-left: 1px solid #2a2a33; }
+.bar-legend span:last-child { border-right: 1px solid #2a2a33; }
+.bar-legend span.now { color: var(--text); font-weight: 600; border-radius: .7cqmin; box-shadow: inset 0 0 0 1px var(--c); }
 .note { font-size: 2.7cqmin; color: var(--dim); min-height: 3cqmin; }
 
 .sessions { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
@@ -108,7 +111,7 @@ html, body {
 .overlay.blank { background: #000; z-index: 80; } /* above the controls */
 
 /* Screensaver (while Clawd sleeps): pure black, so the OLED pixels are off, and a small dim card with Clawd and
-   the rings that glides around the screen (app.js moves it inside .saver-field, which keeps clear of the notch).
+   the limit bars that glides around the screen (app.js moves it inside .saver-field, which keeps clear of the notch).
    Above the dashboard and its controls' row, below the offline and blank overlays. */
 html.saving, html.saving body, html.saving #app { background: #000; }
 #saver { position: absolute; inset: 0; z-index: 40; background: #000; overflow: hidden; }
@@ -116,8 +119,10 @@ html.saving, html.saving body, html.saving #app { background: #000; }
 .saver-field { position: absolute; top: var(--sa-t); right: var(--sa-r); bottom: var(--sa-b); left: var(--sa-l); }
 .saver-card { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 1.5cqmin; opacity: .6; will-change: transform; }
 .saver-card #mascot { position: static; transform: none; width: 30cqmin; height: 30cqmin; }
-.saver-rings { display: flex; gap: 2.5cqmin; }
-.saver-rings .ring { --ring: 10cqmin; }
-.saver-rings .ring .lbl { font-size: 2.2cqmin; margin-top: .6cqmin; }
+.saver-limits { width: 36cqmin; display: flex; flex-direction: column; gap: 1.2cqmin; }
+.saver-limits .bar { grid-template-columns: 7cqmin minmax(0, 1fr) 6.5cqmin; column-gap: 1.2cqmin; }
+.saver-limits .bar-head { grid-column: auto; margin: 0; font-size: 2.2cqmin; }
+.saver-limits .bar-track { height: 1.6cqmin; }
+.saver-limits .bar-num { font-size: 2.4cqmin; }
 #app.saver .controls { visibility: hidden; }
 

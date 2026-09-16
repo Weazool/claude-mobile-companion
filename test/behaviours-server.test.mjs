@@ -223,7 +223,7 @@ async function loadDashboard() {
     }
   }
   const el = () => ({
-    hidden: false, textContent: '', className: '', innerHTML: '', children: [],
+    hidden: false, textContent: '', className: '', innerHTML: '', children: [], dataset: {},
     style: { setProperty() {} }, classList: { toggle() {} }, addEventListener() {}, querySelector: () => el(),
   });
   const byId = new Map();

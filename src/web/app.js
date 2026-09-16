@@ -33,7 +33,7 @@ function apply(cmd) {
 }
 
 // ---------- screensaver (burn-in protection while Clawd sleeps) ----------
-// The mood's dim is exactly "asleep": the screen goes black and a small card with Clawd and the rings glides
+// The mood's dim is exactly "asleep": the screen goes black and a small card with Clawd and the limit bars glides
 // around it (saver.js). The live mascot SVG moves into the card and back, so the one renderer keeps drawing.
 // ?saver forces it on (checks and screenshots); a tap on the screensaver wakes Clawd and brings the dashboard back.
 let forceSaver = new URLSearchParams(location.search).has('saver');
@@ -51,7 +51,7 @@ function setSaver(on) {
   document.documentElement.classList.toggle('saving', on);
   saverState = null;
   saverBox = null;
-  if (on) renderRings();
+  if (on) renderLimits();
   drawPending = true;
 }
 function moveSaver(dt) {
@@ -94,28 +94,38 @@ requestAnimationFrame(loop);
 setInterval(() => apply(mood.tick(Date.now())), 500);
 $('mascot').addEventListener('click', () => { if (!saverOn) apply(mood.onTap(Date.now())); }); // in the screensaver, #saver handles the tap
 
-// ---------- rings ----------
-function renderRings() {
-  const { rings, note } = limitsView(snap && snap.limits, Date.now(), skew);
-  drawRings($('rings'), rings);
-  if (saverOn) drawRings($('saverRings'), rings, true);
+// ---------- limits ----------
+function renderLimits() {
+  const { bars, note } = limitsView(snap && snap.limits, Date.now(), skew);
+  drawBars($('limits'), bars);
+  if (saverOn) drawBars($('saverLimits'), bars, true);
   $('limitsNote').textContent = note;
 }
-function drawRings(box, rings, compact = false) {
+// A bar per limit: its name and reset, the fill, the percentage, and (not in the screensaver's compact card)
+// ticks at the cell edges and the legend naming each hour or day, with the current one outlined.
+function drawBars(box, bars, compact = false) {
   if (!box.children.length) {
-    box.innerHTML = rings.map(r => `<div class="ring" data-k="${r.key}"><svg viewBox="0 0 40 40">
-      <circle class="track" cx="20" cy="20" r="16"/>
-      <circle class="val" cx="20" cy="20" r="16" pathLength="100" transform="rotate(-90 20 20)" style="stroke:${r.color};stroke-dasharray:0 100"/>
-      </svg><div class="num"></div><div class="lbl"></div></div>`).join('');
+    box.innerHTML = bars.map(b => `<div class="bar" data-k="${b.key}" style="--c:${b.color}">
+      <div class="bar-head"></div><div class="bar-track"><i></i>${compact ? '' : '<span class="ticks"></span>'}</div><div class="bar-num"></div>
+      ${compact ? '' : '<div class="bar-legend"></div>'}</div>`).join('');
   }
-  for (const r of rings) {
-    const el = box.querySelector(`[data-k="${r.key}"]`);
-    el.classList.toggle('stale', r.stale);
-    el.querySelector('.val').style.strokeDasharray = `${r.pct === null ? 0 : Math.min(r.pct, 100)} 100`;
-    const num = el.querySelector('.num');
-    num.textContent = r.text;
-    num.classList.toggle('hot', r.hot);
-    el.querySelector('.lbl').textContent = r.label + (r.reset && !compact ? ' · ' + r.reset : '');
+  for (const b of bars) {
+    const el = box.querySelector(`[data-k="${b.key}"]`);
+    el.classList.toggle('stale', b.stale);
+    el.querySelector('.bar-track i').style.width = `${b.fill}%`;
+    const num = el.querySelector('.bar-num');
+    num.textContent = b.text;
+    num.classList.toggle('hot', b.hot);
+    const head = el.querySelector('.bar-head');
+    if (compact) { head.textContent = b.short; continue; }
+    head.innerHTML = `<b>${esc(b.label)}</b>${b.reset ? ` · ${esc(b.reset)}` : ''}`;
+    const pc = f => `${(f * 100).toFixed(3)}%`;
+    const key = b.slotList.map(x => `${x.label}${x.current ? '*' : ''}@${pc(x.at)}`).join('|');
+    const legend = el.querySelector('.bar-legend');
+    if (legend.dataset.key === key) continue;
+    legend.dataset.key = key;
+    legend.innerHTML = b.slotList.map(x => `<span${x.current ? ' class="now"' : ''} style="width:${pc(x.width)}">${esc(x.label)}</span>`).join('');
+    el.querySelector('.ticks').innerHTML = b.slotList.slice(1).map(x => `<b style="left:${pc(x.at)}"></b>`).join('');
   }
 }
 
@@ -142,7 +152,7 @@ function setBubble(text, tone) {
 }
 
 function render() {
-  renderRings();
+  renderLimits();
   renderSessions();
 }
 
@@ -206,7 +216,7 @@ document.addEventListener('visibilitychange', () => {
   const now = Date.now();
   if (document.visibilityState === 'visible' && now - lastMsgAt > 25000) reconnect(now);
 });
-setInterval(renderRings, 30000);
+setInterval(renderLimits, 30000);
 
 // ---------- controls ----------
 const standalone = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;

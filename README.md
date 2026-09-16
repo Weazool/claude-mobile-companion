@@ -13,7 +13,7 @@ Clawd isn't a looping GIF. He's a live SVG rig with 26 hand-timed animations tha
 Everything runs on your own machine. The plugin starts a small web server on your PC, and any phone or tablet browser on the same Wi-Fi opens the dashboard. There's no app to install, no account and no cloud.
 
 <p align="center">
-  <img src="docs/images/dashboard-landscape.png" width="68%" alt="The dashboard on a phone held sideways: Clawd typing at his laptop while Claude runs a command, the 5-hour, week and Fable limit rings, and the active session">
+  <img src="docs/images/dashboard-landscape.png" width="68%" alt="The dashboard on a phone held sideways: Clawd typing at his laptop while Claude runs a command, the 5-hour, weekly and Fable limit bars with their hour and day legends, and the active session">
   <img src="docs/images/dashboard-phone-portrait.png" width="25%" alt="The same dashboard upright">
 </p>
 
@@ -25,7 +25,7 @@ Independent project, not affiliated with Anthropic.
 
 ```
 Claude Code hooks  ──►  local server on your PC  ──►  phone browser on your Wi-Fi
-(what each session        (sessions, limits via          (limit rings, sessions,
+(what each session        (sessions, limits via          (limit bars, sessions,
  is doing, sanitised)      Claude Code's get_usage)       Clawd, live over SSE)
 ```
 
@@ -57,7 +57,7 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
 - **✕** blanks the screen until you tap it (night mode).
 - **⟲** turns the layout 90° at a time, so it works with rotation lock on. The choice is remembered.
-- **Burn-in protection.** While Claude works, the whole dashboard drifts slowly so no pixel stays lit in one place. When Clawd falls asleep (5 quiet minutes), a screensaver takes over: the screen goes black and a small, dim Clawd with your three rings glides around it. Any Claude activity or a tap brings the dashboard back.
+- **Burn-in protection.** While Claude works, the whole dashboard drifts slowly so no pixel stays lit in one place. When Clawd falls asleep (5 quiet minutes), a screensaver takes over: the screen goes black and a small, dim Clawd with your three limit bars glides around it. Any Claude activity or a tap brings the dashboard back.
 
 The page keeps the screen awake while it's open. If your phone still locks, set iPhone Settings → Display & Brightness → Auto-Lock → Never, or turn on Android Developer options → Stay awake while charging.
 

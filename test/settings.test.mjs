@@ -110,7 +110,7 @@ test('style: the screensaver is black, inside #app, above the dashboard and belo
   assert.match(r.get('#app').transition, /translate 2s/, 'the burn-in drift is eased');
   const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
   const app = html.slice(html.indexOf('<main id="app"'), html.indexOf('</main>'));
-  assert.match(app, /<div id="saver" hidden>.*class="saver-card".*id="saverRings"/, '#saver rotates with #app');
+  assert.match(app, /<div id="saver" hidden>.*class="saver-card".*id="saverLimits"/, '#saver rotates with #app');
 });
 
 // A length from style.css, in px, for a W x H #app: sums of cqw / cqh / cqmin / px, optionally inside min().

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatReset, limitsView, sessionMeta, dotClass, visibleSessions, STALE_MS } from '../src/web/format.js';
+import { formatReset, resetLine, limitsView, sessionMeta, dotClass, visibleSessions, STALE_MS } from '../src/web/format.js';
 
 const MIN = 60000;
 
@@ -13,26 +13,34 @@ test('formatReset: minutes, hours, weekday+time, now', () => {
   assert.match(formatReset(Date.UTC(2026, 8, 17, 7, 0), Date.UTC(2026, 8, 14, 7, 0)), /^[A-Z][a-z]{2} \d{2}:\d{2}$/);
 });
 
-test('limitsView: ok limits give three rings, red at 80+', () => {
+test('limitsView: ok limits give three bars, red at 80+, capped fill', () => {
   const now = 1_000_000;
-  const v = limitsView({ status: 'ok', asOf: now, fiveHour: { pct: 83, resetsAt: now + 65 * MIN }, week: { pct: 34, resetsAt: null }, fable: null }, now, 0);
-  assert.deepEqual(v.rings.map(r => [r.key, r.text, r.hot, r.reset]), [
-    ['fiveHour', '83%', true, '1h 05m'], ['week', '34%', false, ''], ['fable', '—', false, ''],
+  const v = limitsView({ status: 'ok', asOf: now, fiveHour: { pct: 83, resetsAt: now + 65 * MIN }, week: { pct: 134, resetsAt: null }, fable: null }, now, 0);
+  assert.deepEqual(v.bars.map(r => [r.key, r.text, r.hot, r.reset, r.fill, r.slotList.length]), [
+    ['fiveHour', '83%', true, 'resets in 1h 05m', 83, 5], ['week', '134%', true, '', 100, 0], ['fable', '—', false, '', 0, 0],
   ]);
   assert.equal(v.note, '');
-  assert.equal(v.rings[0].color, '#f5a524');
+  assert.equal(v.bars[0].color, '#f5a524');
+  assert.equal(v.bars[0].slotList.findIndex(s => s.current), 3); // 65 min before the reset: the 4th of 5 hours
 });
 
 test('limitsView: stale after 15 min by server clock, signin and unavailable notes', () => {
   const asOf = 1_000_000;
   const stale = limitsView({ status: 'ok', asOf, fiveHour: { pct: 10, resetsAt: null } }, asOf + STALE_MS + 1, 0);
-  assert.equal(stale.rings[0].stale, true);
+  assert.equal(stale.bars[0].stale, true);
   assert.match(stale.note, /^as of \d{2}:\d{2}$/);
   const skewed = limitsView({ status: 'ok', asOf, fiveHour: { pct: 10 } }, asOf, STALE_MS + 1);
-  assert.equal(skewed.rings[0].stale, true);
+  assert.equal(skewed.bars[0].stale, true);
   assert.match(limitsView({ status: 'signin' }, 0, 0).note, /claude auth login/);
   assert.equal(limitsView(null, 0, 0).note, 'Limits unavailable');
-  assert.equal(limitsView(null, 0, 0).rings[0].text, '—');
+  assert.equal(limitsView(null, 0, 0).bars[0].text, '—');
+});
+
+test('resetLine: in under a day, weekday and time beyond, now', () => {
+  assert.equal(resetLine(117 * MIN, 0), 'resets in 1h 57m');
+  assert.match(resetLine(Date.UTC(2026, 8, 17, 7, 0), Date.UTC(2026, 8, 14, 7, 0)), /^resets [A-Z][a-z]{2} \d{2}:\d{2}$/);
+  assert.equal(resetLine(-1, 0), 'resets now');
+  assert.equal(resetLine(null, 0), '');
 });
 
 test('sessionMeta and dotClass', () => {
