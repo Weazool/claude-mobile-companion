@@ -55,10 +55,9 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
 ## <img src="docs/images/clawd/cool.png" height="40" alt="" align="absmiddle"> On the phone
 
-- **Three modes, in turn, 10 seconds a step.** Then it starts over. Tap a session to bring it up at once; the cycle carries on from there.
+- **Two modes, in turn, 10 seconds a step.** Then it starts over. Tap a session to bring it up at once; the cycle carries on from there.
   - **Standard mode**, every session in turn: its row lights up, and Clawd, on the left, acts out what it's doing next to your limit bars and the list of sessions.
   - **Focus mode**, every session in turn: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him, and acts it out with the animations you picked (see Customise Clawd below). After 7 seconds your limit bars take his place for the last 3. When the session's turn has ended, a **Close** button under the details stops tracking it, like its ✕.
-  - **Overview mode**, once: all your sessions in big rows, centred on the left, and your limits on the right as three rings, one under the other.
 - **All your sessions.** The list shows every session and scrolls. Left alone, it follows the session that's up. Tap a session's **✕** to stop tracking it: it leaves the list and the cycle until you next prompt it or restart it, or until it needs your permission or has a question.
 
 <p align="center">
@@ -66,13 +65,14 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
   <img src="docs/images/needs-you-limits-landscape.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same details">
 </p>
 
-<p align="center"><img src="docs/images/overview-centred-landscape.png" width="68%" alt="Overview mode: three sessions on the left, and the 5-hour, weekly and Fable limits on the right as rings, one under the other"></p>
-
 - The **✕** at the top blanks the screen until you tap it (night mode).
-- **⟲** turns the layout 90° at a time, so it works with rotation lock on. The choice is remembered.
+- **The rail on the left** holds two controls, one under the other:
+  - **⟲** turns the layout 90° at a time, so it works with rotation lock on.
+  - **The brightness slider** runs from 10% to 100%. Drag it or tap anywhere along it. The whole screen dims evenly, edges included. Nothing dims on its own; this slider is the only brightness control.
+
+  Both settings are remembered.
 - **Burn-in protection.** Everything is built to keep an OLED screen from burning in:
   - **It drifts.** While Claude works, the whole dashboard moves slowly so no pixel stays lit in one place.
-  - **It dims.** After 2 minutes with the same status (Claude thinking and working away), the dashboard fades to half brightness. It comes back to full as soon as it's your turn, Claude needs permission, or you tap the screen. That first tap only brings the brightness back; it never presses a button.
   - **Its bars flow.** Only the tip of each limit bar is in full colour. The rest is dimmed, with stripes that drift slowly along it.
   - **It sleeps.** When Clawd falls asleep (2 quiet minutes, or 2 minutes after a limit runs out), a screensaver takes over: the screen goes black and a small, dim Clawd with your three limit bars glides around it. Any Claude activity or a tap brings the dashboard back.
   - **It lets the phone lock.** While Claude works, the screen stays on. Once 30 minutes pass with no Claude Code activity and no taps, the page stops keeping the screen awake, so your phone locks on its own Auto-Lock. Unlock it and tap once to keep it on again.

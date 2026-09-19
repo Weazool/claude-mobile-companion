@@ -2,21 +2,18 @@
   color-scheme: dark;
   --bg: #0a0a0f; --text: #e8e6e3; --dim: #8a8a93; --line: #1c1c24; --track: #23232c;
   --work: #5aa9ff; --need: #ffb020; --bad: #ff6b5b; --good: #a6e6a0;
-  --edge: var(--bg);
+  --edge: color-mix(in srgb, var(--bg) var(--lvl, 100%), #000); /* #dimmer: app.js sets --lvl to the brightness */
 }
-html.hushed { --edge: color-mix(in srgb, var(--bg) 50%, #000); } /* #hush.on: black at .5 */
-html.hushed, html.hushed body { transition-duration: 3s; } /* fades in with #hush, lifts in .3s with it */
-html.offline { --edge: color-mix(in srgb, var(--bg) 18%, #000); } /* #offline: black at .82 */
-html.offline.hushed { --edge: color-mix(in srgb, var(--bg) 9%, #000); } /* both */
+html.offline { --edge: color-mix(in srgb, var(--bg) var(--lvl-off, 18%), #000); } /* and #offline, black at .82 */
 html.blanked, html.saving { --edge: #000; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
-  height: 100%; background: var(--edge); color: var(--text); overflow: hidden; transition: background-color .3s;
+  height: 100%; background: var(--edge); color: var(--text); overflow: hidden;
   /* In an iPhone Home Screen app iOS leaves a strip the page cannot draw into (the status bar's height, at the
      far end of the screen) and fills it with this root background; the drift also bares a strip of it along
      two edges. --edge is the colour the dashboard shows at the moment, so the edges always blend in: the
-     layers that darken the dashboard (#hush, #offline, #blank, the screensaver) cover #app only, so html gets
-     a class for each and --edge is the same darkening of --bg (a black layer at opacity a leaves 1 - a of it). */
+     layers that darken the dashboard (#dimmer, #offline, #blank, the screensaver) cover #app only, so --edge
+     is the same darkening of --bg (a black layer at opacity a leaves 1 - a of it). */
   font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
   touch-action: manipulation; /* no double-tap zoom on repeated taps */
@@ -28,7 +25,10 @@ html, body {
   /* Burn-in drift (app.js): --dx/--dy move the whole dashboard along the physical screen, eased over 2 s. */
   translate: var(--dx, 0px) var(--dy, 0px);
   background: var(--bg); container-type: size; display: grid; overflow: hidden;
-  box-sizing: border-box; padding: var(--sa-t) var(--sa-r) var(--sa-b) var(--sa-l);
+  box-sizing: border-box; padding: var(--sa-t) var(--sa-r) var(--sa-b) calc(var(--rail-at) + var(--rail));
+  /* The rail on the left: vmin is the screen's short side at every rotation. It keeps clear of the safe area, and
+     at least as far from the edge as the drift can carry it (2.5% of the screen, saver.js DRIFT). */
+  --rail: 19vmin; --rail-at: max(var(--sa-l), 2.5vmax);
   transition: translate 2s linear;
 }
 /* Safe areas. viewport-fit=cover lets the page run under the notch, the Dynamic Island and the home
@@ -37,7 +37,8 @@ html, body {
    bottom, its bottom the left and its left the top (180deg swaps opposite edges, 270deg is the reverse
    of 90deg). --sa-t/-r/-b/-l are the insets of the physical edges that #app's top/right/bottom/left
    face; applyLayout sets exactly one rotN class. #app pads itself by them, so the grid (stage, data)
-   stays clear; absolute children are placed against the padding box, so .controls adds them too. */
+   stays clear; absolute children are placed against the padding box, so .controls and .rail add them too.
+   Its left padding also makes room for the rail, so every cq length inside keeps to the rest of the screen. */
 #app, #app.rot0 { --sa-t: env(safe-area-inset-top, 0px); --sa-r: env(safe-area-inset-right, 0px); --sa-b: env(safe-area-inset-bottom, 0px); --sa-l: env(safe-area-inset-left, 0px); }
 #app.rot90 { --sa-t: env(safe-area-inset-right, 0px); --sa-r: env(safe-area-inset-bottom, 0px); --sa-b: env(safe-area-inset-left, 0px); --sa-l: env(safe-area-inset-top, 0px); }
 #app.rot180 { --sa-t: env(safe-area-inset-bottom, 0px); --sa-r: env(safe-area-inset-left, 0px); --sa-b: env(safe-area-inset-top, 0px); --sa-l: env(safe-area-inset-right, 0px); }
@@ -193,37 +194,6 @@ html, body {
    not, and it keeps the dashboard's size, so a short first day still fits its name. */
 #app.landscape.limits-up .limits .bar-legend span { font-size: 3.1cqmin; }
 
-/* The overview (app.js #app.overview): the session list on the left, the whole height, and the limits on the
-   right as the rings from before the bars, one under the other, below the ✕ and ⟲. Clawd sits it out. The bars
-   step aside as in focus mode, so their flow carries on. */
-.gauges { display: none; }
-#app.overview { grid-template-columns: minmax(0, 1fr) 28cqw; grid-template-rows: 100%; }
-#app.overview .stage { display: none; }
-#app.overview .data { grid-area: 1 / 1; justify-content: center; padding: 5cqmin 4cqmin; }
-/* The overview's list: centred both ways in the left side, its rows twice as tall as elsewhere, with bigger type
-   to fill them. The ✕ still runs the row's full height. */
-#app.overview .row { grid-template-columns: 3.4cqmin minmax(0, 8fr) minmax(0, 4fr) 9cqmin; gap: 3cqmin; padding: 4.6cqmin 2cqmin; }
-#app.overview .row:last-child { border-bottom: 1px solid var(--line); }
-#app.overview .dot { width: 3.4cqmin; height: 3.4cqmin; }
-#app.overview .name { font-size: 5.6cqmin; }
-#app.overview .meta { font-size: 4cqmin; margin-top: .6cqmin; }
-#app.overview .ctx { height: 2.2cqmin; border-radius: 1.4cqmin; }
-#app.overview .ctxl { font-size: 3.4cqmin; margin-top: 1cqmin; }
-#app.overview .untrack { font-size: 5cqmin; margin: -4.6cqmin 0; }
-#app.overview #limits, #app.overview #limitsNote { position: absolute; visibility: hidden; }
-#app.overview .gauges { grid-area: 1 / 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; padding: 11cqmin 4cqmin 3cqmin 0; }
-.rings { --ring: min(21cqh, 22cqw); display: flex; flex-direction: column; align-items: center; gap: 2.2cqmin; }
-.ring { position: relative; width: var(--ring); text-align: center; transition: opacity .4s; }
-.ring.stale { opacity: .45; }
-.ring svg { display: block; width: 100%; }
-.ring .track { fill: none; stroke: var(--track); stroke-width: 4; }
-.ring .val { fill: none; stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray .9s ease; }
-.ring .num { position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: calc(var(--ring) * .26); font-weight: 700; }
-.ring .num.hot { color: var(--bad); }
-.ring .lbl { margin-top: .8cqmin; font-size: 2.8cqmin; color: var(--dim); white-space: nowrap; }
-.gauges .note { margin-top: 1.5cqmin; text-align: center; }
-.gauges .note:empty { display: none; }
-
 .controls { position: absolute; top: calc(3cqmin + var(--sa-t)); right: calc(4cqmin + var(--sa-r)); display: flex; gap: 3cqmin; z-index: 55; } /* above #offline */
 .controls button { background: none; border: 0; color: var(--text); opacity: .45; font-size: 4.4cqmin; line-height: 1; cursor: pointer; padding: 1cqmin; }
 
@@ -231,6 +201,32 @@ html, body {
 .overlay[hidden] { display: none; }
 
 .overlay.blank { background: #000; z-index: 80; } /* above the controls */
+
+/* The rail, down the left of the screen at every rotation: ⟲, then the brightness slider and its value, one under
+   the other, in Bootstrap's outline-warning style (a yellow outline that fills when pressed). It sits in #app's
+   left padding, past the safe area, above the offline overlay like the ✕. Sized in vmin, like its width. */
+.rail {
+  --warn: #ffc107; position: absolute; z-index: 55; top: var(--sa-t); bottom: var(--sa-b); left: var(--rail-at); width: var(--rail);
+  display: flex; flex-direction: column; align-items: center; gap: 3vmin; padding: 4vmin 0 3vmin;
+}
+.rail-btn {
+  flex: none; width: 14vmin; height: 12vmin; display: grid; place-items: center; padding: 0;
+  background: transparent; color: var(--warn); border: 2px solid var(--warn); border-radius: 2.2vmin;
+  font: inherit; font-size: 6.4vmin; line-height: 1; cursor: pointer; transition: color .15s, background-color .15s, box-shadow .15s;
+}
+.rail-btn:active { background: var(--warn); color: #000; }
+.rail-btn:focus-visible { outline: 0; box-shadow: 0 0 0 1vmin rgb(255 193 7 / .5); }
+@media (hover: hover) { .rail-btn:hover { background: var(--warn); color: #000; } }
+/* The slider: the same outline, filled a little up to the knob, a solid yellow bar. --p (app.js) is 0 at the
+   bottom and 1 at the top. The whole track takes the touch, a drag anywhere along it follows the finger. */
+.bright {
+  --p: 1; --knob: 2.6vmin; position: relative; flex: 1; min-height: 12vmin; width: 14vmin;
+  border: 2px solid var(--warn); border-radius: 2.2vmin; overflow: hidden; cursor: pointer; touch-action: none;
+}
+.bright:focus-visible { outline: 0; box-shadow: 0 0 0 1vmin rgb(255 193 7 / .5); }
+.bright-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--p) * (100% - var(--knob)) + var(--knob) / 2); background: rgb(255 193 7 / .16); }
+.bright-knob { position: absolute; left: 1.6vmin; right: 1.6vmin; bottom: calc(var(--p) * (100% - var(--knob))); height: var(--knob); background: var(--warn); border-radius: 99px; }
+.bright-pct { flex: none; font-size: 3.2vmin; font-weight: 600; color: var(--warn); font-variant-numeric: tabular-nums; }
 
 /* Screensaver (while Clawd sleeps): pure black, so the OLED pixels are off, and a small dim card with Clawd and
    the limit bars that glides around the screen (app.js moves it inside .saver-field, which keeps clear of the notch).
@@ -247,11 +243,9 @@ html.saving #app { background: #000; } /* html and body go black through --edge 
 .saver-limits .bar-track { height: 1.6cqmin; }
 .saver-limits .bar-track i::before { animation: none; } /* the whole card glides already */
 .saver-limits .bar-num { font-size: 2.4cqmin; }
-#app.saver .controls { visibility: hidden; }
+#app.saver .controls, #app.saver .rail { visibility: hidden; }
 
-/* Half brightness (app.js): after 2 minutes on one status a black layer fades in at half opacity over the whole
-   dashboard, controls and offline note included, and lifts at once on a new status or a tap. While it is up it
-   takes the tap, so the first tap only brings the brightness back. Below the night-mode blank. */
-#hush { position: absolute; inset: 0; z-index: 60; background: #000; opacity: 0; pointer-events: none; transition: opacity .3s; }
-#hush.on { opacity: .5; pointer-events: auto; transition: opacity 3s; }
+/* Brightness (app.js, the slider in the rail): a black layer at 1 - brightness over the whole dashboard, the rail
+   and the offline note included. Taps go through it. Below the night-mode blank. */
+#dimmer { position: absolute; inset: 0; z-index: 60; background: #000; opacity: 0; pointer-events: none; }
 

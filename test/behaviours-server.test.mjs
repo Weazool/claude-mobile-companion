@@ -225,7 +225,7 @@ async function loadDashboard() {
   const el = () => ({
     hidden: false, textContent: '', className: '', innerHTML: '', children: [], dataset: {}, firstElementChild: null,
     style: { setProperty() {} }, classList: { toggle() {}, contains: () => false, add() {}, remove() {} },
-    addEventListener() {}, querySelector: () => el(), insertBefore() {}, remove() {}, scrollTo() {},
+    addEventListener() {}, querySelector: () => el(), insertBefore() {}, remove() {}, scrollTo() {}, setAttribute() {},
   });
   const byId = new Map();
   const document = {

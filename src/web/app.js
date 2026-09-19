@@ -2,8 +2,8 @@ import { limitsView, sessionMeta, dotClass, nextSlot, tapSlot, focusView, attnLi
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
-import { loadSettings, saveSettings, validate, rotationFor, nextRotation } from './settings.js';
-import { drift, bounce, startState, createHush, keepAwakeWanted } from './saver.js';
+import { loadSettings, saveSettings, validate, rotationFor, nextRotation, brightFrom, sliderFrom, sliderAt } from './settings.js';
+import { drift, bounce, startState, keepAwakeWanted } from './saver.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -15,8 +15,10 @@ let downSince = null;
 
 // ---------- companion ----------
 const store = (() => { try { return window.localStorage; } catch { return null; } })();
-// Only the rotation is kept between visits; everything else uses the defaults (there is no settings panel).
-let settings = validate({ rotation: loadSettings(store).rotation });
+// Only the rotation and the brightness are kept between visits; everything else uses the defaults (there is no
+// settings panel).
+const kept = loadSettings(store);
+let settings = validate({ rotation: kept.rotation, brightness: kept.brightness });
 const mood = createMood(settings.mood);
 const player = new Player({ idle: settings.idle });
 const view = mountClawd($('mascot'), { view: VIEW }); // Clawd's rects, drawn into the inline <svg>
@@ -30,7 +32,6 @@ function apply(cmd) {
   setBubble(cmd.bubble && cmd.bubble.text, cmd.bubble && cmd.bubble.tone);
   dimmed = !!cmd.dim;
   setSaver(dimmed || forceSaver);
-  updateHush();
 }
 
 // ---------- screensaver (burn-in protection while Clawd sleeps) ----------
@@ -63,29 +64,60 @@ function moveSaver(dt) {
   card.style.transform = `translate(${saverState.x.toFixed(1)}px, ${saverState.y.toFixed(1)}px)`;
 }
 
-// ---------- half brightness (burn-in protection while awake) ----------
-// Once the dashboard has shown one status for 2 minutes (saver.js createHush) a black layer over it fades in at
-// half opacity. A new status or any tap lifts it at once; while it is up it takes the tap, so the first tap only
-// brings the brightness back and never lands on ✕ or ⟲. ?hush forces it on (checks and screenshots).
-const forceHush = new URLSearchParams(location.search).has('hush');
-const hush = createHush();
-let hushed = false;
+// Every tap counts towards keeping the screen on (saver.js keepAwakeWanted), even one a control stops.
 let tapAt = 0;
-function updateHush(now = Date.now()) {
-  const on = forceHush || hush.update(saverOn ? null : mood.status(now), now);
-  if (on === hushed) return;
-  hushed = on;
-  $('hush').classList.toggle('on', on);
-  document.documentElement.classList.toggle('hushed', on); // the screen's edges dim with it (style.css --edge)
+document.addEventListener('click', () => { tapAt = Date.now(); }, true);
+
+// ---------- brightness (the slider in the rail) ----------
+// A black layer over the dashboard at 1 - brightness, and the screen's edges as dark (style.css --edge; under the
+// offline overlay, black at .82, they keep 18% of that). Nothing dims on its own: the slider is the only control,
+// and it is remembered. A touch anywhere on the track sets it, and a drag follows the finger (settings.js sliderAt
+// works out "up" on the track at every rotation).
+const slider = $('bright');
+function applyBrightness(b) {
+  $('dimmer').style.opacity = (1 - b).toFixed(2);
+  const root = document.documentElement.style;
+  root.setProperty('--lvl', `${Math.round(b * 100)}%`);
+  root.setProperty('--lvl-off', `${(b * 18).toFixed(1)}%`);
+  slider.style.setProperty('--p', sliderFrom(b).toFixed(3));
+  slider.setAttribute('aria-valuenow', String(Math.round(b * 100)));
+  $('brightPct').textContent = `${Math.round(b * 100)}%`;
 }
-document.addEventListener('click', () => { // capture: every tap counts, even one a control stops
+function setBrightness(b, save) {
+  settings = { ...settings, brightness: b };
+  applyBrightness(b);
+  if (save) settings = saveSettings(store, settings);
+}
+applyBrightness(settings.brightness);
+let dragId = null;
+function brightAt(e) {
+  const r = slider.getBoundingClientRect();
+  const travel = slider.clientHeight - slider.querySelector('.bright-knob').offsetHeight;
+  return brightFrom(sliderAt(settings.rotation, e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2), travel));
+}
+slider.addEventListener('pointerdown', e => {
+  dragId = e.pointerId;
+  slider.setPointerCapture(e.pointerId);
   tapAt = Date.now();
-  hush.tap(tapAt);
-  updateHush(tapAt);
-}, true);
-// iOS WebKit only turns a tap into a click on an element (below <body>) with a click listener of its own; without
-// this one a tap on the layer would never reach the listener above.
-$('hush').addEventListener('click', () => {});
+  setBrightness(brightAt(e), false);
+});
+slider.addEventListener('pointermove', e => { if (e.pointerId === dragId) setBrightness(brightAt(e), false); });
+const endDrag = e => {
+  if (e.pointerId !== dragId) return;
+  dragId = null;
+  setBrightness(settings.brightness, true);
+  activate(); // keep-awake wants a tap, and a drag makes no click
+};
+slider.addEventListener('pointerup', endDrag);
+slider.addEventListener('pointercancel', endDrag);
+slider.addEventListener('keydown', e => {
+  const step = { ArrowUp: 0.05, ArrowRight: 0.05, ArrowDown: -0.05, ArrowLeft: -0.05 }[e.key];
+  if (!step) return;
+  e.preventDefault();
+  setBrightness(validate({ brightness: Math.round((settings.brightness + step) * 100) / 100 }).brightness, true);
+});
+// iOS only shows :active (the ⟲ filling in) on an element with a touch listener.
+$('btnRotate').addEventListener('touchstart', () => {}, { passive: true });
 
 // The behaviour map (edited on the PC at /behaviours) arrives on connect and after every save. It is checked
 // against this page's rig (not its internal clips) in case the page and the server ever differ; the current
@@ -119,7 +151,6 @@ requestAnimationFrame(loop);
 setInterval(() => {
   apply(mood.tick(Date.now()));
   updateSpot();
-  updateHush();
   holdAwake();
 }, 500);
 $('mascot').addEventListener('click', () => { if (!saverOn) apply(mood.onTap(Date.now())); }); // in the screensaver, #saver handles the tap
@@ -129,28 +160,7 @@ function renderLimits() {
   const { bars, note } = limitsView(snap && snap.limits, Date.now(), skew);
   drawBars($('limits'), bars);
   if (saverOn) drawBars($('saverLimits'), bars, true);
-  drawRings($('rings'), bars);
   $('limitsNote').textContent = note;
-  $('ringsNote').textContent = note;
-}
-// The overview's gauges, the rings from before the bars: the track, the part used in the limit's colour from the
-// top clockwise, the percentage in the middle, and the limit's name and reset under it.
-function drawRings(box, bars) {
-  if (!box.children.length) {
-    box.innerHTML = bars.map(b => `<div class="ring" data-k="${b.key}"><svg viewBox="0 0 40 40">
-      <circle class="track" cx="20" cy="20" r="16"/>
-      <circle class="val" cx="20" cy="20" r="16" pathLength="100" transform="rotate(-90 20 20)" style="stroke:${b.color};stroke-dasharray:0 100"/>
-      </svg><div class="num"></div><div class="lbl"></div></div>`).join('');
-  }
-  for (const b of bars) {
-    const el = box.querySelector(`[data-k="${b.key}"]`);
-    el.classList.toggle('stale', b.stale);
-    el.querySelector('.val').style.strokeDasharray = `${b.fill} 100`;
-    const num = el.querySelector('.num');
-    num.textContent = b.text;
-    num.classList.toggle('hot', b.hot);
-    el.querySelector('.lbl').textContent = b.until ? `${b.gauge} · ${b.until}` : b.gauge;
-  }
 }
 // A bar per limit: its name and reset, the fill, the percentage, and (not in the screensaver's compact card)
 // ticks at the cell edges and the legend naming each hour or day, with the current one outlined.
@@ -253,9 +263,8 @@ function untrack(id, el) {
 // The dashboard goes round (format.js nextSlot), 10 s a slot: every session in turn in standard mode (Clawd on
 // the left acting it out, the limit bars and the list on the right, its row lit); then every session in turn in
 // focus mode (#app.attn): Clawd in the middle of the top 75%, the session's details centred under him, and 7 s
-// in the limit bars in his place for the last 3 (#app.limits-up, format.js attnLimitsUp); then the overview
-// (#app.overview): the list on the left and the limits as rings on the right. Tap a session to bring it up at
-// once; the cycle carries on from there. Clawd shows the slot's session (mood.setFocus; none in the overview).
+// in the limit bars in his place for the last 3 (#app.limits-up, format.js attnLimitsUp). Tap a session to bring
+// it up at once; the cycle carries on from there. Clawd shows the slot's session (mood.setFocus).
 let spot = { mode: 'standard', id: null, at: 0, since: 0 };
 let modeKey = null;
 function updateSpot(now = Date.now(), tapped = null) {
@@ -280,7 +289,6 @@ function renderMode(now) {
   const was = attnOn();
   $('app').classList.toggle('attn', !!a);
   $('app').classList.toggle('limits-up', up);
-  $('app').classList.toggle('overview', spot.mode === 'overview');
   if (!a) {
     if (was) list.scrollTop = listScroll;
     edges();

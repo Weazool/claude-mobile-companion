@@ -22,7 +22,6 @@ test('limitsView: ok limits give three bars, red at 80+, capped fill', () => {
   assert.equal(v.note, '');
   assert.equal(v.bars[0].color, '#f5a524');
   assert.equal(v.bars[0].slotList.filter(s => s.current).length, 1); // the cells themselves: limit-slots.test.mjs
-  assert.deepEqual(v.bars.map(r => [r.gauge, r.until]), [['5-hour', '1h 05m'], ['Week', ''], ['Fable', '']], 'under the overview\'s rings');
 });
 
 test('limitsView: stale after 15 min by server clock, signin and unavailable notes', () => {
@@ -53,20 +52,20 @@ test('sessionMeta and dotClass', () => {
   assert.equal(dotClass({ needsYou: false, activity: 'done' }), 'idle');
 });
 
-test('nextSlot: every session in standard mode, then every session in focus mode, then the overview, 10 s each, and round again', () => {
+test('nextSlot: every session in standard mode, then every session in focus mode, 10 s each, and round again', () => {
   const list = [{ id: 'a' }, { id: 'b' }];
   let s = nextSlot(list, { mode: 'standard', id: null, at: 0, since: 0 }, 5);
   assert.deepEqual(s, { mode: 'standard', id: 'a', at: 0, since: 5 }, 'the first session comes up at once');
   assert.equal(nextSlot(list, s, 5 + SLOT_MS - 1), s, 'for 10 s');
   const seq = [];
   for (let t = 5 + SLOT_MS; seq.length < 6; t += SLOT_MS) { s = nextSlot(list, s, t); seq.push(`${s.mode} ${s.id}`); }
-  assert.deepEqual(seq, ['standard b', 'focus a', 'focus b', 'overview null', 'standard a', 'standard b']);
+  assert.deepEqual(seq, ['standard b', 'focus a', 'focus b', 'standard a', 'standard b', 'focus a']);
 });
 
-test('nextSlot: a session that goes gives way at once to the next; with none, standard mode, empty; one session goes round in 30 s', () => {
+test('nextSlot: a session that goes gives way at once to the next; with none, standard mode, empty; one session goes round in 20 s', () => {
   const slot = { mode: 'focus', id: 'b', at: 1, since: 0 };
   assert.deepEqual(nextSlot([{ id: 'a' }, { id: 'c' }], slot, 3), { mode: 'focus', id: 'c', at: 1, since: 3 }, 'c took its place');
-  assert.deepEqual(nextSlot([{ id: 'a' }], slot, 3), { mode: 'overview', id: null, at: 0, since: 3 }, 'it was the last: the overview');
+  assert.deepEqual(nextSlot([{ id: 'a' }], slot, 3), { mode: 'standard', id: 'a', at: 0, since: 3 }, 'it was the last: standard mode');
   assert.deepEqual(nextSlot([{ id: 'a' }], { ...slot, mode: 'standard' }, 3), { mode: 'focus', id: 'a', at: 0, since: 3 });
   assert.deepEqual(nextSlot([{ id: 'b' }], slot, 3), { ...slot, at: 0 }, 'one before it went: its slot goes on from its new place');
   const empty = nextSlot([], slot, 4);
@@ -77,14 +76,13 @@ test('nextSlot: a session that goes gives way at once to the next; with none, st
   assert.deepEqual(s, { mode: 'standard', id: 'a', at: 0, since: 0 });
   const seq = [];
   for (let t = SLOT_MS; t <= 3 * SLOT_MS; t += SLOT_MS) { s = nextSlot(one, s, t); seq.push(s.mode); }
-  assert.deepEqual(seq, ['focus', 'overview', 'standard']);
+  assert.deepEqual(seq, ['focus', 'standard', 'focus']);
 });
 
-test('tapSlot: the tapped session at once for a whole slot, in the mode under way (from the overview, standard mode)', () => {
+test('tapSlot: the tapped session at once for a whole slot, in the mode under way', () => {
   const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
   assert.deepEqual(tapSlot(list, { mode: 'standard', id: 'a', at: 0, since: 0 }, 'c', 7), { mode: 'standard', id: 'c', at: 2, since: 7 });
   assert.deepEqual(tapSlot(list, { mode: 'focus', id: 'a', at: 0, since: 0 }, 'b', 7), { mode: 'focus', id: 'b', at: 1, since: 7 });
-  assert.deepEqual(tapSlot(list, { mode: 'overview', id: null, at: 0, since: 0 }, 'b', 7), { mode: 'standard', id: 'b', at: 1, since: 7 });
   const s = { mode: 'standard', id: 'a', at: 0, since: 0 };
   assert.equal(tapSlot(list, s, 'gone', 7), s);
 });

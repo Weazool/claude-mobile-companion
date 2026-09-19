@@ -1,11 +1,11 @@
 const HOUR = 3600e3;
 const DAY = 24 * HOUR;
 // Each limit's window ends at its reset and is cut into hours or days that the legend under the bar names, so
-// the fill can be read against how much of the window has gone. gauge: its name under the overview's ring.
+// the fill can be read against how much of the window has gone.
 export const BARS = [
-  { key: 'fiveHour', label: '5-hour limit', short: '5h', gauge: '5-hour', color: '#f5a524', slots: 5, slotMs: HOUR },
-  { key: 'week', label: 'Weekly limit', short: 'Week', gauge: 'Week', color: '#35c2b0', slots: 7, slotMs: DAY },
-  { key: 'fable', label: 'Fable limit', short: 'Fable', gauge: 'Fable', color: '#a78bfa', slots: 7, slotMs: DAY },
+  { key: 'fiveHour', label: '5-hour limit', short: '5h', color: '#f5a524', slots: 5, slotMs: HOUR },
+  { key: 'week', label: 'Weekly limit', short: 'Week', color: '#35c2b0', slots: 7, slotMs: DAY },
+  { key: 'fable', label: 'Fable limit', short: 'Fable', color: '#a78bfa', slots: 7, slotMs: DAY },
 ];
 export const STALE_MS = 15 * 60 * 1000;
 
@@ -70,7 +70,7 @@ export function limitsView(limits, now, skewMs = 0) {
     const pct = w && Number.isFinite(w.pct) ? w.pct : null;
     return {
       ...b, pct, fill: pct === null ? 0 : Math.min(pct, 100), text: pct === null ? '—' : `${pct}%`,
-      reset: w ? resetLine(w.resetsAt, t) : '', until: w ? formatReset(w.resetsAt, t) : '',
+      reset: w ? resetLine(w.resetsAt, t) : '',
       slotList: w ? limitSlots(b, w.resetsAt, t) : [], hot: pct !== null && pct >= 80, stale,
     };
   });
@@ -93,26 +93,24 @@ export function dotClass(s) {
 }
 
 // The dashboard's cycle (app.js): every session in turn in standard mode, then every session in turn in focus
-// mode, then the overview, SLOT_MS each, and round again. A slot is { mode, id, at, since }: 'standard', 'focus'
-// or 'overview', its session (none in the overview), that session's place in the list (the order they started)
-// and when the slot began. A slot whose session has gone gives way at once to the one that took its place, or,
-// past the end, to the next mode. With no sessions nothing goes round: standard mode, empty.
+// mode, SLOT_MS each, and round again. A slot is { mode, id, at, since }: 'standard' or 'focus', its session,
+// that session's place in the list (the order they started) and when the slot began. A slot whose session has
+// gone gives way at once to the one that took its place, or, past the end, to the other mode. With no sessions
+// nothing goes round: standard mode, empty.
 export const SLOT_MS = 10000;
-const AFTER = { standard: 'focus', focus: 'overview', overview: 'standard' };
+const AFTER = { standard: 'focus', focus: 'standard' };
 
 export function nextSlot(sessions, slot, now) {
   if (!sessions.length) return slot.mode === 'standard' && slot.id === null ? slot : { mode: 'standard', id: null, at: 0, since: now };
-  const start = (mode, at) => (mode === 'overview' ? { mode, id: null, at: 0, since: now }
-    : at < sessions.length ? { mode, id: sessions[at].id, at, since: now } : start(AFTER[mode], 0));
-  if (slot.mode === 'overview') return now - slot.since < SLOT_MS ? slot : start('standard', 0);
+  const start = (mode, at) => (at < sessions.length ? { mode, id: sessions[at].id, at, since: now } : start(AFTER[mode], 0));
   const i = sessions.findIndex(s => s.id === slot.id);
   if (i < 0) return start(slot.mode, slot.at);
   if (now - slot.since < SLOT_MS) return i === slot.at ? slot : { ...slot, at: i };
   return start(slot.mode, i + 1);
 }
 
-// A tap on a session brings it up at once for a whole slot, in the mode under way (from the overview, in standard
-// mode), and the cycle carries on from there.
+// A tap on a session brings it up at once for a whole slot, in the mode under way, and the cycle carries on from
+// there.
 export function tapSlot(sessions, slot, id, now) {
   const at = sessions.findIndex(s => s.id === id);
   return at < 0 ? slot : { mode: slot.mode === 'focus' ? 'focus' : 'standard', id, at, since: now };

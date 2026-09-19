@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validate, loadSettings, saveSettings, rotationFor, nextRotation, STORAGE_KEY } from '../src/web/settings.js';
+import { validate, loadSettings, saveSettings, rotationFor, nextRotation, STORAGE_KEY, BRIGHT_MIN, brightFrom, sliderFrom, sliderAt } from '../src/web/settings.js';
 import { VIEW, PALETTE } from '../src/web/clawd/index.js';
 import { decodePng } from '../tools/lib/png.mjs';
 
@@ -11,7 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEF = {
   mood: { warn: 50, low: 80, crit: 95, sleepAfterMin: 2, pinnedId: null },
   idle: { blinksPerMin: 26, glancesPerMin: 2, movingPct: 50 },
-  rotation: 0, keepAwake: true,
+  rotation: 0, keepAwake: true, brightness: 1,
 };
 
 test('defaults', () => {
@@ -23,12 +23,16 @@ test('clamps values and keeps thresholds ordered', () => {
   const v = validate({
     mood: { warn: 90, low: 50, crit: 10, sleepAfterMin: 0, pinnedId: 's9' },
     idle: { blinksPerMin: 999, glancesPerMin: -1, movingPct: 'x' },
-    rotation: 45, keepAwake: false,
+    rotation: 45, keepAwake: false, brightness: 0,
   });
   assert.deepEqual(v.mood, { warn: 90, low: 90, crit: 90, sleepAfterMin: 1, pinnedId: 's9' });
   assert.deepEqual(v.idle, { blinksPerMin: 60, glancesPerMin: 0, movingPct: 50 });
   assert.equal(v.rotation, 0);
   assert.equal(v.keepAwake, false);
+  assert.equal(v.brightness, BRIGHT_MIN, 'never quite off');
+  assert.equal(validate({ brightness: 'x' }).brightness, 1);
+  assert.equal(validate({ brightness: 7 }).brightness, 1);
+  assert.equal(validate({ brightness: 0.42 }).brightness, 0.42);
   assert.deepEqual(validate({ mood: { warn: '', low: null } }).mood.warn, 50);
 });
 
@@ -42,6 +46,24 @@ test('load and save through a storage; bad JSON gives defaults', () => {
   mem.set(STORAGE_KEY, '{nope');
   assert.deepEqual(loadSettings(storage), DEF);
   assert.deepEqual(loadSettings(null), DEF);
+});
+
+test('brightness slider: 10% at the bottom, 100% at the top, whole percents, and "up" follows the rotation', () => {
+  assert.equal(BRIGHT_MIN, 0.1);
+  assert.equal(brightFrom(0), 0.1);
+  assert.equal(brightFrom(1), 1);
+  assert.equal(brightFrom(0.5), 0.55);
+  assert.equal(brightFrom(0.3333), 0.4);
+  for (const b of [0.1, 0.37, 1]) assert.ok(Math.abs(brightFrom(sliderFrom(b)) - b) < 1e-9, `${b} round trip`);
+  // 100 px of travel; a touch 25 px towards the track's top is 3/4 of the way up, at every rotation.
+  const up = { 0: [0, -25], 90: [25, 0], 180: [0, 25], 270: [-25, 0] }; // #app's top faces physical top, right, bottom, left
+  for (const [deg, [dx, dy]] of Object.entries(up)) {
+    assert.ok(Math.abs(sliderAt(Number(deg), dx, dy, 100) - 0.75) < 1e-9, `${deg}: up`);
+    assert.ok(Math.abs(sliderAt(Number(deg), -dx, -dy, 100) - 0.25) < 1e-9, `${deg}: down`);
+    assert.ok(Math.abs(sliderAt(Number(deg), dy, dx, 100) - 0.5) < 1e-9, `${deg}: across the track changes nothing`);
+  }
+  assert.equal(sliderAt(90, 400, 0, 100), 1, 'past the top');
+  assert.equal(sliderAt(90, -400, 0, 100), 0, 'past the bottom');
 });
 
 test('rotation geometry', () => {
@@ -77,7 +99,6 @@ test('style: safe-area insets are mapped onto #app edges per rotation', () => {
   }
   const app = r.get('#app');
   assert.equal(app['box-sizing'], 'border-box');
-  assert.equal(app.padding, 'var(--sa-t) var(--sa-r) var(--sa-b) var(--sa-l)');
   assert.equal(r.get('.controls').top, 'calc(3cqmin + var(--sa-t))');
   assert.equal(r.get('.controls').right, 'calc(4cqmin + var(--sa-r))');
   for (const [sel, d] of r) {
@@ -90,6 +111,7 @@ test('style: controls above the offline overlay, blank above everything, no sett
   const z = sel => Number((r.get(sel) || {})['z-index']);
   assert.equal(z('.overlay'), 50);
   assert.equal(z('.controls'), 55);
+  assert.equal(z('.rail'), 55);
   assert.equal(z('.overlay.blank'), 80);
   const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
   assert.match(html, /<div id="offline" class="overlay"/);
@@ -162,8 +184,8 @@ test('style: Clawd stands in the middle of the stage, as large as it allows, wit
     const M = lengthPx(r.get('#app.portrait .stage')['--mascot'], W, H);
     assert.ok(M >= 0.95 * Math.min(0.8 * W, S - 10 * cq), `${W}x${H}: the square uses the stage`);
     check(`${W}x${H}`, S, M, W, H);
-    // The flag rises on his right (x +2..+8 of 32 units): it must stay left of the ✕ ⟲ row where the two meet.
-    const flagRight = W / 2 + (8 / 32) * M, controlsLeft = W - 4 * cq - (2 * (4.4 + 2) + 1 * 3) * cq;
+    // The flag rises on his right (x +2..+8 of 32 units): it must stay left of the ✕ where the two meet.
+    const flagRight = W / 2 + (8 / 32) * M, controlsLeft = W - 4 * cq - (4.4 + 2) * cq;
     if (place(S, M).top + FLAG_TIP * M < 9.4 * cq) assert.ok(flagRight <= controlsLeft, `${W}x${H}: the flag clears the controls`);
   }
 });
@@ -211,18 +233,44 @@ test('the root background is the colour the dashboard shows, so the strip iOS wi
   const r = styleRules();
   assert.equal(r.get('html').background, 'var(--edge)');
   assert.equal(r.get('body').background, 'var(--edge)');
-  assert.equal(r.get(':root')['--edge'], 'var(--bg)');
   assert.equal(r.get('#app').background, 'var(--bg)');
   // Each layer that darkens #app darkens the edges as much: a black layer at opacity a leaves 1 - a of --bg.
-  assert.match(r.get('#hush.on').opacity, /^\.5$/);
-  assert.equal(r.get('html.hushed')['--edge'], 'color-mix(in srgb, var(--bg) 50%, #000)');
+  // #dimmer is at 1 - brightness and app.js sets --lvl to the brightness (--lvl-off to 18% of it, for #offline).
+  assert.equal(r.get(':root')['--edge'], 'color-mix(in srgb, var(--bg) var(--lvl, 100%), #000)');
   assert.match(r.get('.overlay').background, /rgba\(0, 0, 0, \.82\)/);
-  assert.equal(r.get('html.offline')['--edge'], 'color-mix(in srgb, var(--bg) 18%, #000)');
-  assert.equal(r.get('html.offline.hushed')['--edge'], 'color-mix(in srgb, var(--bg) 9%, #000)');
+  assert.equal(r.get('html.offline')['--edge'], 'color-mix(in srgb, var(--bg) var(--lvl-off, 18%), #000)');
   assert.equal(r.get('html.blanked')['--edge'], '#000');
   assert.equal(r.get('html.saving')['--edge'], '#000');
   const app = fs.readFileSync(path.join(ROOT, 'src/web/app.js'), 'utf8');
-  for (const cls of ['hushed', 'offline', 'blanked', 'saving']) assert.match(app, new RegExp(`documentElement\\.classList\\.(toggle|add)\\('${cls}'`), cls);
+  assert.match(app, /\$\('dimmer'\)\.style\.opacity = \(1 - b\)/);
+  assert.match(app, /setProperty\('--lvl', `\$\{Math\.round\(b \* 100\)\}%`\)/);
+  assert.match(app, /setProperty\('--lvl-off', `\$\{\(b \* 18\)/);
+  for (const cls of ['offline', 'blanked', 'saving']) assert.match(app, new RegExp(`documentElement\\.classList\\.(toggle|add)\\('${cls}'`), cls);
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/web/manifest.webmanifest'), 'utf8'));
   assert.equal(manifest.background_color, /--bg: (#[0-9a-f]{6})/i.exec(css)[1]);
+});
+
+test('style: the rail holds ⟲ and the brightness slider, one under the other, on the left past the safe area', () => {
+  const r = styleRules();
+  assert.equal(r.get('#app').padding, 'var(--sa-t) var(--sa-r) var(--sa-b) calc(var(--rail-at) + var(--rail))');
+  assert.equal(r.get('#app')['--rail-at'], 'max(var(--sa-l), 2.5vmax)', 'past the safe area, and the drift (2.5%) never takes it off screen');
+  const rail = r.get('.rail');
+  assert.equal(rail.position, 'absolute');
+  assert.equal(rail.left, 'var(--rail-at)');
+  assert.equal(rail.width, 'var(--rail)');
+  assert.equal(rail['flex-direction'], 'column');
+  assert.equal(rail['--warn'], '#ffc107', "Bootstrap's warning yellow");
+  assert.equal(r.get('.rail-btn').background, 'transparent');
+  assert.match(r.get('.rail-btn').border, /solid var\(--warn\)/);
+  assert.equal(r.get('.rail-btn:active').background, 'var(--warn)');
+  assert.match(r.get('.bright').border, /solid var\(--warn\)/);
+  assert.equal(r.get('.bright')['touch-action'], 'none');
+  const d = r.get('#dimmer');
+  assert.equal(d['pointer-events'], 'none', 'taps go through it');
+  assert.equal(Number(d['z-index']), 60);
+  assert.equal(r.get('#app.saver .rail').visibility, 'hidden');
+  const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
+  assert.match(html, /<aside class="rail">\s*<button id="btnRotate"[^>]*>⟲<\/button>\s*<div id="bright" class="bright" role="slider"/);
+  assert.doesNotMatch(html, /id="hush"|class="gauges"|id="rings"/, 'no automatic dimming, no overview');
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'src/web/style.css'), 'utf8'), /overview|\.gauges|\.rings|#hush/);
 });
