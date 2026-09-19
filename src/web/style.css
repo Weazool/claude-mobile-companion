@@ -182,7 +182,7 @@ html, body {
    .limits so the screensaver's compact bars, which the cycle keeps turning under, stay as they are. */
 #app.attn .stage { grid-area: 1 / 1; }
 #app.attn .attn-card { grid-area: 2 / 1; }
-#app.limits-up .stage { visibility: hidden; }
+#app.limits-up .stage, #app.limits-up .bubble { visibility: hidden; } /* the caption too: .bubble.show would show through */
 #app.limits-up .data { position: static; grid-area: 1 / 1; visibility: visible; justify-content: center; padding: 3cqmin 5cqmin; }
 #app.limits-up .sessions, #app.limits-up .note:empty { display: none; }
 #app.limits-up .note { text-align: center; }

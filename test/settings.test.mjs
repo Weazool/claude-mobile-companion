@@ -258,6 +258,7 @@ test('style: focus mode: Clawd 5% of the screen lower with his caption, over the
   assert.equal(r.get('#app.attn #mascot').top, 'calc(50% - 0.71875 * var(--mascot) + 5cqh)');
   assert.equal(r.get('#app.attn .bubble').top, 'calc(50% + 0.18 * var(--mascot) + 5cqh)', 'the caption moves with him');
   assert.equal(r.get('#app.attn .bubble').display, undefined, 'and shows, as on the dashboard');
+  assert.equal(r.get('#app.limits-up .bubble').visibility, 'hidden', 'but not over the limit bars in the last 3 s');
   const cq = v => Number(/^(-?[\d.]+)cqmin$/.exec(v)[1]);
   const twice = (sel, prop) => assert.equal(cq(r.get(`.attn-card ${sel}`)[prop]), 2 * cq(r.get(sel)[prop]), `${sel} ${prop}`);
   for (const [sel, prop] of [['.name', 'font-size'], ['.meta', 'font-size'], ['.dot', 'width'], ['.dot', 'height'], ['.ctx', 'height'], ['.ctxl', 'font-size'], ['.row', 'gap'], ['.row', 'border-radius'], ['.untrack', 'font-size']]) twice(sel, prop);
