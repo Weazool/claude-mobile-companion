@@ -76,6 +76,7 @@ function updateHush(now = Date.now()) {
   if (on === hushed) return;
   hushed = on;
   $('hush').classList.toggle('on', on);
+  document.documentElement.classList.toggle('hushed', on); // the screen's edges dim with it (style.css --edge)
 }
 document.addEventListener('click', () => { // capture: every tap counts, even one a control stops
   tapAt = Date.now();
@@ -363,6 +364,7 @@ setInterval(() => {
   const now = Date.now();
   const down = (downSince !== null && now - downSince > 5000) || now - lastMsgAt > 45000;
   $('offline').hidden = !down;
+  document.documentElement.classList.toggle('offline', down);
   if (down !== offline) {
     offline = down;
     apply(mood.setOffline(down, now));
@@ -450,9 +452,13 @@ $('btnClose').addEventListener('click', e => {
   e.stopPropagation();
   keepAwake(); // night mode keeps the (black) screen on, but never enters full screen
   $('blank').hidden = false; // a page can't close itself on iOS: blank the screen until tapped
+  document.documentElement.classList.add('blanked');
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 });
-$('blank').addEventListener('click', () => { $('blank').hidden = true; });
+$('blank').addEventListener('click', () => {
+  $('blank').hidden = true;
+  document.documentElement.classList.remove('blanked');
+});
 $('saver').addEventListener('click', e => {
   e.stopPropagation();
   activate();

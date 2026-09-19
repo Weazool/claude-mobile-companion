@@ -2,12 +2,21 @@
   color-scheme: dark;
   --bg: #0a0a0f; --text: #e8e6e3; --dim: #8a8a93; --line: #1c1c24; --track: #23232c;
   --work: #5aa9ff; --need: #ffb020; --bad: #ff6b5b; --good: #a6e6a0;
+  --edge: var(--bg);
 }
+html.hushed { --edge: color-mix(in srgb, var(--bg) 50%, #000); } /* #hush.on: black at .5 */
+html.hushed, html.hushed body { transition-duration: 3s; } /* fades in with #hush, lifts in .3s with it */
+html.offline { --edge: color-mix(in srgb, var(--bg) 18%, #000); } /* #offline: black at .82 */
+html.offline.hushed { --edge: color-mix(in srgb, var(--bg) 9%, #000); } /* both */
+html.blanked, html.saving { --edge: #000; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
-  height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+  height: 100%; background: var(--edge); color: var(--text); overflow: hidden; transition: background-color .3s;
   /* In an iPhone Home Screen app iOS leaves a strip the page cannot draw into (the status bar's height, at the
-     far end of the screen) and fills it with this root background: the dashboard's colour, so it blends in. */
+     far end of the screen) and fills it with this root background; the drift also bares a strip of it along
+     two edges. --edge is the colour the dashboard shows at the moment, so the edges always blend in: the
+     layers that darken the dashboard (#hush, #offline, #blank, the screensaver) cover #app only, so html gets
+     a class for each and --edge is the same darkening of --bg (a black layer at opacity a leaves 1 - a of it). */
   font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
   touch-action: manipulation; /* no double-tap zoom on repeated taps */
@@ -226,7 +235,7 @@ html, body {
 /* Screensaver (while Clawd sleeps): pure black, so the OLED pixels are off, and a small dim card with Clawd and
    the limit bars that glides around the screen (app.js moves it inside .saver-field, which keeps clear of the notch).
    Above the dashboard and its controls' row, below the offline and blank overlays. */
-html.saving, html.saving body, html.saving #app { background: #000; }
+html.saving #app { background: #000; } /* html and body go black through --edge */
 #saver { position: absolute; inset: 0; z-index: 40; background: #000; overflow: hidden; }
 #saver[hidden] { display: none; }
 .saver-field { position: absolute; top: var(--sa-t); right: var(--sa-r); bottom: var(--sa-b); left: var(--sa-l); }

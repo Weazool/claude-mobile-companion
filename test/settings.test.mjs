@@ -206,11 +206,23 @@ test('the Home Screen icon is Clawd at rest, centred on the stage colour', () =>
   assert.deepEqual(at(128, 128), rgb(PALETTE.body), 'his body in the middle');
 });
 
-test('the root background is the dashboard colour, so the strip iOS will not let a Home Screen app draw into blends in', () => {
+test('the root background is the colour the dashboard shows, so the strip iOS will not let a Home Screen app draw into blends in', () => {
   const css = fs.readFileSync(path.join(ROOT, 'src/web/style.css'), 'utf8');
   const r = styleRules();
-  assert.equal(r.get('html').background, 'var(--bg)');
+  assert.equal(r.get('html').background, 'var(--edge)');
+  assert.equal(r.get('body').background, 'var(--edge)');
+  assert.equal(r.get(':root')['--edge'], 'var(--bg)');
   assert.equal(r.get('#app').background, 'var(--bg)');
+  // Each layer that darkens #app darkens the edges as much: a black layer at opacity a leaves 1 - a of --bg.
+  assert.match(r.get('#hush.on').opacity, /^\.5$/);
+  assert.equal(r.get('html.hushed')['--edge'], 'color-mix(in srgb, var(--bg) 50%, #000)');
+  assert.match(r.get('.overlay').background, /rgba\(0, 0, 0, \.82\)/);
+  assert.equal(r.get('html.offline')['--edge'], 'color-mix(in srgb, var(--bg) 18%, #000)');
+  assert.equal(r.get('html.offline.hushed')['--edge'], 'color-mix(in srgb, var(--bg) 9%, #000)');
+  assert.equal(r.get('html.blanked')['--edge'], '#000');
+  assert.equal(r.get('html.saving')['--edge'], '#000');
+  const app = fs.readFileSync(path.join(ROOT, 'src/web/app.js'), 'utf8');
+  for (const cls of ['hushed', 'offline', 'blanked', 'saving']) assert.match(app, new RegExp(`documentElement\\.classList\\.(toggle|add)\\('${cls}'`), cls);
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/web/manifest.webmanifest'), 'utf8'));
   assert.equal(manifest.background_color, /--bg: (#[0-9a-f]{6})/i.exec(css)[1]);
 });
