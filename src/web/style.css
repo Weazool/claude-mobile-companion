@@ -140,7 +140,7 @@ html, body {
 .row.focus { background: #14141c; }
 /* ✕: stop tracking the session (app.js untrack). The button runs the row's full height, so it is easy to hit. */
 .untrack { align-self: stretch; margin: -1.6cqmin 0; padding: 0; background: none; border: 0; color: var(--text); font: inherit; font-size: 3.4cqmin; line-height: 1; cursor: pointer; }
-.row.closing, .attn-close.closing { opacity: .35; pointer-events: none; }
+.row.closing { opacity: .35; pointer-events: none; }
 .name { font-size: 3.6cqmin; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .meta { font-size: 2.8cqmin; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .meta.need { color: var(--need); }
@@ -154,28 +154,27 @@ html, body {
 .ctxl { font-size: 2.5cqmin; color: var(--text); text-align: right; margin-top: .6cqmin; }
 
 /* Focus mode (app.js #app.attn), for each session in turn. Clawd takes the top 75%, his body centred in it both
-   ways (#mascot's usual top puts his middle, 71.875% down the square, at the stage's centre). With his body
-   there, the space above him is what is left for the "!", the "?", the flag and the hop that goes with them, so
-   the square is 72cqh of the 75cqh stage in landscape: the flag's tip (19% down the square) just clears the top
-   edge. The session's details sit centred in the bottom 25%; the limits and the list step aside. */
+   ways (#mascot's usual top puts his middle, 71.875% down the square, at the stage's centre) and then 5% of the
+   screen lower, with his caption under his feet as on the dashboard. The square is 72cqh of the 75cqh stage in
+   landscape, so the "!", the "?", the flag and the hop that goes with them have room above him. Under him, in the
+   bottom 25%, is the session's own row from the list, twice the size; the limits and the list step aside. */
 .attn-card { display: none; }
 #app.attn { grid-template-columns: 100%; grid-template-rows: 75% 25%; }
 #app.attn .data { position: absolute; visibility: hidden; } /* not display:none, which would restart the bars' flow */
-#app.attn .stage { --mascot: min(92cqw, 72cqh); background: none; } /* the glow would end in a line above the details */
-#app.attn .bubble { display: none; }
-#app.attn .attn-card { display: flex; flex-direction: column; align-items: center; gap: 1.2cqmin; min-width: 0; padding: 1cqmin 6cqmin 0; text-align: center; }
-.attn-title { max-width: 100%; font-size: 6cqmin; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 1.25: the g, p and y keep their tails */
-.attn-title.need { color: #ffcf70; }
-.attn-title.good { color: var(--good); }
-.attn-title.bad { color: #ff9d8c; }
-.attn-title.work { color: #9cc9ff; }
-.attn-meta { max-width: 100%; font-size: 3.4cqmin; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Close, when the turn has ended: stop tracking the session, as its ✕ in the list does. */
-.attn-close {
-  margin-top: 1cqmin; padding: 1.2cqmin 5cqmin; background: #1b1b24; border: 1px solid #2c2c38; border-radius: 99px;
-  color: var(--text); font: inherit; font-size: 3.2cqmin; font-weight: 600; line-height: 1.2; cursor: pointer; transition: opacity .2s;
-}
-.attn-close[hidden] { display: none; }
+#app.attn .stage { --mascot: min(92cqw, 72cqh); background: none; } /* the glow would end in a line above the row */
+#app.attn #mascot { top: calc(50% - 0.71875 * var(--mascot) + 5cqh); }
+#app.attn .bubble { top: calc(50% + 0.18 * var(--mascot) + 5cqh); }
+#app.attn .attn-card { display: flex; align-items: center; min-width: 0; padding: 0 4cqmin; }
+/* The row, twice the list's: every length doubled. It runs the full width (twice the list's would not fit). */
+.attn-card .row { width: 100%; grid-template-columns: 4.8cqmin minmax(0, 8fr) minmax(0, 4fr) 14cqmin; gap: 4cqmin; padding: 3.2cqmin 2cqmin; border-top: 0; border-radius: 2.4cqmin; cursor: default; }
+.attn-card .dot { width: 4.4cqmin; height: 4.4cqmin; }
+.attn-card .dot.work { box-shadow: 0 0 3.2cqmin var(--work); }
+.attn-card .dot.need { box-shadow: 0 0 4cqmin var(--need); }
+.attn-card .name { font-size: 7.2cqmin; }
+.attn-card .meta { font-size: 5.6cqmin; }
+.attn-card .ctx { height: 3cqmin; border-radius: 2cqmin; }
+.attn-card .ctxl { font-size: 5cqmin; margin-top: 1.2cqmin; }
+.attn-card .untrack { font-size: 6.8cqmin; margin: -3.2cqmin 0; }
 /* Focus mode's last 3 s (app.js #app.limits-up): the limit bars take Clawd's place in the top 75%, half as big
    again as on the dashboard, above the same details. They are the dashboard's own bars, put into the stage's
    grid cell (so the stage and the details are placed explicitly), and their flow carries on. The rules name

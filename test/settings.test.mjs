@@ -247,10 +247,24 @@ test('style: every text is white, never grey, so it stays readable when the scre
   const r = styleRules();
   assert.equal(r.get(':root')['--text'], '#fff');
   assert.doesNotMatch(css, /--dim/, 'no grey text colour');
-  for (const sel of ['.bar-head', '.note', '.meta', '.ctxl', '.attn-meta', '.bar-legend span', '.untrack', '.overlay', '.bright-pct']) {
+  for (const sel of ['.bar-head', '.note', '.meta', '.ctxl', '.bar-legend span', '.untrack', '.overlay', '.bright-pct']) {
     assert.equal(r.get(sel).color, 'var(--text)', sel);
   }
   assert.equal(r.get('.untrack').opacity, undefined, 'the ✕ on a row at full strength');
+});
+
+test('style: focus mode: Clawd 5% of the screen lower with his caption, over the session\'s row twice the size', () => {
+  const r = styleRules();
+  assert.equal(r.get('#app.attn #mascot').top, 'calc(50% - 0.71875 * var(--mascot) + 5cqh)');
+  assert.equal(r.get('#app.attn .bubble').top, 'calc(50% + 0.18 * var(--mascot) + 5cqh)', 'the caption moves with him');
+  assert.equal(r.get('#app.attn .bubble').display, undefined, 'and shows, as on the dashboard');
+  const cq = v => Number(/^(-?[\d.]+)cqmin$/.exec(v)[1]);
+  const twice = (sel, prop) => assert.equal(cq(r.get(`.attn-card ${sel}`)[prop]), 2 * cq(r.get(sel)[prop]), `${sel} ${prop}`);
+  for (const [sel, prop] of [['.name', 'font-size'], ['.meta', 'font-size'], ['.dot', 'width'], ['.dot', 'height'], ['.ctx', 'height'], ['.ctxl', 'font-size'], ['.row', 'gap'], ['.row', 'border-radius'], ['.untrack', 'font-size']]) twice(sel, prop);
+  assert.equal(r.get('.attn-card .row').padding, '3.2cqmin 2cqmin', 'the list row pads 1.6cqmin 1cqmin');
+  const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
+  assert.match(html, /<section id="attnCard" class="attn-card"><\/section>/, 'app.js puts the row in');
+  assert.doesNotMatch(html, /attnTitle|attnMeta|attnClose/);
 });
 
 test('style: the rail holds ⟲ and the brightness slider, one under the other, on the right past the safe area', () => {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatReset, resetLine, limitsView, sessionMeta, dotClass, STALE_MS, nextSlot, tapSlot, focusView, SLOT_MS, attnLimitsUp, ATTN_CLAWD_MS } from '../src/web/format.js';
+import { formatReset, resetLine, limitsView, sessionMeta, dotClass, STALE_MS, nextSlot, tapSlot, SLOT_MS, attnLimitsUp, ATTN_CLAWD_MS } from '../src/web/format.js';
 
 const MIN = 60000;
 
@@ -85,19 +85,6 @@ test('tapSlot: the tapped session at once for a whole slot, in the mode under wa
   assert.deepEqual(tapSlot(list, { mode: 'focus', id: 'a', at: 0, since: 0 }, 'b', 7), { mode: 'focus', id: 'b', at: 1, since: 7 });
   const s = { mode: 'standard', id: 'a', at: 0, since: 0 };
   assert.equal(tapSlot(list, s, 'gone', 7), s);
-});
-
-test('focusView: every session gets a title, in the colour of its state', () => {
-  const s = { id: 'a', name: 'proj', modelLabel: 'Opus 5', effort: 'high', contextPct: 38, activity: 'working', detail: 'Editing x', needsYou: false };
-  const meta = 'proj · Opus 5 · high · ctx 38%';
-  assert.deepEqual(focusView(s), { tone: 'work', title: 'Editing x', meta });
-  assert.deepEqual(focusView({ ...s, needsYou: true, detail: 'Needs permission' }), { tone: 'need', title: 'Needs permission', meta });
-  assert.deepEqual(focusView({ ...s, activity: 'done', detail: 'Your turn' }), { tone: 'good', title: 'Your turn', meta });
-  assert.deepEqual(focusView({ ...s, activity: 'error', contextPct: null }), { tone: 'bad', title: 'Turn failed', meta: 'proj · Opus 5 · high' });
-  assert.deepEqual(focusView({ ...s, activity: 'rateLimited', detail: 'Rate limited' }), { tone: 'bad', title: 'Rate limited', meta });
-  assert.deepEqual(focusView({ ...s, activity: 'idle', detail: '' }), { tone: 'idle', title: 'Idle', meta });
-  assert.equal(focusView({ ...s, activity: 'thinking', detail: '' }).title, 'Working');
-  assert.equal(focusView(null), null);
 });
 
 test('attnLimitsUp: focus mode shows Clawd for a slot\'s first 7 s and the limit bars for its last 3', () => {

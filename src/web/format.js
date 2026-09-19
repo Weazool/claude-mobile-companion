@@ -116,18 +116,6 @@ export function tapSlot(sessions, slot, id, now) {
   return at < 0 ? slot : { mode: slot.mode === 'focus' ? 'focus' : 'standard', id, at, since: now };
 }
 
-// Focus mode's text under Clawd, for any session: what it is doing, in the colour of its state.
-export function focusView(s) {
-  if (!s) return null;
-  const meta = [s.name || 'session', s.modelLabel, s.effort, s.contextPct == null ? null : `ctx ${s.contextPct}%`].filter(Boolean).join(' · ');
-  if (s.needsYou) return { tone: 'need', title: s.detail || 'Needs you', meta };
-  if (s.activity === 'done') return { tone: 'good', title: 'Your turn', meta };
-  if (s.activity === 'error') return { tone: 'bad', title: 'Turn failed', meta };
-  if (s.activity === 'rateLimited') return { tone: 'bad', title: 'Rate limited', meta };
-  if (ACTIVE.includes(s.activity)) return { tone: 'work', title: s.detail || 'Working', meta };
-  return { tone: 'idle', title: 'Idle', meta };
-}
-
 // Focus mode gives Clawd a slot's first 7 s; for the rest of it (3 s of the 10) the limit bars take his place.
 // A tap on a session starts its slot again, so Clawd comes first.
 export const ATTN_CLAWD_MS = 7000;

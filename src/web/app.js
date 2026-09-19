@@ -1,4 +1,4 @@
-import { limitsView, sessionMeta, dotClass, nextSlot, tapSlot, focusView, attnLimitsUp } from './format.js';
+import { limitsView, sessionMeta, dotClass, nextSlot, tapSlot, attnLimitsUp } from './format.js';
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
@@ -242,6 +242,9 @@ function fillRow(row, s) {
   row.querySelector('.ctx i').style.width = `${s.contextPct ?? 0}%`;
   put(row.querySelector('.ctxl'), s.contextPct == null ? 'ctx —' : `ctx ${s.contextPct}%`);
 }
+// Focus mode's bar under Clawd: the session's own row, as in the list, twice the size (style.css .attn-card).
+const attnRow = makeRow('');
+$('attnCard').appendChild(attnRow);
 function renderSessions() {
   const old = new Map([...list.children].map(row => [row.dataset.id, row]));
   let at = list.firstElementChild;
@@ -276,7 +279,7 @@ function followSpot(now = Date.now()) {
   else if (bottom > list.scrollTop + list.clientHeight) list.scrollTo({ top: bottom - list.clientHeight, behavior: 'smooth' });
 }
 
-// ✕ on a row and Close in focus mode: the server stops tracking the session until you prompt it again, it
+// ✕ on a row, in the list or in focus mode: the server stops tracking the session until you prompt it again, it
 // restarts or it needs you, and its next snapshot takes the session away. The control dims meanwhile, and
 // comes back if the server says no (a server started before this version has no /api/untrack).
 function untrack(id, el) {
@@ -289,7 +292,7 @@ function untrack(id, el) {
 // ---------- the cycle ----------
 // The dashboard goes round (format.js nextSlot), 10 s a slot: every session in turn in standard mode (Clawd on
 // the left acting it out, the limit bars and the list on the right, its row lit); then every session in turn in
-// focus mode (#app.attn): Clawd in the middle of the top 75%, the session's details centred under him, and 7 s
+// focus mode (#app.attn): Clawd in the top 75% with his caption, the session's row twice the size under him, and 7 s
 // in the limit bars in his place for the last 3 (#app.limits-up, format.js attnLimitsUp). Tap a session to bring
 // it up at once; the cycle carries on from there. Clawd shows the slot's session (mood.setFocus).
 let spot = { mode: 'standard', id: null, at: 0, since: 0 };
@@ -306,26 +309,24 @@ function updateSpot(now = Date.now(), tapped = null) {
   renderMode(now);
   if (moved) followSpot(now);
 }
-// In focus mode, a session whose turn has ended gets a Close under its details: the same as its ✕ in the list.
+// In focus mode the session's row under Clawd follows it as its row in the list does.
 function renderMode(now) {
-  const a = spot.mode === 'focus' ? focusView(snap && snap.sessions.find(s => s.id === spot.id)) : null;
-  const up = !!a && attnLimitsUp(spot, now);
-  const key = `${spot.mode}|${spot.id}|${a ? `${a.tone}|${a.title}|${a.meta}` : ''}|${up}`;
+  const s = spot.mode === 'focus' && snap ? snap.sessions.find(x => x.id === spot.id) : null;
+  const up = !!s && attnLimitsUp(spot, now);
+  if (s) {
+    if (attnRow.dataset.id !== s.id) { attnRow.dataset.id = s.id; attnRow.classList.remove('closing'); }
+    fillRow(attnRow, s);
+  }
+  const key = `${spot.mode}|${spot.id}|${!!s}|${up}`;
   if (key === modeKey) return;
   modeKey = key;
   const was = attnOn();
-  $('app').classList.toggle('attn', !!a);
+  $('app').classList.toggle('attn', !!s);
   $('app').classList.toggle('limits-up', up);
-  if (!a) {
+  if (!s) {
     if (was) list.scrollTop = listScroll;
     edges();
-    return;
   }
-  $('attnTitle').textContent = a.title;
-  $('attnTitle').className = `attn-title ${a.tone}`;
-  $('attnMeta').textContent = a.meta;
-  $('attnClose').hidden = a.tone !== 'good';
-  $('attnClose').classList.remove('closing');
 }
 list.addEventListener('click', e => { // its own listener, so iOS turns the tap into a click
   const row = e.target.closest('.row');
@@ -333,7 +334,9 @@ list.addEventListener('click', e => { // its own listener, so iOS turns the tap 
   if (e.target.closest('.untrack')) untrack(row.dataset.id, row);
   else updateSpot(Date.now(), row.dataset.id);
 });
-$('attnClose').addEventListener('click', e => { if (spot.id) untrack(spot.id, e.currentTarget); });
+$('attnCard').addEventListener('click', e => { // its own listener, so iOS turns the tap into a click
+  if (e.target.closest('.untrack') && attnRow.dataset.id) untrack(attnRow.dataset.id, attnRow);
+});
 
 // ---------- bubble ----------
 function setBubble(text, tone) {
