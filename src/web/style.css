@@ -124,14 +124,15 @@ html, body {
 .more { font-size: 2.7cqmin; color: var(--dim); padding: 1.4cqmin 1cqmin; }
 
 /* The centred layout (app.js #app.attn): the spotlight's session needs you, its turn has ended or failed. Clawd
-   takes the top 75%: the square is sized so everything from the flag's tip (19% down it) to his feet (87.5%)
-   fits the stage, and that span is centred in it (its middle is 53.25% down the square). The session's details sit
-   centred in the bottom 25%; the limits and the list step aside. */
+   takes the top 75%, his body centred in it both ways (#mascot's usual top puts his middle, 71.875% down the
+   square, at the stage's centre). With his body there, the space above him is what is left for the "!", the
+   "?", the flag and the hop that goes with them, so the square is 72cqh of the 75cqh stage in landscape: the
+   flag's tip (19% down the square) just clears the top edge. The session's details sit centred in the bottom
+   25%; the limits and the list step aside. */
 .attn-card { display: none; }
 #app.attn { grid-template-columns: 100%; grid-template-rows: 75% 25%; }
 #app.attn .data { position: absolute; visibility: hidden; } /* not display:none, which would restart the bars' flow */
-#app.attn .stage { --mascot: min(92cqw, 104cqh); background: none; } /* the glow would end in a line above the details */
-#app.attn #mascot { top: calc(50% - 0.5325 * var(--mascot)); }
+#app.attn .stage { --mascot: min(92cqw, 72cqh); background: none; } /* the glow would end in a line above the details */
 #app.attn .bubble { display: none; }
 #app.attn .attn-card { display: flex; flex-direction: column; align-items: center; gap: 1.2cqmin; min-width: 0; padding: 1cqmin 6cqmin 0; text-align: center; }
 .attn-title { max-width: 100%; font-size: 6cqmin; font-weight: 700; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
