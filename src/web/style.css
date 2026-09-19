@@ -1,6 +1,8 @@
 :root {
   color-scheme: dark;
-  --bg: #0a0a0f; --text: #e8e6e3; --dim: #8a8a93; --line: #1c1c24; --track: #23232c;
+  /* Every text is white, never grey: dimmed with the brightness slider, grey type would all but vanish. */
+  --bg: #0a0a0f; --text: #fff; --line: #1c1c24; --track: #23232c;
+  --ctl: #3d8bfd; /* the controls (⟲, the brightness slider, the ✕): Bootstrap's blue, outline style */
   --work: #5aa9ff; --need: #ffb020; --bad: #ff6b5b; --good: #a6e6a0;
   --edge: color-mix(in srgb, var(--bg) var(--lvl, 100%), #000); /* #dimmer: app.js sets --lvl to the brightness */
 }
@@ -83,7 +85,7 @@ html, body {
 .limits { display: flex; flex-direction: column; gap: 2.4cqmin; }
 .bar { --c: #888; display: grid; grid-template-columns: minmax(0, 1fr) 9cqmin; column-gap: 2cqmin; align-items: center; transition: opacity .4s; }
 .bar.stale { opacity: .45; }
-.bar-head { grid-column: 1 / -1; font-size: 2.8cqmin; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: .9cqmin; }
+.bar-head { grid-column: 1 / -1; font-size: 2.8cqmin; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: .9cqmin; }
 .bar-head b { color: var(--text); font-weight: 600; }
 .bar-track { position: relative; height: 2.4cqmin; background: var(--track); border-radius: 1.2cqmin; overflow: hidden; }
 .bar-track i { position: relative; display: block; width: 0; height: 100%; border-radius: inherit; overflow: hidden; transition: width .9s ease; }
@@ -111,10 +113,10 @@ html, body {
 .bar-num { font-size: 3.6cqmin; font-weight: 700; text-align: right; line-height: 1; }
 .bar-num.hot { color: var(--bad); }
 .bar-legend { grid-column: 1; display: flex; margin-top: .7cqmin; }
-.bar-legend span { flex: none; min-width: 0; font-size: 2.1cqmin; line-height: 1.7; color: #5f5f6a; text-align: center; white-space: nowrap; overflow: hidden; border-left: 1px solid #2a2a33; }
+.bar-legend span { flex: none; min-width: 0; font-size: 2.1cqmin; line-height: 1.7; color: var(--text); text-align: center; white-space: nowrap; overflow: hidden; border-left: 1px solid #2a2a33; }
 .bar-legend span:last-child { border-right: 1px solid #2a2a33; }
 .bar-legend span.now { color: var(--text); font-weight: 600; border-radius: .7cqmin; box-shadow: inset 0 0 0 1px var(--c); }
-.note { font-size: 2.7cqmin; color: var(--dim); min-height: 3cqmin; }
+.note { font-size: 2.7cqmin; color: var(--text); min-height: 3cqmin; }
 
 /* Every session, in a list that scrolls (app.js keeps its rows): it takes what the column has left, and its faded
    edges say there is more above or below. No scrollbar; the phone shows its own while you scroll. */
@@ -130,17 +132,17 @@ html, body {
   -webkit-mask-image: linear-gradient(transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
   mask-image: linear-gradient(transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
 }
-.sessions:empty::before { content: 'No Claude Code sessions yet'; font-size: 2.7cqmin; color: var(--dim); padding: 1.4cqmin 1cqmin; }
+.sessions:empty::before { content: 'No Claude Code sessions yet'; font-size: 2.7cqmin; color: var(--text); padding: 1.4cqmin 1cqmin; }
 /* A row: the dot, then its name over model · effort · step and its context bar, sharing the rest 8 to 4 (as
    Bootstrap's col-8 and col-4), then the ✕. */
 .row { flex: none; display: grid; grid-template-columns: 2.4cqmin minmax(0, 8fr) minmax(0, 4fr) 7cqmin; gap: 2cqmin; align-items: center; padding: 1.6cqmin 1cqmin; border-top: 1px solid var(--line); border-radius: 1.2cqmin; }
 .row { cursor: pointer; transition: background .3s, opacity .2s; }
 .row.focus { background: #14141c; }
 /* ✕: stop tracking the session (app.js untrack). The button runs the row's full height, so it is easy to hit. */
-.untrack { align-self: stretch; margin: -1.6cqmin 0; padding: 0; background: none; border: 0; color: var(--dim); font: inherit; font-size: 3.4cqmin; line-height: 1; opacity: .7; cursor: pointer; }
+.untrack { align-self: stretch; margin: -1.6cqmin 0; padding: 0; background: none; border: 0; color: var(--text); font: inherit; font-size: 3.4cqmin; line-height: 1; cursor: pointer; }
 .row.closing, .attn-close.closing { opacity: .35; pointer-events: none; }
 .name { font-size: 3.6cqmin; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.meta { font-size: 2.8cqmin; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meta { font-size: 2.8cqmin; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .meta.need { color: var(--need); }
 .dot { width: 2.2cqmin; height: 2.2cqmin; border-radius: 50%; background: #4a4a55; }
 .dot.work { background: var(--work); box-shadow: 0 0 1.6cqmin var(--work); }
@@ -149,7 +151,7 @@ html, body {
 @keyframes pulse { 50% { opacity: .35; } }
 .ctx { height: 1.5cqmin; background: var(--track); border-radius: 1cqmin; overflow: hidden; }
 .ctx i { --c: #9d9daa; position: relative; display: block; height: 100%; border-radius: inherit; overflow: hidden; transition: width .6s; }
-.ctxl { font-size: 2.5cqmin; color: var(--dim); text-align: right; margin-top: .6cqmin; }
+.ctxl { font-size: 2.5cqmin; color: var(--text); text-align: right; margin-top: .6cqmin; }
 
 /* Focus mode (app.js #app.attn), for each session in turn. Clawd takes the top 75%, his body centred in it both
    ways (#mascot's usual top puts his middle, 71.875% down the square, at the stage's centre). With his body
@@ -167,7 +169,7 @@ html, body {
 .attn-title.good { color: var(--good); }
 .attn-title.bad { color: #ff9d8c; }
 .attn-title.work { color: #9cc9ff; }
-.attn-meta { max-width: 100%; font-size: 3.4cqmin; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attn-meta { max-width: 100%; font-size: 3.4cqmin; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Close, when the turn has ended: stop tracking the session, as its ✕ in the list does. */
 .attn-close {
   margin-top: 1cqmin; padding: 1.2cqmin 5cqmin; background: #1b1b24; border: 1px solid #2c2c38; border-radius: 99px;
@@ -195,38 +197,38 @@ html, body {
 #app.landscape.limits-up .limits .bar-legend span { font-size: 3.1cqmin; }
 
 .controls { position: absolute; top: calc(3cqmin + var(--sa-t)); right: calc(4cqmin + var(--pad-r)); display: flex; gap: 3cqmin; z-index: 55; } /* above #offline */
-.controls button { background: none; border: 0; color: var(--text); opacity: .45; font-size: 4.4cqmin; line-height: 1; cursor: pointer; padding: 1cqmin; }
+.controls button { background: none; border: 0; color: var(--ctl); font-size: 4.4cqmin; line-height: 1; cursor: pointer; padding: 1cqmin; }
 
-.overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .82); color: var(--dim); font-size: 18px; }
+.overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .82); color: var(--text); font-size: 18px; }
 .overlay[hidden] { display: none; }
 
 .overlay.blank { background: #000; z-index: 80; } /* above the controls */
 
 /* The rail, down the right of the screen at every rotation: ⟲, then the brightness slider and its value, one under
-   the other, in Bootstrap's outline-warning style (a yellow outline that fills when pressed). It sits in #app's
+   the other, in Bootstrap's outline-primary style (a blue outline that fills when pressed). It sits in #app's
    right padding, past the safe area, above the offline overlay like the ✕ (just left of it). Sized in vmin, like its width. */
 .rail {
-  --warn: #ffc107; position: absolute; z-index: 55; top: var(--sa-t); bottom: var(--sa-b); right: var(--rail-at); width: var(--rail);
+  position: absolute; z-index: 55; top: var(--sa-t); bottom: var(--sa-b); right: var(--rail-at); width: var(--rail);
   display: flex; flex-direction: column; align-items: center; gap: 3vmin; padding: 4vmin 0 3vmin;
 }
 .rail-btn {
   flex: none; width: 14vmin; height: 12vmin; display: grid; place-items: center; padding: 0;
-  background: transparent; color: var(--warn); border: 2px solid var(--warn); border-radius: 2.2vmin;
+  background: transparent; color: var(--ctl); border: 2px solid var(--ctl); border-radius: 2.2vmin;
   font: inherit; font-size: 6.4vmin; line-height: 1; cursor: pointer; transition: color .15s, background-color .15s, box-shadow .15s;
 }
-.rail-btn:active { background: var(--warn); color: #000; }
-.rail-btn:focus-visible { outline: 0; box-shadow: 0 0 0 1vmin rgb(255 193 7 / .5); }
-@media (hover: hover) { .rail-btn:hover { background: var(--warn); color: #000; } }
-/* The slider: the same outline, filled a little up to the knob, a solid yellow bar. --p (app.js) is 0 at the
+.rail-btn:active { background: var(--ctl); color: #fff; }
+.rail-btn:focus-visible { outline: 0; box-shadow: 0 0 0 1vmin rgb(61 139 253 / .5); }
+@media (hover: hover) { .rail-btn:hover { background: var(--ctl); color: #fff; } }
+/* The slider: the same outline, filled a little up to the knob, a solid blue bar. --p (app.js) is 0 at the
    bottom and 1 at the top. The whole track takes the touch, a drag anywhere along it follows the finger. */
 .bright {
   --p: 1; --knob: 2.6vmin; position: relative; flex: 1; min-height: 12vmin; width: 14vmin;
-  border: 2px solid var(--warn); border-radius: 2.2vmin; overflow: hidden; cursor: pointer; touch-action: none;
+  border: 2px solid var(--ctl); border-radius: 2.2vmin; overflow: hidden; cursor: pointer; touch-action: none;
 }
-.bright:focus-visible { outline: 0; box-shadow: 0 0 0 1vmin rgb(255 193 7 / .5); }
-.bright-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--p) * (100% - var(--knob)) + var(--knob) / 2); background: rgb(255 193 7 / .16); }
-.bright-knob { position: absolute; left: 1.6vmin; right: 1.6vmin; bottom: calc(var(--p) * (100% - var(--knob))); height: var(--knob); background: var(--warn); border-radius: 99px; }
-.bright-pct { flex: none; font-size: 3.2vmin; font-weight: 600; color: var(--warn); font-variant-numeric: tabular-nums; }
+.bright:focus-visible { outline: 0; box-shadow: 0 0 0 1vmin rgb(61 139 253 / .5); }
+.bright-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--p) * (100% - var(--knob)) + var(--knob) / 2); background: rgb(61 139 253 / .18); }
+.bright-knob { position: absolute; left: 1.6vmin; right: 1.6vmin; bottom: calc(var(--p) * (100% - var(--knob))); height: var(--knob); background: var(--ctl); border-radius: 99px; }
+.bright-pct { flex: none; font-size: 3.2vmin; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* Screensaver (while Clawd sleeps): pure black, so the OLED pixels are off, and a small dim card with Clawd and
    the limit bars that glides around the screen (app.js moves it inside .saver-field, which keeps clear of the notch).

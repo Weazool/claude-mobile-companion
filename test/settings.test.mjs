@@ -250,6 +250,17 @@ test('the root background is the colour the dashboard shows, so the strip iOS wi
   assert.equal(manifest.background_color, /--bg: (#[0-9a-f]{6})/i.exec(css)[1]);
 });
 
+test('style: every text is white, never grey, so it stays readable when the screen is dimmed', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'src/web/style.css'), 'utf8');
+  const r = styleRules();
+  assert.equal(r.get(':root')['--text'], '#fff');
+  assert.doesNotMatch(css, /--dim/, 'no grey text colour');
+  for (const sel of ['.bar-head', '.note', '.meta', '.ctxl', '.attn-meta', '.bar-legend span', '.untrack', '.overlay', '.bright-pct']) {
+    assert.equal(r.get(sel).color, 'var(--text)', sel);
+  }
+  for (const sel of ['.untrack', '.controls button']) assert.equal(r.get(sel).opacity, undefined, `${sel} at full strength`);
+});
+
 test('style: the rail holds ⟲ and the brightness slider, one under the other, on the right past the safe area', () => {
   const r = styleRules();
   assert.equal(r.get('#app').padding, 'var(--sa-t) var(--pad-r) var(--sa-b) var(--sa-l)');
@@ -261,11 +272,13 @@ test('style: the rail holds ⟲ and the brightness slider, one under the other, 
   assert.equal(rail.left, undefined);
   assert.equal(rail.width, 'var(--rail)');
   assert.equal(rail['flex-direction'], 'column');
-  assert.equal(rail['--warn'], '#ffc107', "Bootstrap's warning yellow");
+  assert.equal(r.get(':root')['--ctl'], '#3d8bfd', "the controls are Bootstrap's blue");
   assert.equal(r.get('.rail-btn').background, 'transparent');
-  assert.match(r.get('.rail-btn').border, /solid var\(--warn\)/);
-  assert.equal(r.get('.rail-btn:active').background, 'var(--warn)');
-  assert.match(r.get('.bright').border, /solid var\(--warn\)/);
+  assert.match(r.get('.rail-btn').border, /solid var\(--ctl\)/);
+  assert.equal(r.get('.rail-btn:active').background, 'var(--ctl)');
+  assert.match(r.get('.bright').border, /solid var\(--ctl\)/);
+  assert.equal(r.get('.bright-knob').background, 'var(--ctl)');
+  assert.equal(r.get('.controls button').color, 'var(--ctl)', 'the ✕ too');
   assert.equal(r.get('.bright')['touch-action'], 'none');
   const d = r.get('#dimmer');
   assert.equal(d['pointer-events'], 'none', 'taps go through it');
