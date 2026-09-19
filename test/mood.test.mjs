@@ -79,7 +79,7 @@ test('needs you: surprised and curious alternate with an amber bubble, then back
   assert.equal(m.onSnapshot(snap([sess('compiling', { detail: 'Running npm test' })]), T0 + 5000).base, 'compiling');
 });
 
-test('stop: surprised, then happy eyes for as long as it is your turn (spotlight mode), then back to work', () => {
+test('stop: surprised, then happy eyes for as long as it is your turn and he shows it, then back to work', () => {
   const m = createMood({}, { rand: mid });
   m.onSnapshot(snap([sess('working', { detail: 'x' })]), T0);
   m.onSnapshot(snap([sess('done', { detail: 'Your turn' })]), T0 + 1000);
@@ -289,7 +289,7 @@ test('setFocus: Clawd shows the spotlight session, without the startle or the dw
   assert.equal(m.setFocus('a', T0 + 20200), null, 'the same session again changes nothing');
 });
 
-test('spotlight mode: Your turn and a failed turn play while their session is in the spotlight; he still sleeps when all is quiet', () => {
+test('Your turn and a failed turn play while their session is the one he shows; he still sleeps when all is quiet', () => {
   const m = createMood({ sleepAfterMin: 2 }, { rand: mid });
   const sessions = [sess('done', { id: 'a', detail: 'Your turn' }), sess('error', { id: 'b', detail: 'Error' }), sess('idle', { id: 'c' })];
   assert.deepEqual(m.onSnapshot(snap(sessions, {}, 'a'), T0), { base: 'happy_eyes', play: [], bubble: { text: 'Your turn', tone: 'good' }, dim: false });

@@ -120,7 +120,7 @@ export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, ge
         broadcast('behaviours', { map });
         return json(res, { map, pages: clients.size });
       }
-      // The dashboard's ✕ on a session and its Close in spotlight mode: the phone with its token (the link or the
+      // The dashboard's ✕ on a session and its Close in focus mode: the phone with its token (the link or the
       // cookie), or loopback from this server's own pages (the pair page's preview), never another site's page.
       if (req.method === 'POST' && p === '/api/untrack') {
         if (!authed || !sameOrigin(req)) return deny(res);

@@ -139,22 +139,22 @@ html, body {
 .ctx i { --c: #9d9daa; position: relative; display: block; height: 100%; border-radius: inherit; overflow: hidden; transition: width .6s; }
 .ctxl { font-size: 2.5cqmin; color: var(--dim); text-align: right; margin-top: .6cqmin; }
 
-/* The centred layout, spotlight mode (app.js #app.attn): the spotlight's session needs you, its turn has ended or
-   failed. Clawd takes the top 75%, his body centred in it both ways (#mascot's usual top puts his middle, 71.875%
-   down the square, at the stage's centre). With his body there, the space above him is what is left for the "!",
-   the "?", the flag and the hop that goes with them, so the square is 72cqh of the 75cqh stage in landscape: the
-   flag's tip (19% down the square) just clears the top edge. The session's details sit centred in the bottom
-   25%; the limits and the list step aside. */
+/* Focus mode (app.js #app.attn), for each session in turn. Clawd takes the top 75%, his body centred in it both
+   ways (#mascot's usual top puts his middle, 71.875% down the square, at the stage's centre). With his body
+   there, the space above him is what is left for the "!", the "?", the flag and the hop that goes with them, so
+   the square is 72cqh of the 75cqh stage in landscape: the flag's tip (19% down the square) just clears the top
+   edge. The session's details sit centred in the bottom 25%; the limits and the list step aside. */
 .attn-card { display: none; }
 #app.attn { grid-template-columns: 100%; grid-template-rows: 75% 25%; }
 #app.attn .data { position: absolute; visibility: hidden; } /* not display:none, which would restart the bars' flow */
 #app.attn .stage { --mascot: min(92cqw, 72cqh); background: none; } /* the glow would end in a line above the details */
 #app.attn .bubble { display: none; }
 #app.attn .attn-card { display: flex; flex-direction: column; align-items: center; gap: 1.2cqmin; min-width: 0; padding: 1cqmin 6cqmin 0; text-align: center; }
-.attn-title { max-width: 100%; font-size: 6cqmin; font-weight: 700; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attn-title { max-width: 100%; font-size: 6cqmin; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 1.25: the g, p and y keep their tails */
 .attn-title.need { color: #ffcf70; }
 .attn-title.good { color: var(--good); }
 .attn-title.bad { color: #ff9d8c; }
+.attn-title.work { color: #9cc9ff; }
 .attn-meta { max-width: 100%; font-size: 3.4cqmin; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Close, when the turn has ended: stop tracking the session, as its ✕ in the list does. */
 .attn-close {
@@ -162,10 +162,10 @@ html, body {
   color: var(--text); font: inherit; font-size: 3.2cqmin; font-weight: 600; line-height: 1.2; cursor: pointer; transition: opacity .2s;
 }
 .attn-close[hidden] { display: none; }
-/* The centred layout's last 3 s (app.js #app.limits-up): the limit bars take Clawd's place in the top 75%, half as
-   big again as on the dashboard, above the same details. They are the dashboard's own bars, put into the stage's
+/* Focus mode's last 3 s (app.js #app.limits-up): the limit bars take Clawd's place in the top 75%, half as big
+   again as on the dashboard, above the same details. They are the dashboard's own bars, put into the stage's
    grid cell (so the stage and the details are placed explicitly), and their flow carries on. The rules name
-   .limits so the screensaver's compact bars, which the spotlight keeps turning under, stay as they are. */
+   .limits so the screensaver's compact bars, which the cycle keeps turning under, stay as they are. */
 #app.attn .stage { grid-area: 1 / 1; }
 #app.attn .attn-card { grid-area: 2 / 1; }
 #app.limits-up .stage { visibility: hidden; }
@@ -181,6 +181,27 @@ html, body {
 /* Sideways the bars are half as long again as on the dashboard, so the legend grows with them; upright they are
    not, and it keeps the dashboard's size, so a short first day still fits its name. */
 #app.landscape.limits-up .limits .bar-legend span { font-size: 3.1cqmin; }
+
+/* The overview (app.js #app.overview): the session list on the left, the whole height, and the limits on the
+   right as the rings from before the bars, one under the other, below the ✕ and ⟲. Clawd sits it out. The bars
+   step aside as in focus mode, so their flow carries on. */
+.gauges { display: none; }
+#app.overview { grid-template-columns: minmax(0, 1fr) 28cqw; grid-template-rows: 100%; }
+#app.overview .stage { display: none; }
+#app.overview .data { grid-area: 1 / 1; justify-content: flex-start; padding: 5cqmin 3cqmin 4cqmin 5cqmin; }
+#app.overview #limits, #app.overview #limitsNote { position: absolute; visibility: hidden; }
+#app.overview .gauges { grid-area: 1 / 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; padding: 11cqmin 4cqmin 3cqmin 0; }
+.rings { --ring: min(21cqh, 22cqw); display: flex; flex-direction: column; align-items: center; gap: 2.2cqmin; }
+.ring { position: relative; width: var(--ring); text-align: center; transition: opacity .4s; }
+.ring.stale { opacity: .45; }
+.ring svg { display: block; width: 100%; }
+.ring .track { fill: none; stroke: var(--track); stroke-width: 4; }
+.ring .val { fill: none; stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray .9s ease; }
+.ring .num { position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: calc(var(--ring) * .26); font-weight: 700; }
+.ring .num.hot { color: var(--bad); }
+.ring .lbl { margin-top: .8cqmin; font-size: 2.8cqmin; color: var(--dim); white-space: nowrap; }
+.gauges .note { margin-top: 1.5cqmin; text-align: center; }
+.gauges .note:empty { display: none; }
 
 .controls { position: absolute; top: calc(3cqmin + var(--sa-t)); right: calc(4cqmin + var(--sa-r)); display: flex; gap: 3cqmin; z-index: 55; } /* above #offline */
 .controls button { background: none; border: 0; color: var(--text); opacity: .45; font-size: 4.4cqmin; line-height: 1; cursor: pointer; padding: 1cqmin; }

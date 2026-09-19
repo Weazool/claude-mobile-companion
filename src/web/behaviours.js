@@ -39,7 +39,7 @@ const ROWS = [
   ['work', 'stillCompiling', 'Still building', 'play', 'look_left', 'A build runs for more than 8 s'],
   ['you', 'needsYou', 'Needs you', 'alt', ['surprised', 'curious'], 'A permission prompt or a question', 'Needs permission'],
   ['you', 'turnDone', 'Turn ends', 'play', 'surprised', 'Claude finishes its turn'],
-  ['you', 'yourTurn', 'Your turn', 'base', 'happy_eyes', 'Claude has finished and waits for you (spotlight mode)', 'Your turn'],
+  ['you', 'yourTurn', 'Your turn', 'base', 'happy_eyes', 'Claude has finished and waits for you', 'Your turn'],
   ['limits', 'fiveHourWarn', '5-hour ≥ 50%', 'base', 'low_tokens', 'The 5-hour limit is at 50% or more (he is tired)', '5-hour at 55%'],
   ['limits', 'lowWarning', 'Getting tired', 'play', 'surprised', 'The 5-hour limit just crossed 50%'],
   ['limits', 'fiveHourLow', '5-hour ≥ 80%', 'base', 'sad', 'The 5-hour limit is at 80% or more', '5-hour at 84%'],

@@ -1,11 +1,11 @@
 const HOUR = 3600e3;
 const DAY = 24 * HOUR;
 // Each limit's window ends at its reset and is cut into hours or days that the legend under the bar names, so
-// the fill can be read against how much of the window has gone.
+// the fill can be read against how much of the window has gone. gauge: its name under the overview's ring.
 export const BARS = [
-  { key: 'fiveHour', label: '5-hour limit', short: '5h', color: '#f5a524', slots: 5, slotMs: HOUR },
-  { key: 'week', label: 'Weekly limit', short: 'Week', color: '#35c2b0', slots: 7, slotMs: DAY },
-  { key: 'fable', label: 'Fable limit', short: 'Fable', color: '#a78bfa', slots: 7, slotMs: DAY },
+  { key: 'fiveHour', label: '5-hour limit', short: '5h', gauge: '5-hour', color: '#f5a524', slots: 5, slotMs: HOUR },
+  { key: 'week', label: 'Weekly limit', short: 'Week', gauge: 'Week', color: '#35c2b0', slots: 7, slotMs: DAY },
+  { key: 'fable', label: 'Fable limit', short: 'Fable', gauge: 'Fable', color: '#a78bfa', slots: 7, slotMs: DAY },
 ];
 export const STALE_MS = 15 * 60 * 1000;
 
@@ -70,7 +70,8 @@ export function limitsView(limits, now, skewMs = 0) {
     const pct = w && Number.isFinite(w.pct) ? w.pct : null;
     return {
       ...b, pct, fill: pct === null ? 0 : Math.min(pct, 100), text: pct === null ? '—' : `${pct}%`,
-      reset: w ? resetLine(w.resetsAt, t) : '', slotList: w ? limitSlots(b, w.resetsAt, t) : [], hot: pct !== null && pct >= 80, stale,
+      reset: w ? resetLine(w.resetsAt, t) : '', until: w ? formatReset(w.resetsAt, t) : '',
+      slotList: w ? limitSlots(b, w.resetsAt, t) : [], hot: pct !== null && pct >= 80, stale,
     };
   });
   let note = '';
@@ -91,33 +92,46 @@ export function dotClass(s) {
   return 'idle';
 }
 
-// The session in the spotlight (app.js): Clawd shows it and the layout follows it. Every ROTATE_MS the next
-// session in the list takes over (the order they started, wrapping round), whatever is going on; a tap on a
-// session puts it there at once (app.js sets { id, since: now }) and its 10 s start from then. A spotlight whose
-// session has gone moves to the server's focus, else to the first session.
-export const ROTATE_MS = 10000;
+// The dashboard's cycle (app.js): every session in turn in standard mode, then every session in turn in focus
+// mode, then the overview, SLOT_MS each, and round again. A slot is { mode, id, at, since }: 'standard', 'focus'
+// or 'overview', its session (none in the overview), that session's place in the list (the order they started)
+// and when the slot began. A slot whose session has gone gives way at once to the one that took its place, or,
+// past the end, to the next mode. With no sessions nothing goes round: standard mode, empty.
+export const SLOT_MS = 10000;
+const AFTER = { standard: 'focus', focus: 'overview', overview: 'standard' };
 
-export function nextSpot(sessions, spot, now, fallbackId = null) {
-  if (!sessions.length) return { id: null, since: now };
-  const i = sessions.findIndex(s => s.id === spot.id);
-  if (i < 0) return { id: (sessions.find(s => s.id === fallbackId) || sessions[0]).id, since: now };
-  if (now - spot.since < ROTATE_MS) return spot;
-  return { id: sessions[(i + 1) % sessions.length].id, since: now };
+export function nextSlot(sessions, slot, now) {
+  if (!sessions.length) return slot.mode === 'standard' && slot.id === null ? slot : { mode: 'standard', id: null, at: 0, since: now };
+  const start = (mode, at) => (mode === 'overview' ? { mode, id: null, at: 0, since: now }
+    : at < sessions.length ? { mode, id: sessions[at].id, at, since: now } : start(AFTER[mode], 0));
+  if (slot.mode === 'overview') return now - slot.since < SLOT_MS ? slot : start('standard', 0);
+  const i = sessions.findIndex(s => s.id === slot.id);
+  if (i < 0) return start(slot.mode, slot.at);
+  if (now - slot.since < SLOT_MS) return i === slot.at ? slot : { ...slot, at: i };
+  return start(slot.mode, i + 1);
 }
 
-// The centred layout's text for a session that needs you, whose turn ended or whose turn failed; null for any
-// other (it keeps the dashboard).
-export function attnView(s) {
+// A tap on a session brings it up at once for a whole slot, in the mode under way (from the overview, in standard
+// mode), and the cycle carries on from there.
+export function tapSlot(sessions, slot, id, now) {
+  const at = sessions.findIndex(s => s.id === id);
+  return at < 0 ? slot : { mode: slot.mode === 'focus' ? 'focus' : 'standard', id, at, since: now };
+}
+
+// Focus mode's text under Clawd, for any session: what it is doing, in the colour of its state.
+export function focusView(s) {
   if (!s) return null;
   const meta = [s.name || 'session', s.modelLabel, s.effort, s.contextPct == null ? null : `ctx ${s.contextPct}%`].filter(Boolean).join(' · ');
   if (s.needsYou) return { tone: 'need', title: s.detail || 'Needs you', meta };
   if (s.activity === 'done') return { tone: 'good', title: 'Your turn', meta };
   if (s.activity === 'error') return { tone: 'bad', title: 'Turn failed', meta };
-  return null;
+  if (s.activity === 'rateLimited') return { tone: 'bad', title: 'Rate limited', meta };
+  if (ACTIVE.includes(s.activity)) return { tone: 'work', title: s.detail || 'Working', meta };
+  return { tone: 'idle', title: 'Idle', meta };
 }
 
-// The centred layout gives Clawd the spotlight's first 7 s; for the rest of it (3 s of the 10) the limit bars take
-// his place. A tap on a session starts its 10 s again, so Clawd comes first.
+// Focus mode gives Clawd a slot's first 7 s; for the rest of it (3 s of the 10) the limit bars take his place.
+// A tap on a session starts its slot again, so Clawd comes first.
 export const ATTN_CLAWD_MS = 7000;
 
 export function attnLimitsUp(spot, now) {

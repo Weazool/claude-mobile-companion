@@ -1,4 +1,4 @@
-import { limitsView, sessionMeta, dotClass, nextSpot, attnView, attnLimitsUp } from './format.js';
+import { limitsView, sessionMeta, dotClass, nextSlot, tapSlot, focusView, attnLimitsUp } from './format.js';
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
@@ -128,7 +128,28 @@ function renderLimits() {
   const { bars, note } = limitsView(snap && snap.limits, Date.now(), skew);
   drawBars($('limits'), bars);
   if (saverOn) drawBars($('saverLimits'), bars, true);
+  drawRings($('rings'), bars);
   $('limitsNote').textContent = note;
+  $('ringsNote').textContent = note;
+}
+// The overview's gauges, the rings from before the bars: the track, the part used in the limit's colour from the
+// top clockwise, the percentage in the middle, and the limit's name and reset under it.
+function drawRings(box, bars) {
+  if (!box.children.length) {
+    box.innerHTML = bars.map(b => `<div class="ring" data-k="${b.key}"><svg viewBox="0 0 40 40">
+      <circle class="track" cx="20" cy="20" r="16"/>
+      <circle class="val" cx="20" cy="20" r="16" pathLength="100" transform="rotate(-90 20 20)" style="stroke:${b.color};stroke-dasharray:0 100"/>
+      </svg><div class="num"></div><div class="lbl"></div></div>`).join('');
+  }
+  for (const b of bars) {
+    const el = box.querySelector(`[data-k="${b.key}"]`);
+    el.classList.toggle('stale', b.stale);
+    el.querySelector('.val').style.strokeDasharray = `${b.fill} 100`;
+    const num = el.querySelector('.num');
+    num.textContent = b.text;
+    num.classList.toggle('hot', b.hot);
+    el.querySelector('.lbl').textContent = b.until ? `${b.gauge} · ${b.until}` : b.gauge;
+  }
 }
 // A bar per limit: its name and reset, the fill, the percentage, and (not in the screensaver's compact card)
 // ticks at the cell edges and the legend naming each hour or day, with the current one outlined.
@@ -196,7 +217,7 @@ function renderSessions() {
   edges();
 }
 
-// The list follows the spotlight, unless you touched it in the last 15 s. Spotlight mode lays the list out
+// The list follows the slot's session, unless you touched it in the last 15 s. Focus mode lays the list out
 // elsewhere, which loses its scroll, so the dashboard's is kept and put back. Faded edges say there is more.
 const LEAVE_BE_MS = 15000;
 let listTouchedAt = 0;
@@ -217,7 +238,7 @@ function followSpot(now = Date.now()) {
   else if (bottom > list.scrollTop + list.clientHeight) list.scrollTo({ top: bottom - list.clientHeight, behavior: 'smooth' });
 }
 
-// ✕ on a row and Close in spotlight mode: the server stops tracking the session until you prompt it again, it
+// ✕ on a row and Close in focus mode: the server stops tracking the session until you prompt it again, it
 // restarts or it needs you, and its next snapshot takes the session away. The control dims meanwhile, and
 // comes back if the server says no (a server started before this version has no /api/untrack).
 function untrack(id, el) {
@@ -227,37 +248,41 @@ function untrack(id, el) {
     .catch(() => el.classList.remove('closing'));
 }
 
-// ---------- the spotlight ----------
-// One session at a time is in the spotlight (format.js nextSpot): the next one every 10 s, always, or the one you
-// tap. Clawd shows it (mood.setFocus) and the layout follows it: when it needs you, its turn has ended or its turn
-// failed, Clawd moves to the middle of the top 75% with the session's details centred under him (spotlight mode,
-// #app.attn; mood.js keeps him acting it out all along), and 7 s in the limit bars take his place for the last
-// 3 s (#app.limits-up, format.js attnLimitsUp); otherwise the dashboard as always.
-let spot = { id: null, since: 0 };
-let attnKey = null;
+// ---------- the cycle ----------
+// The dashboard goes round (format.js nextSlot), 10 s a slot: every session in turn in standard mode (Clawd on
+// the left acting it out, the limit bars and the list on the right, its row lit); then every session in turn in
+// focus mode (#app.attn): Clawd in the middle of the top 75%, the session's details centred under him, and 7 s
+// in the limit bars in his place for the last 3 (#app.limits-up, format.js attnLimitsUp); then the overview
+// (#app.overview): the list on the left and the limits as rings on the right. Tap a session to bring it up at
+// once; the cycle carries on from there. Clawd shows the slot's session (mood.setFocus; none in the overview).
+let spot = { mode: 'standard', id: null, at: 0, since: 0 };
+let modeKey = null;
 function updateSpot(now = Date.now(), tapped = null) {
-  const next = tapped ? { id: tapped, since: now } : nextSpot(snap ? snap.sessions : [], spot, now, snap && snap.focusId);
-  const moved = next.id !== spot.id;
+  const sessions = snap ? snap.sessions : [];
+  const next = tapped ? tapSlot(sessions, spot, tapped, now) : nextSlot(sessions, spot, now);
+  const moved = next.id !== spot.id || next.mode !== spot.mode;
   spot = next;
   if (moved) {
     renderSessions();
     apply(mood.setFocus(spot.id, now));
   }
-  renderAttn(now);
+  renderMode(now);
   if (moved) followSpot(now);
 }
-// A session whose turn has ended gets a Close under its details: the same as its ✕ in the list.
-function renderAttn(now) {
-  const a = attnView(snap && snap.sessions.find(s => s.id === spot.id));
+// In focus mode, a session whose turn has ended gets a Close under its details: the same as its ✕ in the list.
+function renderMode(now) {
+  const a = spot.mode === 'focus' ? focusView(snap && snap.sessions.find(s => s.id === spot.id)) : null;
   const up = !!a && attnLimitsUp(spot, now);
-  const key = a ? `${spot.id}|${a.tone}|${a.title}|${a.meta}|${up}` : '';
-  if (key === attnKey) return;
-  attnKey = key;
+  const key = `${spot.mode}|${spot.id}|${a ? `${a.tone}|${a.title}|${a.meta}` : ''}|${up}`;
+  if (key === modeKey) return;
+  modeKey = key;
   const was = attnOn();
   $('app').classList.toggle('attn', !!a);
   $('app').classList.toggle('limits-up', up);
+  $('app').classList.toggle('overview', spot.mode === 'overview');
   if (!a) {
-    if (was) { list.scrollTop = listScroll; edges(); }
+    if (was) list.scrollTop = listScroll;
+    edges();
     return;
   }
   $('attnTitle').textContent = a.title;
