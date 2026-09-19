@@ -53,8 +53,9 @@ export const nextRotation = deg => (deg + 90) % 360;
 export const brightFrom = p => Math.round((BRIGHT_MIN + (1 - BRIGHT_MIN) * p) * 100) / 100;
 export const sliderFrom = b => (b - BRIGHT_MIN) / (1 - BRIGHT_MIN);
 // Where a touch lands on the slider, given how far it is (dx, dy px on the physical screen) from the middle of the
-// track and how far the knob travels. #app is turned `deg` clockwise, so the track's "up" points along
-// (sin deg, -cos deg) on the screen: at 90 deg, to the physical right.
+// track and how far the knob travels. `deg` is how far the track's "up" is turned clockwise from the physical
+// top (#app's turn, plus a quarter turn for a slider lying across), so it points along (sin deg, -cos deg) on the
+// screen: at 90 deg, to the physical right.
 export function sliderAt(deg, dx, dy, travel) {
   const a = (deg * Math.PI) / 180;
   const along = dx * Math.sin(a) - dy * Math.cos(a);

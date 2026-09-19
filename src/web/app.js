@@ -92,8 +92,11 @@ applyBrightness(settings.brightness);
 let dragId = null;
 function brightAt(e) {
   const r = slider.getBoundingClientRect();
-  const travel = slider.clientHeight - slider.querySelector('.bright-knob').offsetHeight;
-  return brightFrom(sliderAt(settings.rotation, e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2), travel));
+  const knob = slider.querySelector('.bright-knob');
+  // Upright the slider lies across the bottom (style.css): its "up" is #app's right, a quarter turn on.
+  const across = $('app').classList.contains('portrait');
+  const travel = across ? slider.clientWidth - knob.offsetWidth : slider.clientHeight - knob.offsetHeight;
+  return brightFrom(sliderAt(settings.rotation + (across ? 90 : 0), e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2), travel));
 }
 slider.addEventListener('pointerdown', e => {
   dragId = e.pointerId;
@@ -426,6 +429,7 @@ function applyLayout() {
   app.style.setProperty('--rot', `${settings.rotation}deg`);
   app.classList.toggle('landscape', layout === 'landscape');
   app.classList.toggle('portrait', layout === 'portrait');
+  $('bright').setAttribute('aria-orientation', layout === 'portrait' ? 'horizontal' : 'vertical');
   for (const r of [0, 90, 180, 270]) app.classList.toggle(`rot${r}`, r === settings.rotation); // safe-area mapping in style.css
 }
 window.addEventListener('resize', () => { applyLayout(); saverBox = null; edges(); });

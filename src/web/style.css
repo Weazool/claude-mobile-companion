@@ -27,10 +27,11 @@ html, body {
   /* Burn-in drift (app.js): --dx/--dy move the whole dashboard along the physical screen, eased over 2 s. */
   translate: var(--dx, 0px) var(--dy, 0px);
   background: var(--bg); container-type: size; display: grid; overflow: hidden;
-  box-sizing: border-box; padding: var(--sa-t) var(--pad-r) var(--sa-b) var(--sa-l);
-  /* The rail on the right: vmin is the screen's short side at every rotation. It keeps clear of the safe area, and
-     at least as far from the edge as the drift can carry it (2.5% of the screen, saver.js DRIFT). */
-  --rail: 19vmin; --rail-at: max(var(--sa-r), 2.5vmax); --pad-r: calc(var(--rail-at) + var(--rail));
+  box-sizing: border-box; padding: var(--sa-t) var(--pad-r) var(--pad-b) var(--sa-l);
+  /* The rail on the right (sideways) or along the bottom (upright): vmin is the screen's short side at every
+     rotation. It keeps clear of the safe area, and at least as far from the edge as the drift can carry it (2.5% of
+     the screen, saver.js DRIFT). */
+  --rail: 19vmin; --rail-at: max(var(--sa-r), 2.5vmax); --pad-r: calc(var(--rail-at) + var(--rail)); --pad-b: var(--sa-b);
   transition: translate 2s linear;
 }
 /* Safe areas. viewport-fit=cover lets the page run under the notch, the Dynamic Island and the home
@@ -46,7 +47,7 @@ html, body {
 #app.rot180 { --sa-t: env(safe-area-inset-bottom, 0px); --sa-r: env(safe-area-inset-left, 0px); --sa-b: env(safe-area-inset-top, 0px); --sa-l: env(safe-area-inset-right, 0px); }
 #app.rot270 { --sa-t: env(safe-area-inset-left, 0px); --sa-r: env(safe-area-inset-top, 0px); --sa-b: env(safe-area-inset-right, 0px); --sa-l: env(safe-area-inset-bottom, 0px); }
 #app.landscape { grid-template-columns: 40% 60%; }
-#app.portrait { grid-template-rows: 42% minmax(0, 1fr); }
+#app.portrait { grid-template-rows: 42% minmax(0, 1fr); --rail-at: max(var(--sa-b), 2.5vmax); --pad-r: var(--sa-r); --pad-b: calc(var(--rail-at) + var(--rail)); }
 
 /* Clawd's stage. His SVG viewBox (-16 -28 32 32) keeps the top of the square free for the flag, the Zzz and
    the confetti: his body is 12 of its 32 units (37.5% of the width) and runs from y -10 to his feet at y 0,
@@ -200,9 +201,10 @@ html, body {
 .overlay[hidden] { display: none; }
 
 
-/* The rail, down the right of the screen at every rotation: ⟲, then the brightness slider and its value, one under
-   the other, in Bootstrap's outline-primary style (a blue outline that fills when pressed). It sits in #app's
-   right padding, past the safe area, above the offline overlay. Sized in vmin, like its width.
+/* The rail, down the right of the screen sideways: ⟲, then the brightness slider and its value, one under the other,
+   in Bootstrap's outline-primary style (a blue outline that fills when pressed). Upright it runs along the bottom
+   instead, ⟲ on the left and the slider across to the right. It sits in #app's right (or bottom) padding, past the
+   safe area, above the offline overlay. Sized in vmin, like its width.
    It rests at 10% and comes up to full on a touch (app.js .awake), then fades back 5 s after the last one. */
 .rail {
   position: absolute; z-index: 55; top: var(--sa-t); bottom: var(--sa-b); right: var(--rail-at); width: var(--rail);
@@ -228,6 +230,13 @@ html, body {
 .bright-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--p) * (100% - var(--knob)) + var(--knob) / 2); background: rgb(61 139 253 / .18); }
 .bright-knob { position: absolute; left: 1.6vmin; right: 1.6vmin; bottom: calc(var(--p) * (100% - var(--knob))); height: var(--knob); background: var(--ctl); border-radius: 99px; }
 .bright-pct { flex: none; font-size: 3.2vmin; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+/* Upright: the rail along the bottom, the slider across it. --p runs from its left (0) to its right (1), and the
+   value keeps a fixed width so the slider never changes length under a drag. */
+#app.portrait .rail { top: auto; right: var(--sa-r); bottom: var(--rail-at); left: var(--sa-l); width: auto; height: var(--rail); flex-direction: row; padding: 0 4vmin; }
+#app.portrait .bright { min-height: 0; height: 12vmin; width: auto; min-width: 12vmin; }
+#app.portrait .bright-fill { top: 0; right: auto; height: auto; width: calc(var(--p) * (100% - var(--knob)) + var(--knob) / 2); }
+#app.portrait .bright-knob { top: 1.6vmin; bottom: 1.6vmin; left: calc(var(--p) * (100% - var(--knob))); right: auto; width: var(--knob); height: auto; }
+#app.portrait .bright-pct { min-width: 10vmin; text-align: right; }
 
 /* Screensaver (while Clawd sleeps): pure black, so the OLED pixels are off, and a small dim card with Clawd and
    the limit bars that glides around the screen (app.js moves it inside .saver-field, which keeps clear of the notch).

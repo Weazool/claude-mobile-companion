@@ -65,7 +65,7 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
   <img src="docs/images/focus-limits-blue.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same details">
 </p>
 
-- **The rail on the right** holds two controls, one under the other:
+- **The rail on the right** (along the bottom when the layout is upright) holds two controls, one under the other:
   - **⟲** turns the layout 90° at a time, so it works with rotation lock on.
   - **The brightness slider** runs from 10% to 100%. Drag it or tap anywhere along it. The whole screen dims evenly, edges included. Nothing dims on its own; this slider is the only brightness control.
 

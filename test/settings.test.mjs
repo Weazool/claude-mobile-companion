@@ -269,7 +269,19 @@ test('style: focus mode: Clawd 5% of the screen lower with his caption, over the
 
 test('style: the rail holds ⟲ and the brightness slider, one under the other, on the right past the safe area', () => {
   const r = styleRules();
-  assert.equal(r.get('#app').padding, 'var(--sa-t) var(--pad-r) var(--sa-b) var(--sa-l)');
+  assert.equal(r.get('#app').padding, 'var(--sa-t) var(--pad-r) var(--pad-b) var(--sa-l)');
+  // Upright the rail runs along the bottom instead: the bottom padding makes room for it, clear of the drift.
+  const up = r.get('#app.portrait');
+  assert.equal(up['--rail-at'], 'max(var(--sa-b), 2.5vmax)');
+  assert.equal(up['--pad-r'], 'var(--sa-r)');
+  assert.equal(up['--pad-b'], 'calc(var(--rail-at) + var(--rail))');
+  const low = r.get('#app.portrait .rail');
+  assert.equal(low.bottom, 'var(--rail-at)');
+  assert.equal(low.height, 'var(--rail)');
+  assert.equal(low['flex-direction'], 'row', '⟲ then the slider across');
+  assert.match(r.get('#app.portrait .bright-knob').left, /var\(--p\)/, 'the knob moves left to right');
+  const js = fs.readFileSync(path.join(ROOT, 'src/web/app.js'), 'utf8');
+  assert.match(js, /sliderAt\(settings\.rotation \+ \(across \? 90 : 0\)/, 'a slider lying across turns its "up" a quarter');
   assert.equal(r.get('#app')['--pad-r'], 'calc(var(--rail-at) + var(--rail))');
   assert.equal(r.get('#app')['--rail-at'], 'max(var(--sa-r), 2.5vmax)', 'past the safe area, and the drift (2.5%) never takes it off screen');
   const rail = r.get('.rail');
