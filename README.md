@@ -2,7 +2,7 @@
 
 **Turn the phone on your desk into a live window on Claude Code, with Clawd keeping you company.**
 
-desk-companion is a Claude Code plugin. Prop your phone up next to your keyboard and it becomes an always-on dashboard for everything Claude is doing: how much of your 5-hour, weekly and Fable limits you've used and when they reset, every active session with its model, effort, context and current step, and Clawd, Claude's little mascot, acting it all out.
+desk-companion is a Claude Code plugin. Prop your phone up next to your keyboard and it becomes an always-on dashboard for everything Claude is doing: how much of your 5-hour, weekly and Fable limits you've used and when they reset, every active session with its model, effort, context and current step, and Clawd, Claude's little mascot, acting out each session in turn.
 
 Clawd isn't a looping GIF. He's a live SVG rig with 26 hand-timed animations that follow your sessions as they happen:
 - **Your sessions at work:** he taps at a tiny laptop while Claude edits, lifts a dumbbell while it builds and runs tests, and ponders with thought dots while it thinks.
@@ -13,8 +13,8 @@ Clawd isn't a looping GIF. He's a live SVG rig with 26 hand-timed animations tha
 Everything runs on your own machine. The plugin starts a small web server on your PC, and any phone or tablet browser on the same Wi-Fi opens the dashboard. There's no app to install, no account and no cloud.
 
 <p align="center">
-  <img src="docs/images/dashboard-landscape-bars.png" width="68%" alt="The dashboard on a phone held sideways: Clawd typing at his laptop while Claude runs a command, the 5-hour, weekly and Fable limit bars with their hour and day legends, and the active session">
-  <img src="docs/images/dashboard-portrait-bars.png" width="25%" alt="The same dashboard upright">
+  <img src="docs/images/dashboard-landscape-spotlight.png" width="68%" alt="The dashboard on a phone held sideways: Clawd lifting a dumbbell while one session runs npm test, the 5-hour, weekly and Fable limit bars with their hour and day legends, and three sessions with the one in the spotlight lit up">
+  <img src="docs/images/dashboard-portrait-spotlight.png" width="25%" alt="The same dashboard upright">
 </p>
 
 <p align="center"><img src="docs/images/clawd/working.png" height="64" alt="working"> <img src="docs/images/clawd/thinking.png" height="64" alt="thinking"> <img src="docs/images/clawd/reading.png" height="64" alt="reading"> <img src="docs/images/clawd/compiling.png" height="64" alt="compiling"> <img src="docs/images/clawd/surprised.png" height="64" alt="surprised"> <img src="docs/images/clawd/cool.png" height="64" alt="cool"> <img src="docs/images/clawd/overloaded.png" height="64" alt="overloaded"> <img src="docs/images/clawd/celebration.png" height="64" alt="celebration"> <img src="docs/images/clawd/love.png" height="64" alt="love"> <img src="docs/images/clawd/sleeping.png" height="64" alt="sleeping"></p>
@@ -57,6 +57,9 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
 - **One session at a time.** Every 10 seconds the next session comes up: its row lights up and Clawd acts out what it's doing. Tap a session to bring it up at once; the rotation carries on from there.
 - **When a session needs you.** If the session that's up needs your permission, or its turn has ended or failed, the layout changes: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him. The next session still comes up 10 seconds later.
+
+<p align="center"><img src="docs/images/needs-you-landscape.png" width="68%" alt="The centred layout: Clawd hopping with a yellow exclamation mark above &quot;Needs permission&quot; and the session's project, model, effort and context"></p>
+
 - **✕** blanks the screen until you tap it (night mode).
 - **⟲** turns the layout 90° at a time, so it works with rotation lock on. The choice is remembered.
 - **Burn-in protection.** Everything is built to keep an OLED screen from burning in:
