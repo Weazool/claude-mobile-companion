@@ -1,4 +1,4 @@
-import { limitsView, sessionMeta, dotClass, visibleSessions } from './format.js';
+import { limitsView, sessionMeta, dotClass, visibleSessions, nextSpot, attnView } from './format.js';
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
@@ -117,6 +117,7 @@ function loop(now) {
 requestAnimationFrame(loop);
 setInterval(() => {
   apply(mood.tick(Date.now()));
+  updateSpot();
   updateHush();
   holdAwake();
 }, 500);
@@ -160,10 +161,9 @@ function drawBars(box, bars, compact = false) {
 // ---------- sessions ----------
 function renderSessions() {
   const list = snap ? snap.sessions : [];
-  const focusId = snap ? snap.focusId : null;
-  const { shown, more } = visibleSessions(list, focusId, 5);
+  const { shown, more } = visibleSessions(list, [spot.id, snap && snap.focusId], 5);
   $('sessions').innerHTML = shown.map(s => `
-    <div class="row${s.id === focusId ? ' focus' : ''}">
+    <div class="row${s.id === spot.id ? ' focus' : ''}" data-id="${esc(s.id)}">
       <span class="dot ${dotClass(s)}"></span>
       <div><div class="name">${esc(s.name || 'session')}</div><div class="meta${s.needsYou ? ' need' : ''}">${esc(sessionMeta(s))}</div></div>
       <div><div class="ctx"><i style="width:${s.contextPct ?? 0}%"></i></div><div class="ctxl">${s.contextPct == null ? 'ctx —' : `ctx ${s.contextPct}%`}</div></div>
@@ -171,6 +171,39 @@ function renderSessions() {
     + (more ? `<div class="more">+${more} more</div>` : '')
     + (list.length ? '' : '<div class="more">No Claude Code sessions yet</div>');
 }
+
+// ---------- the spotlight ----------
+// One session at a time is in the spotlight (format.js nextSpot): the next one every 10 s, always, or the one you
+// tap. Clawd shows it (mood.setFocus) and the layout follows it: when it needs you, its turn has ended or its turn
+// failed, Clawd moves to the middle of the top 75% with the session's details centred under him (#app.attn);
+// otherwise the dashboard as always.
+let spot = { id: null, since: 0 };
+let attnKey = null;
+function updateSpot(now = Date.now(), tapped = null) {
+  const next = tapped ? { id: tapped, since: now } : nextSpot(snap ? snap.sessions : [], spot, now, snap && snap.focusId);
+  const moved = next.id !== spot.id;
+  spot = next;
+  if (moved) {
+    renderSessions();
+    apply(mood.setFocus(spot.id, now));
+  }
+  renderAttn();
+}
+function renderAttn() {
+  const a = attnView(snap && snap.sessions.find(s => s.id === spot.id));
+  const key = a ? `${a.tone}|${a.title}|${a.meta}` : '';
+  if (key === attnKey) return;
+  attnKey = key;
+  $('app').classList.toggle('attn', !!a);
+  if (!a) return;
+  $('attnTitle').textContent = a.title;
+  $('attnTitle').className = `attn-title ${a.tone}`;
+  $('attnMeta').textContent = a.meta;
+}
+$('sessions').addEventListener('click', e => { // its own listener, so iOS turns the tap into a click
+  const row = e.target.closest('.row');
+  if (row && row.dataset.id) updateSpot(Date.now(), row.dataset.id);
+});
 
 // ---------- bubble ----------
 function setBubble(text, tone) {
@@ -209,6 +242,7 @@ function connect() {
     seen();
     render();
     apply(mood.onSnapshot(snap, Date.now()));
+    updateSpot();
     // ?settle (screenshots from headless browsers, which barely run animation frames): skip the entry
     // transitions of the first state, so the picture shows Clawd settled into it.
     if (SETTLE && !settled) { settled = true; for (let i = 0; i < 80; i++) player.update(50); view.render(player.shapes()); }
@@ -296,7 +330,8 @@ function noteHooks(s) {
 let released = true; // not holding the screen yet
 function holdAwake(now = Date.now()) {
   if (document.visibilityState === 'hidden') return; // nothing to hold; the handler below let go
-  const wanted = mood.status(now) === 'work' || keepAwakeWanted(now, hookAt, tapAt);
+  const working = !offline && !!snap && snap.sessions.some(s => dotClass(s) === 'work'); // not the last snapshot of a PC that went away
+  const wanted = working || keepAwakeWanted(now, hookAt, tapAt);
   if (wanted === !released) return;
   released = !wanted;
   if (released) { if (noSleep && noSleep.isEnabled) noSleep.disable(); }

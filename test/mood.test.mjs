@@ -253,31 +253,73 @@ test('a used-up 5-hour limit or a rate limit, once quiet, still yawns and sleeps
   assert.equal(r.tick(T0 + 2 * MIN + 2500).dim, true);
 });
 
-test('status: thinking, reading, working and compiling are one status; needs, your turn and idle are their own', () => {
-  const m = makeMood({}, { rand: mid }); // status() is not a command
-  m.onSnapshot(snap([sess('thinking', { detail: 'Thinking…' })]), T0);
-  assert.equal(m.status(T0), 'work');
-  m.onSnapshot(snap([sess('working', { detail: 'Editing a' })]), T0 + 2000);
-  assert.equal(m.status(T0 + 2000), 'work');
-  m.onSnapshot(snap([sess('thinking', { needsYou: true, detail: 'Needs permission' })]), T0 + 3000);
-  assert.equal(m.status(T0 + 3000), 'needs');
-  m.onSnapshot(snap([sess('done')]), T0 + 4000);
-  m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 4001);
-  assert.equal(m.status(T0 + 4001), 'done');
-  m.tick(T0 + 8000);
-  assert.equal(m.status(T0 + 8000), 'idle');
+test('status: every session\'s state counts; the spotlight moving between sessions does not', () => {
+  const m = makeMood({}, { rand: mid }); // status() and setFocus() are read directly
+  const a = sess('working', { id: 'a', detail: 'Editing x' });
+  const b = sess('done', { id: 'b', detail: 'Your turn' });
+  m.onSnapshot(snap([a, b]), T0);
+  const s0 = m.status(T0);
+  m.setFocus('b', T0 + 1000);
+  assert.equal(m.status(T0 + 1000), s0, 'the rotation is not a new status');
+  m.onSnapshot(snap([sess('thinking', { id: 'a', detail: 'Thinking…' }), b]), T0 + 2000);
+  assert.equal(m.status(T0 + 2000), s0, 'reading, working, thinking: all one stretch of work');
+  m.onSnapshot(snap([sess('working', { id: 'a', needsYou: true, detail: 'Needs permission' }), b]), T0 + 3000);
+  assert.notEqual(m.status(T0 + 3000), s0, 'a permission prompt is');
+  m.onSnapshot(snap([sess('done', { id: 'a' }), b], five(100)), T0 + 4000);
+  const s1 = m.status(T0 + 4000);
+  m.onSnapshot(snap([sess('done', { id: 'a' }), b], five(100)), T0 + 5000);
+  assert.equal(m.status(T0 + 5000), s1);
+  m.setOffline(true, T0 + 6000);
+  assert.equal(m.status(T0 + 6000), 'offline');
 });
 
-test('status: at a used-up limit a permission prompt and your turn still count as new statuses', () => {
-  const m = makeMood({}, { rand: mid });
-  m.onSnapshot(snap([sess('working', { detail: 'x' })], five(100)), T0);
-  assert.equal(m.status(T0), 'overloaded');
-  m.onSnapshot(snap([sess('working', { needsYou: true, detail: 'Needs permission' })], five(100)), T0 + MIN);
-  assert.equal(m.status(T0 + MIN), 'needs');
-  m.onSnapshot(snap([sess('done')], five(100)), T0 + 2 * MIN);
-  m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 2 * MIN + 1);
-  assert.equal(m.status(T0 + 2 * MIN + 1), 'done');
-  assert.equal(m.status(T0 + 2 * MIN + 3001), 'overloaded');
+test('setFocus: Clawd shows the spotlight session, without the startle or the dwell', () => {
+  const m = createMood({}, { rand: mid });
+  const a = sess('working', { id: 'a', detail: 'Editing x' });
+  const b = sess('done', { id: 'b', detail: 'Your turn' });
+  const c = sess('thinking', { id: 'c', detail: 'Thinking…' });
+  assert.equal(m.onSnapshot(snap([a, b, c], {}, 'a'), T0).base, 'working');
+  assert.deepEqual(m.setFocus('b', T0 + 10000), { base: 'idle', play: [], bubble: null, dim: false });
+  assert.deepEqual(m.setFocus('c', T0 + 20000), { base: 'thinking', play: [], bubble: { text: 'Thinking…', tone: '' }, dim: false }, 'no surprised');
+  assert.equal(m.setFocus('a', T0 + 20100).base, 'working', 'no 1.5 s dwell either');
+  assert.equal(m.setFocus('a', T0 + 20200), null, 'the same session again changes nothing');
+});
+
+test('a Your turn or error moment stays with its session when the spotlight moves to a busy one', () => {
+  const m = createMood({}, { rand: mid });
+  const a = sess('working', { id: 'a', detail: 'Editing x' });
+  const b = sess('working', { id: 'b', detail: 'Editing y' });
+  m.onSnapshot(snap([a, b], {}, 'a'), T0);
+  m.setFocus('a', T0);
+  m.onSnapshot(snap([sess('done', { id: 'a' }), b], {}, 'b'), T0 + 8000);
+  assert.equal(m.onEvent({ type: 'stop', sessionId: 'a' }, T0 + 8001).base, 'happy_eyes');
+  assert.deepEqual(m.setFocus('b', T0 + 10000), { base: 'working', play: [], bubble: { text: 'Editing y', tone: '' }, dim: false });
+  assert.equal(m.tick(T0 + 11500), null, 'no startle when the moment runs out');
+});
+
+test('when the spotlight\'s session ends, falling back to the server focus is silent', () => {
+  const m = createMood({}, { rand: mid });
+  const a = sess('done', { id: 'a' });
+  const b = sess('working', { id: 'b', detail: 'Editing y' });
+  m.onSnapshot(snap([a, b], {}, 'b'), T0);
+  m.setFocus('a', T0 + 1000);
+  const c = m.onSnapshot(snap([b], {}, 'b'), T0 + 5000);
+  assert.deepEqual([c.base, c.play], ['working', []]);
+});
+
+test('with the spotlight on an idle session he stays awake while another works', () => {
+  const m = createMood({ sleepAfterMin: 2 }, { rand: mid });
+  const a = sess('compiling', { id: 'a', detail: 'Running npm test' });
+  const b = sess('done', { id: 'b', detail: 'Your turn' });
+  m.onSnapshot(snap([a, b], {}, 'a'), T0);
+  m.setFocus('b', T0 + 1000);
+  for (let t = T0 + 1500; t <= T0 + 6 * MIN; t += 500) {
+    const c = m.tick(t);
+    assert.ok(!c || (!c.dim && c.base !== 'yawning'), `t=${t - T0}`);
+  }
+  m.onSnapshot(snap([sess('done', { id: 'a' }), b], {}, 'a'), T0 + 6 * MIN);
+  m.tick(T0 + 8 * MIN);
+  assert.equal(m.tick(T0 + 8 * MIN + 2500).dim, true, 'all quiet: now he sleeps');
 });
 
 test('at a used-up limit he stays up while Claude works on, with no snapshot for minutes', () => {

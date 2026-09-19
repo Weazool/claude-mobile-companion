@@ -49,6 +49,9 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
     return snap.sessions.find(s => s.id === id) || null;
   }
   const busy = f => !!f && (ACTIVE.has(f.activity) || f.needsYou);
+  // Any session at work or waiting on you: the page's spotlight may show an idle one meanwhile, and he must not
+  // doze off while another works.
+  const anyBusy = () => !!snap && snap.sessions.some(busy);
 
   function target(now) {
     if (offline) return { mode: 'offline', base: base('offline'), bubble: null, dim: false };
@@ -57,7 +60,7 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
     const p5 = pctOf(L.fiveHour);
     const pw = pctOf(L.week);
     const pf = pctOf(L.fable);
-    const tr = live(now);
+    let tr = live(now);
     const resting = st.asleep || (tr && tr.kind === 'yawn'); // quiet at the limit, he still falls asleep
     if (!resting && ((p5 !== null && p5 >= 100) || (f && f.activity === 'rateLimited'))) {
       const reached = p5 !== null && p5 >= 100;
@@ -65,6 +68,7 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
       return { mode: 'overloaded', base: base(reached ? 'limitReached' : 'rateLimited'), bubble: { text, tone: 'bad' } };
     }
     if (f && f.needsYou) return { mode: 'needs', base: base('needsYou'), bubble: { text: f.detail || 'Needs you', tone: 'need' } };
+    if (tr && tr.sessionId && f && f.id !== tr.sessionId && busy(f)) tr = null; // another session's moment: the spotlight moved on
     if (tr && tr.kind === 'done') return { mode: 'done', base: base('yourTurn'), bubble: { text: 'Your turn', tone: 'good' } };
     if (tr && (tr.kind === 'error' || tr.kind === 'angry')) {
       return { mode: 'error', base: base(tr.kind === 'angry' ? 'errorRepeated' : 'error'), bubble: { text: 'Error', tone: 'bad' } };
@@ -99,13 +103,15 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
 
   function out(now) {
     let t = target(now);
-    if (ACTIVE.has(t.mode) && ACTIVE.has(st.mode) && t.mode !== st.mode && now - st.since < DWELL_MS) {
+    const silent = st.silent; // the spotlight moved: a new session, not news
+    st.silent = false;
+    if (!silent && ACTIVE.has(t.mode) && ACTIVE.has(st.mode) && t.mode !== st.mode && now - st.since < DWELL_MS) {
       t = { ...t, mode: st.mode, base: base(st.mode) }; // hold the animation, still update the bubble
     }
     const play = st.plays;
     st.plays = [];
     if (t.mode !== st.mode) {
-      if (!play.length) play.push(...entryPlays(st.mode, t.mode));
+      if (!play.length && !silent) play.push(...entryPlays(st.mode, t.mode));
       st.mode = t.mode;
       st.since = now;
       st.escalated = false;
@@ -141,7 +147,8 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
       init(now);
       const prev = snap && snap.limits;
       snap = s;
-      if (busy(focus())) { touch(now); wake(now); }
+      if (S.pinnedId && !s.sessions.some(x => x.id === S.pinnedId)) st.silent = true; // the spotlight's session left: it falls back
+      if (anyBusy()) { touch(now); wake(now); }
       if (prev && s.limits) {
         for (const k of ['fiveHour', 'week', 'fable']) {
           const a = pctOf(prev[k]);
@@ -170,14 +177,14 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
             // The Stop snapshot, sent just before this event, may have started a celebration: run it after "Your turn".
             const tr = st.transient;
             if (tr && tr.kind === 'celebrate' && now - tr.since < 1000) st.pendingCelebrate = true;
-            st.transient = { kind: 'done', since: now, until: now + 3000 };
+            st.transient = { kind: 'done', since: now, until: now + 3000, sessionId: ev.sessionId };
             st.plays = list(B.turnDone);
           }
           break;
         case 'error':
           touch(now);
           st.errors += 1;
-          if (!f || f.id === ev.sessionId || !busy(f)) st.transient = { kind: st.errors >= 3 ? 'angry' : 'error', since: now, until: now + 5000 };
+          if (!f || f.id === ev.sessionId || !busy(f)) st.transient = { kind: st.errors >= 3 ? 'angry' : 'error', since: now, until: now + 5000, sessionId: ev.sessionId };
           break;
         case 'sessionStart':
           touch(now);
@@ -220,23 +227,31 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
         const p5 = pctOf(snap && snap.limits && snap.limits.fiveHour);
         if (p5 !== null && p5 <= 5 && rand() < 1 / 1200) st.transient = { kind: 'cool', since: now, until: now + 8000 };
       }
-      const overloadedAtWork = st.mode === 'overloaded' && busy(focus()); // he stays up while Claude works on at the limit
-      if (QUIET.has(st.mode) && !overloadedAtWork && !st.asleep && !st.transient && now - st.lastActiveAt >= S.sleepAfterMin * 60000) {
+      if (QUIET.has(st.mode) && !anyBusy() && !st.asleep && !st.transient && now - st.lastActiveAt >= S.sleepAfterMin * 60000) {
         st.transient = { kind: 'yawn', since: now, until: now + 2500 };
       }
       return out(now);
     },
 
-    // The status the dashboard shows, for the page's half brightness: the mode, with thinking, reading, working and
-    // compiling all 'work' (one stretch of Claude at work). A used-up limit's red face covers a permission prompt
-    // and the end of a turn, but those still count as a new status, so the screen comes back to full for them.
+    // The page's spotlight (app.js moves it every 10 s, or to a session you tap): Clawd shows that session. The
+    // switch is not news, so it skips the startle and the sideways dwell.
+    setFocus(id, now) {
+      init(now);
+      if (S.pinnedId === id) return null;
+      S.pinnedId = id;
+      st.silent = true;
+      return out(now);
+    },
+
+    // What the page's half brightness watches: every session's state (thinking, reading, working and compiling are
+    // all 'work'), a live moment (your turn, an error, waking up...), a used-up 5-hour limit and the connection.
+    // The spotlight moving between sessions changes none of it, so the rotation never counts as a new status.
     status(now) {
-      const s = ACTIVE.has(st.mode) ? 'work' : st.mode;
-      if (s !== 'overloaded') return s;
-      const f = focus();
+      if (offline) return 'offline';
       const tr = live(now);
-      if (f && f.needsYou) return 'needs';
-      return tr && tr.kind === 'done' ? 'done' : s;
+      const each = (snap ? snap.sessions : []).map(s => `${s.id}:${s.needsYou ? 'needs' : ACTIVE.has(s.activity) ? 'work' : s.activity}`);
+      const p5 = pctOf(snap && snap.limits && snap.limits.fiveHour);
+      return [...each, tr ? tr.kind : '', p5 !== null && p5 >= 100 ? 'full' : ''].join('|');
     },
 
     setSettings(partial) { S = { ...S, ...partial }; },

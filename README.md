@@ -55,6 +55,8 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
 ## <img src="docs/images/clawd/cool.png" height="40" alt="" align="absmiddle"> On the phone
 
+- **One session at a time.** Every 10 seconds the next session comes up: its row lights up and Clawd acts out what it's doing. Tap a session to bring it up at once; the rotation carries on from there.
+- **When a session needs you.** If the session that's up needs your permission, or its turn has ended or failed, the layout changes: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him. The next session still comes up 10 seconds later.
 - **✕** blanks the screen until you tap it (night mode).
 - **⟲** turns the layout 90° at a time, so it works with rotation lock on. The choice is remembered.
 - **Burn-in protection.** Everything is built to keep an OLED screen from burning in:

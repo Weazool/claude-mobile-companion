@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatReset, resetLine, limitsView, sessionMeta, dotClass, visibleSessions, STALE_MS } from '../src/web/format.js';
+import { formatReset, resetLine, limitsView, sessionMeta, dotClass, visibleSessions, STALE_MS, nextSpot, attnView, ROTATE_MS } from '../src/web/format.js';
 
 const MIN = 60000;
 
@@ -59,4 +59,36 @@ test('visibleSessions keeps the focus session visible', () => {
   assert.deepEqual(r.shown.map(s => s.id), ['a', 'b', 'c', 'd', 'g']);
   assert.equal(r.more, 2);
   assert.deepEqual(visibleSessions([], null, 5), { shown: [], more: 0 });
+});
+
+test('nextSpot: the next session every 10 s in list order, wrapping round; a gone one moves to the focus', () => {
+  const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.deepEqual(nextSpot(list, { id: null, since: 0 }, 5, 'b'), { id: 'b', since: 5 });
+  const s = { id: 'b', since: 5 };
+  assert.equal(nextSpot(list, s, 5 + ROTATE_MS - 1), s);
+  assert.deepEqual(nextSpot(list, s, 5 + ROTATE_MS), { id: 'c', since: 5 + ROTATE_MS });
+  assert.deepEqual(nextSpot(list, { id: 'c', since: 0 }, ROTATE_MS), { id: 'a', since: ROTATE_MS });
+  assert.deepEqual(nextSpot(list, { id: 'x', since: 0 }, 7, 'zz'), { id: 'a', since: 7 });
+  assert.deepEqual(nextSpot([], { id: 'a', since: 0 }, 9), { id: null, since: 9 });
+  assert.deepEqual(nextSpot([{ id: 'a' }], { id: 'a', since: 0 }, ROTATE_MS), { id: 'a', since: ROTATE_MS }, 'one session stays');
+});
+
+test('attnView: needs you, your turn and a failed turn get the centred layout; work and idle do not', () => {
+  const s = { id: 'a', name: 'proj', modelLabel: 'Opus 5', effort: 'high', contextPct: 38, activity: 'working', detail: 'Editing x', needsYou: false };
+  assert.equal(attnView(s), null);
+  assert.equal(attnView({ ...s, activity: 'idle', detail: '' }), null);
+  assert.equal(attnView(null), null);
+  assert.deepEqual(attnView({ ...s, needsYou: true, detail: 'Needs permission' }), { tone: 'need', title: 'Needs permission', meta: 'proj · Opus 5 · high · ctx 38%' });
+  assert.deepEqual(attnView({ ...s, activity: 'done', detail: 'Your turn' }), { tone: 'good', title: 'Your turn', meta: 'proj · Opus 5 · high · ctx 38%' });
+  assert.equal(attnView({ ...s, activity: 'error', contextPct: null }).meta, 'proj · Opus 5 · high');
+  assert.equal(attnView({ ...s, activity: 'error' }).title, 'Turn failed');
+});
+
+test('visibleSessions keeps both the spotlight and the session waiting on you, in list order', () => {
+  const list = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(id => ({ id }));
+  const ids = r => r.shown.map(s => s.id).join('');
+  assert.equal(ids(visibleSessions(list, ['b', null], 5)), 'abcde');
+  assert.equal(ids(visibleSessions(list, ['f', 'g'], 5)), 'abcfg');
+  assert.equal(ids(visibleSessions(list, ['g', 'g'], 5)), 'abcdg');
+  assert.equal(visibleSessions(list, ['f', 'g'], 5).more, 2);
 });

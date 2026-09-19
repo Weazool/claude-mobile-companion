@@ -91,10 +91,37 @@ export function dotClass(s) {
   return 'idle';
 }
 
-export function visibleSessions(list, focusId, max = 5) {
+// The session in the spotlight (app.js): Clawd shows it and the layout follows it. Every ROTATE_MS the next
+// session in the list takes over (the order they started, wrapping round), whatever is going on; a tap on a
+// session puts it there at once (app.js sets { id, since: now }) and its 10 s start from then. A spotlight whose
+// session has gone moves to the server's focus, else to the first session.
+export const ROTATE_MS = 10000;
+
+export function nextSpot(sessions, spot, now, fallbackId = null) {
+  if (!sessions.length) return { id: null, since: now };
+  const i = sessions.findIndex(s => s.id === spot.id);
+  if (i < 0) return { id: (sessions.find(s => s.id === fallbackId) || sessions[0]).id, since: now };
+  if (now - spot.since < ROTATE_MS) return spot;
+  return { id: sessions[(i + 1) % sessions.length].id, since: now };
+}
+
+// The centred layout's text for a session that needs you, whose turn ended or whose turn failed; null for any
+// other (it keeps the dashboard).
+export function attnView(s) {
+  if (!s) return null;
+  const meta = [s.name || 'session', s.modelLabel, s.effort, s.contextPct == null ? null : `ctx ${s.contextPct}%`].filter(Boolean).join(' · ');
+  if (s.needsYou) return { tone: 'need', title: s.detail || 'Needs you', meta };
+  if (s.activity === 'done') return { tone: 'good', title: 'Your turn', meta };
+  if (s.activity === 'error') return { tone: 'bad', title: 'Turn failed', meta };
+  return null;
+}
+
+// The first `max` sessions, in list order, always including the ones in keepIds (one id or a list: the spotlight
+// and the server's focus, which puts a session waiting on you first).
+export function visibleSessions(list, keepIds, max = 5) {
   if (list.length <= max) return { shown: list.slice(), more: 0 };
-  let shown = list.slice(0, max);
-  const focus = list.find(s => s.id === focusId);
-  if (focus && !shown.includes(focus)) shown = shown.slice(0, max - 1).concat(focus);
+  const keep = new Set([].concat(keepIds).filter(id => list.some(s => s.id === id)));
+  let room = max - keep.size;
+  const shown = list.filter(s => keep.has(s.id) || (room > 0 && room-- > 0));
   return { shown, more: list.length - max };
 }

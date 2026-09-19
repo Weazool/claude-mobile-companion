@@ -108,6 +108,7 @@ html, body {
 
 .sessions { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .row { display: grid; grid-template-columns: 2.4cqmin minmax(0, 1fr) 18cqmin; gap: 2cqmin; align-items: center; padding: 1.6cqmin 1cqmin; border-top: 1px solid var(--line); border-radius: 1.2cqmin; }
+.row { cursor: pointer; transition: background .3s; }
 .row.focus { background: #14141c; }
 .name { font-size: 3.6cqmin; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .meta { font-size: 2.8cqmin; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -121,6 +122,23 @@ html, body {
 .ctx i { --c: #9d9daa; position: relative; display: block; height: 100%; border-radius: inherit; overflow: hidden; transition: width .6s; }
 .ctxl { font-size: 2.5cqmin; color: var(--dim); text-align: right; margin-top: .6cqmin; }
 .more { font-size: 2.7cqmin; color: var(--dim); padding: 1.4cqmin 1cqmin; }
+
+/* The centred layout (app.js #app.attn): the spotlight's session needs you, its turn has ended or failed. Clawd
+   takes the top 75%: the square is sized so everything from the flag's tip (19% down it) to his feet (87.5%)
+   fits the stage, and that span is centred in it (its middle is 53.25% down the square). The session's details sit
+   centred in the bottom 25%; the limits and the list step aside. */
+.attn-card { display: none; }
+#app.attn { grid-template-columns: 100%; grid-template-rows: 75% 25%; }
+#app.attn .data { position: absolute; visibility: hidden; } /* not display:none, which would restart the bars' flow */
+#app.attn .stage { --mascot: min(92cqw, 104cqh); background: none; } /* the glow would end in a line above the details */
+#app.attn #mascot { top: calc(50% - 0.5325 * var(--mascot)); }
+#app.attn .bubble { display: none; }
+#app.attn .attn-card { display: flex; flex-direction: column; align-items: center; gap: 1.2cqmin; min-width: 0; padding: 1cqmin 6cqmin 0; text-align: center; }
+.attn-title { max-width: 100%; font-size: 6cqmin; font-weight: 700; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attn-title.need { color: #ffcf70; }
+.attn-title.good { color: var(--good); }
+.attn-title.bad { color: #ff9d8c; }
+.attn-meta { max-width: 100%; font-size: 3.4cqmin; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .controls { position: absolute; top: calc(3cqmin + var(--sa-t)); right: calc(4cqmin + var(--sa-r)); display: flex; gap: 3cqmin; z-index: 55; } /* above #offline */
 .controls button { background: none; border: 0; color: var(--text); opacity: .45; font-size: 4.4cqmin; line-height: 1; cursor: pointer; padding: 1cqmin; }
