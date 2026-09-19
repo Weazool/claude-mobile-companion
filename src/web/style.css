@@ -123,10 +123,10 @@ html, body {
 .ctxl { font-size: 2.5cqmin; color: var(--dim); text-align: right; margin-top: .6cqmin; }
 .more { font-size: 2.7cqmin; color: var(--dim); padding: 1.4cqmin 1cqmin; }
 
-/* The centred layout (app.js #app.attn): the spotlight's session needs you, its turn has ended or failed. Clawd
-   takes the top 75%, his body centred in it both ways (#mascot's usual top puts his middle, 71.875% down the
-   square, at the stage's centre). With his body there, the space above him is what is left for the "!", the
-   "?", the flag and the hop that goes with them, so the square is 72cqh of the 75cqh stage in landscape: the
+/* The centred layout, spotlight mode (app.js #app.attn): the spotlight's session needs you, its turn has ended or
+   failed. Clawd takes the top 75%, his body centred in it both ways (#mascot's usual top puts his middle, 71.875%
+   down the square, at the stage's centre). With his body there, the space above him is what is left for the "!",
+   the "?", the flag and the hop that goes with them, so the square is 72cqh of the 75cqh stage in landscape: the
    flag's tip (19% down the square) just clears the top edge. The session's details sit centred in the bottom
    25%; the limits and the list step aside. */
 .attn-card { display: none; }

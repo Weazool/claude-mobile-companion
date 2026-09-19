@@ -108,8 +108,8 @@
         steps: [[0, () => base('sleeping', 'sleeping')], [4000, () => { base('idle', 'wake'); player.play(['yawning', 'surprised', 'love']); }], [6900, () => setBubble('')]],
       },
       flow_turn: {
-        label: 'Your turn', hint: 'needs you, then surprised, happy_eyes',
-        steps: [[0, () => base(['surprised', 'curious'], 'needs')], [4300, () => { base('happy_eyes', 'happy_eyes'); player.play('surprised'); }], [7300, () => base('idle', '')]],
+        label: 'Your turn', hint: 'needs you, then surprised, happy_eyes until the spotlight moves on',
+        steps: [[0, () => base(['surprised', 'curious'], 'needs')], [4300, () => { base('happy_eyes', 'happy_eyes'); player.play('surprised'); }], [14300, () => base('idle', '')]],
       },
       flow_fresh: {
         label: 'Fresh limits', hint: 'jumping_joy, happy, cool',

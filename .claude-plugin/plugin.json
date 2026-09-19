@@ -1,6 +1,6 @@
 {
   "name": "desk-companion",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Live Claude Code dashboard with an animated companion, served to a phone on your Wi-Fi",
   "author": { "name": "Weazool" },
   "license": "MIT",

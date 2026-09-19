@@ -26,8 +26,8 @@ const mid = () => 0.5;
 
 test('starts idle; an unchanged snapshot yields no command', () => {
   const m = createMood({}, { rand: mid });
-  assert.deepEqual(m.onSnapshot(snap([sess('done', { detail: 'Your turn' })]), T0), { base: 'idle', play: [], bubble: null, dim: false });
-  assert.equal(m.onSnapshot(snap([sess('done', { detail: 'Your turn' })]), T0 + 10), null);
+  assert.deepEqual(m.onSnapshot(snap([sess('idle')]), T0), { base: 'idle', play: [], bubble: null, dim: false });
+  assert.equal(m.onSnapshot(snap([sess('idle')]), T0 + 10), null);
 });
 
 test('a prompt: surprised into thinking; the first prompt of the day adds love', () => {
@@ -79,14 +79,15 @@ test('needs you: surprised and curious alternate with an amber bubble, then back
   assert.equal(m.onSnapshot(snap([sess('compiling', { detail: 'Running npm test' })]), T0 + 5000).base, 'compiling');
 });
 
-test('stop: surprised, then happy eyes for 3 s, then idle', () => {
+test('stop: surprised, then happy eyes for as long as it is your turn (spotlight mode), then back to work', () => {
   const m = createMood({}, { rand: mid });
   m.onSnapshot(snap([sess('working', { detail: 'x' })]), T0);
   m.onSnapshot(snap([sess('done', { detail: 'Your turn' })]), T0 + 1000);
   assert.deepEqual(m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 1001),
     { base: 'happy_eyes', play: ['surprised'], bubble: { text: 'Your turn', tone: 'good' }, dim: false });
-  assert.equal(m.tick(T0 + 3500), null);
-  assert.deepEqual(m.tick(T0 + 4002), { base: 'idle', play: [], bubble: null, dim: false });
+  assert.equal(m.tick(T0 + 4002), null, 'the moment has passed, but it is still your turn');
+  assert.equal(m.tick(T0 + MIN), null);
+  assert.equal(m.onSnapshot(snap([sess('thinking', { detail: 'Thinking…' })]), T0 + MIN + 1).base, 'thinking');
 });
 
 test('a background session finishing does not interrupt the focus session', () => {
@@ -97,11 +98,11 @@ test('a background session finishing does not interrupt the focus session', () =
 
 test('limit moods while idle: 50 low (with surprised), 80 sad, 95 ending; activity wins', () => {
   const m = createMood({}, { rand: mid });
-  m.onSnapshot(snap([sess('done')], five(40)), T0);
-  assert.deepEqual(m.onSnapshot(snap([sess('done')], five(55)), T0 + 1000),
+  m.onSnapshot(snap([sess('idle')], five(40)), T0);
+  assert.deepEqual(m.onSnapshot(snap([sess('idle')], five(55)), T0 + 1000),
     { base: 'low_tokens', play: ['surprised'], bubble: { text: '5-hour at 55%', tone: '' }, dim: false });
-  assert.equal(m.onSnapshot(snap([sess('done')], five(83)), T0 + 2000).base, 'sad');
-  assert.equal(m.onSnapshot(snap([sess('done')], five(96)), T0 + 3000).base, 'ending');
+  assert.equal(m.onSnapshot(snap([sess('idle')], five(83)), T0 + 2000).base, 'sad');
+  assert.equal(m.onSnapshot(snap([sess('idle')], five(96)), T0 + 3000).base, 'ending');
   assert.equal(m.onSnapshot(snap([sess('working', { detail: 'x' })], five(96)), T0 + 4000).base, 'working');
 });
 
@@ -115,14 +116,14 @@ test('100% or rate limited is overloaded, even while working', () => {
 
 test('week or Fable near the cap only shows while idle', () => {
   const m = createMood({}, { rand: mid });
-  assert.deepEqual(m.onSnapshot(snap([sess('done')], { week: { pct: 96, resetsAt: null } }), T0).bubble, { text: 'Week at 96%', tone: 'bad' });
-  assert.equal(m.onSnapshot(snap([sess('done')], { fable: { pct: 100, resetsAt: null } }), T0 + 1).base, 'overloaded');
+  assert.deepEqual(m.onSnapshot(snap([sess('idle')], { week: { pct: 96, resetsAt: null } }), T0).bubble, { text: 'Week at 96%', tone: 'bad' });
+  assert.equal(m.onSnapshot(snap([sess('idle')], { fable: { pct: 100, resetsAt: null } }), T0 + 1).base, 'overloaded');
   assert.equal(m.onSnapshot(snap([sess('reading', { detail: 'r' })], { fable: { pct: 100, resetsAt: null } }), T0 + 2).base, 'reading');
 });
 
 test('a week or Fable limit at 100% still yawns and sleeps once quiet', () => {
   const m = createMood({ sleepAfterMin: 5 }, { rand: mid });
-  assert.equal(m.onSnapshot(snap([sess('done')], { fable: { pct: 100, resetsAt: null } }), T0).base, 'overloaded');
+  assert.equal(m.onSnapshot(snap([sess('idle')], { fable: { pct: 100, resetsAt: null } }), T0).base, 'overloaded');
   assert.equal(m.tick(T0 + 4 * MIN), null);
   assert.deepEqual(m.tick(T0 + 5 * MIN), { base: 'yawning', play: [], bubble: null, dim: false });
   assert.deepEqual(m.tick(T0 + 5 * MIN + 2500), { base: 'sleeping', play: [], bubble: { text: 'Zzz…', tone: '' }, dim: true });
@@ -130,8 +131,8 @@ test('a week or Fable limit at 100% still yawns and sleeps once quiet', () => {
 
 test('a reset celebrates (jumping joy, happy, cool, idle) and waits while busy', () => {
   const m = createMood({}, { rand: mid });
-  m.onSnapshot(snap([sess('done')], five(100)), T0);
-  const c = m.onSnapshot(snap([sess('done')], five(2)), T0 + 1000);
+  m.onSnapshot(snap([sess('idle')], five(100)), T0);
+  const c = m.onSnapshot(snap([sess('idle')], five(2)), T0 + 1000);
   assert.deepEqual([c.base, c.play, c.bubble.text], ['happy', ['jumping_joy'], 'Fresh limits!']);
   assert.equal(m.tick(T0 + 1000 + 5700).base, 'cool');
   assert.equal(m.tick(T0 + 1000 + 13700).base, 'idle');
@@ -139,7 +140,7 @@ test('a reset celebrates (jumping joy, happy, cool, idle) and waits while busy',
   const busy = createMood({}, { rand: mid });
   busy.onSnapshot(snap([sess('working', { detail: 'x' })], five(40)), T0);
   assert.equal(busy.onSnapshot(snap([sess('working', { detail: 'x' })], five(3)), T0 + 1000), null);
-  assert.deepEqual(busy.onSnapshot(snap([sess('done')], five(3)), T0 + 5000).play, ['jumping_joy']);
+  assert.deepEqual(busy.onSnapshot(snap([sess('idle')], five(3)), T0 + 5000).play, ['jumping_joy']);
 });
 
 test('a celebration that waited for work survives the stop that ends the work', () => {
@@ -156,15 +157,18 @@ test('a celebration that waited for work survives the stop that ends the work', 
   assert.equal(c.base, 'happy');
 });
 
-test('errors show for 5 s; the third in a row is angry; a prompt resets the count', () => {
+test('a failed turn shows error while its session is in the spotlight; the third in a row is angry; a prompt resets the count', () => {
   const m = createMood({}, { rand: mid });
-  m.onSnapshot(snap([sess('error', { detail: 'Error' })]), T0);
-  assert.equal(m.onEvent({ type: 'error', sessionId: 's1' }, T0 + 1).base, 'error');
-  m.onEvent({ type: 'error', sessionId: 's1' }, T0 + 2);
-  assert.equal(m.onEvent({ type: 'error', sessionId: 's1' }, T0 + 3).base, 'angry');
-  assert.equal(m.tick(T0 + 5004).base, 'idle');
+  m.onSnapshot(snap([sess('working', { detail: 'x' })]), T0);
+  const failed = snap([sess('error', { detail: 'Error' })]);
+  assert.deepEqual(m.onSnapshot(failed, T0 + 1), { base: 'error', play: [], bubble: { text: 'Error', tone: 'bad' }, dim: false }); // the snapshot comes first,
+  assert.equal(m.onEvent({ type: 'error', sessionId: 's1' }, T0 + 2), null); // then its event: already showing
+  m.onEvent({ type: 'error', sessionId: 's1' }, T0 + 3);
+  assert.equal(m.onEvent({ type: 'error', sessionId: 's1' }, T0 + 4).base, 'angry');
+  assert.equal(m.tick(T0 + 5005), null, 'the moment has passed, the turn is still failed: still angry');
   m.onEvent({ type: 'prompt', sessionId: 's1' }, T0 + 6000);
-  assert.equal(m.onEvent({ type: 'error', sessionId: 's1' }, T0 + 7000).base, 'error');
+  m.onSnapshot(snap([sess('thinking', { detail: 'Thinking…' })]), T0 + 6001);
+  assert.equal(m.onSnapshot(failed, T0 + 7000).base, 'error', 'the count starts again');
 });
 
 test('an error from a background session does not interrupt a busy focus session, but still counts', () => {
@@ -179,7 +183,7 @@ test('an error from a background session does not interrupt a busy focus session
 
 test('a new session: curious while idle, nothing while busy', () => {
   const m = createMood({}, { rand: mid });
-  m.onSnapshot(snap([sess('done')]), T0);
+  m.onSnapshot(snap([sess('idle')]), T0);
   assert.deepEqual(m.onEvent({ type: 'sessionStart', sessionId: 's2' }, T0 + 10), { base: 'idle', play: ['curious'], bubble: null, dim: false });
   const b = createMood({}, { rand: mid });
   b.onSnapshot(snap([sess('working', { detail: 'x' })]), T0);
@@ -210,7 +214,7 @@ test('tap plays a random reaction and wakes a sleeping companion', () => {
 
 test('plenty left: a rare cool moment while idle', () => {
   const m = createMood({}, { rand: () => 0 });
-  m.onSnapshot(snap([sess('done')], five(3)), T0);
+  m.onSnapshot(snap([sess('idle')], five(3)), T0);
   assert.equal(m.tick(T0 + 500).base, 'cool');
   assert.equal(m.tick(T0 + 8600).base, 'idle');
 });
@@ -279,10 +283,22 @@ test('setFocus: Clawd shows the spotlight session, without the startle or the dw
   const b = sess('done', { id: 'b', detail: 'Your turn' });
   const c = sess('thinking', { id: 'c', detail: 'Thinking…' });
   assert.equal(m.onSnapshot(snap([a, b, c], {}, 'a'), T0).base, 'working');
-  assert.deepEqual(m.setFocus('b', T0 + 10000), { base: 'idle', play: [], bubble: null, dim: false });
+  assert.deepEqual(m.setFocus('b', T0 + 10000), { base: 'happy_eyes', play: [], bubble: { text: 'Your turn', tone: 'good' }, dim: false });
   assert.deepEqual(m.setFocus('c', T0 + 20000), { base: 'thinking', play: [], bubble: { text: 'Thinking…', tone: '' }, dim: false }, 'no surprised');
   assert.equal(m.setFocus('a', T0 + 20100).base, 'working', 'no 1.5 s dwell either');
   assert.equal(m.setFocus('a', T0 + 20200), null, 'the same session again changes nothing');
+});
+
+test('spotlight mode: Your turn and a failed turn play while their session is in the spotlight; he still sleeps when all is quiet', () => {
+  const m = createMood({ sleepAfterMin: 2 }, { rand: mid });
+  const sessions = [sess('done', { id: 'a', detail: 'Your turn' }), sess('error', { id: 'b', detail: 'Error' }), sess('idle', { id: 'c' })];
+  assert.deepEqual(m.onSnapshot(snap(sessions, {}, 'a'), T0), { base: 'happy_eyes', play: [], bubble: { text: 'Your turn', tone: 'good' }, dim: false });
+  assert.equal(m.tick(T0 + 30000), null, 'not only in the moment after the stop');
+  assert.deepEqual(m.setFocus('b', T0 + 40000), { base: 'error', play: [], bubble: { text: 'Error', tone: 'bad' }, dim: false });
+  assert.deepEqual(m.setFocus('c', T0 + 50000), { base: 'idle', play: [], bubble: null, dim: false });
+  assert.equal(m.setFocus('a', T0 + 60000).base, 'happy_eyes');
+  assert.equal(m.tick(T0 + 2 * MIN).base, 'yawning', 'two quiet minutes: he yawns');
+  assert.equal(m.tick(T0 + 2 * MIN + 2500).dim, true, 'and sleeps, so the screensaver takes over');
 });
 
 test('a Your turn or error moment stays with its session when the spotlight moves to a busy one', () => {
@@ -365,7 +381,7 @@ test('sequences, reactions and sleep come from the map', () => {
   m.onSnapshot(snap([sess('done')]), T0 + 2000);
   const s = m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 2001);
   assert.deepEqual([s.base, s.play, s.bubble.text], ['cool', ['love'], 'Your turn']);
-  assert.equal(m.tick(T0 + 10000).base, 'idle');
+  assert.equal(m.tick(T0 + 10000), null, 'still your turn: the mapped animation stays');
   assert.deepEqual(m.tick(T0 + 2001 + MIN), { base: 'love', play: [], bubble: null, dim: false }, 'the yawn');
   assert.deepEqual(m.tick(T0 + 2001 + MIN + 2500), { base: 'cool', play: [], bubble: { text: 'Zzz…', tone: '' }, dim: true });
   const w = m.onTap(T0 + 3 * MIN);
@@ -374,8 +390,8 @@ test('sequences, reactions and sleep come from the map', () => {
 
 test('a remapped celebration: its own reaction, then its base, then its afterglow', () => {
   const m = makeMood({}, { rand: mid, behaviours: { freshLimits: 'celebration', freshLimitsAfter: 'happy_eyes', afterglow: 'sad' } });
-  m.onSnapshot(snap([sess('done')], five(100)), T0);
-  const c = m.onSnapshot(snap([sess('done')], five(2)), T0 + 1000);
+  m.onSnapshot(snap([sess('idle')], five(100)), T0);
+  const c = m.onSnapshot(snap([sess('idle')], five(2)), T0 + 1000);
   assert.deepEqual([c.base, c.play, c.bubble.text], ['happy_eyes', ['celebration'], 'Fresh limits!']);
   assert.equal(m.tick(T0 + 1000 + 5700).base, 'sad');
   assert.equal(m.tick(T0 + 1000 + 13700).base, 'idle');
@@ -414,7 +430,7 @@ test('every state and moment reads its animation from the map (no animation name
   };
 
   const a = mood();
-  a.onSnapshot(snap([sess('done')]), T0);                                        // idle
+  a.onSnapshot(snap([sess('idle')]), T0);                                        // idle
   a.onEvent({ type: 'prompt', sessionId: 's1' }, T0 + 1);                         // first prompt of the day
   a.onEvent({ type: 'sessionStart', sessionId: 's2' }, T0 + 2);                   // new session
   a.onTap(T0 + 3);                                                                // tap
@@ -431,23 +447,23 @@ test('every state and moment reads its animation from the map (no animation name
   for (let i = 0; i < 3; i++) a.onEvent({ type: 'error', sessionId: 's1' }, T0 + 30000 + i); // error, errors in a row
 
   const b = mood();
-  b.onSnapshot(snap([sess('done')], five(40)), T0);
-  b.onSnapshot(snap([sess('done')], five(55)), T0 + 1000);                        // 5-hour >= 50%, getting tired
-  b.onSnapshot(snap([sess('done')], five(83)), T0 + 2000);                        // >= 80%
-  b.onSnapshot(snap([sess('done')], five(96)), T0 + 3000);                        // >= 95%
-  b.onSnapshot(snap([sess('done')], { ...five(40), week: { pct: 96, resetsAt: null } }), T0 + 4000);  // week >= 95%
-  b.onSnapshot(snap([sess('done')], { ...five(40), week: { pct: 100, resetsAt: null } }), T0 + 5000); // week reached
-  b.onSnapshot(snap([sess('done')], five(100)), T0 + 6000);                       // 5-hour reached
-  b.onSnapshot(snap([sess('done')], five(2)), T0 + 7000);                         // limits reset, celebrating
+  b.onSnapshot(snap([sess('idle')], five(40)), T0);
+  b.onSnapshot(snap([sess('idle')], five(55)), T0 + 1000);                        // 5-hour >= 50%, getting tired
+  b.onSnapshot(snap([sess('idle')], five(83)), T0 + 2000);                        // >= 80%
+  b.onSnapshot(snap([sess('idle')], five(96)), T0 + 3000);                        // >= 95%
+  b.onSnapshot(snap([sess('idle')], { ...five(40), week: { pct: 96, resetsAt: null } }), T0 + 4000);  // week >= 95%
+  b.onSnapshot(snap([sess('idle')], { ...five(40), week: { pct: 100, resetsAt: null } }), T0 + 5000); // week reached
+  b.onSnapshot(snap([sess('idle')], five(100)), T0 + 6000);                       // 5-hour reached
+  b.onSnapshot(snap([sess('idle')], five(2)), T0 + 7000);                         // limits reset, celebrating
   b.tick(T0 + 7000 + 5700);                                                       // afterglow
   mood().onSnapshot(snap([sess('rateLimited', { detail: 'Rate limited' })]), T0); // rate limited
 
   const c = mood({}, () => 0);
-  c.onSnapshot(snap([sess('done')], five(3)), T0);
+  c.onSnapshot(snap([sess('idle')], five(3)), T0);
   c.tick(T0 + 500);                                                               // cool moment
 
   const d = mood({ sleepAfterMin: 5 });
-  d.onSnapshot(snap([sess('done')]), T0);
+  d.onSnapshot(snap([sess('idle')]), T0);
   d.tick(T0 + 5 * MIN);                                                           // yawn
   d.tick(T0 + 5 * MIN + 2500);                                                    // asleep
   d.onTap(T0 + 6 * MIN);                                                          // wakes up

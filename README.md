@@ -56,10 +56,10 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 ## <img src="docs/images/clawd/cool.png" height="40" alt="" align="absmiddle"> On the phone
 
 - **One session at a time.** Every 10 seconds the next session comes up: its row lights up and Clawd acts out what it's doing. Tap a session to bring it up at once; the rotation carries on from there.
-- **When a session needs you.** If the session that's up needs your permission, or its turn has ended or failed, the layout changes: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him. After 7 seconds your limit bars take his place for the last 3, and then the next session comes up. With only one session, Clawd comes back and it starts over.
+- **Spotlight mode.** If the session that's up needs your permission, or its turn has ended or failed, the dashboard switches to spotlight mode: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him, and plays the animation you picked for Needs you, Your turn or Error (see Customise Clawd below) the whole time. After 7 seconds your limit bars take his place for the last 3, and then the next session comes up. With only one session, Clawd comes back and it starts over.
 
 <p align="center">
-  <img src="docs/images/needs-you-landscape.png" width="49%" alt="The centred layout's first 7 seconds: Clawd hopping with a yellow exclamation mark above &quot;Needs permission&quot; and the session's project, model, effort and context">
+  <img src="docs/images/needs-you-landscape.png" width="49%" alt="Spotlight mode's first 7 seconds: Clawd hopping with a yellow exclamation mark above &quot;Needs permission&quot; and the session's project, model, effort and context">
   <img src="docs/images/needs-you-limits-landscape.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same details">
 </p>
 

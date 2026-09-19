@@ -10,8 +10,9 @@ export const DEFAULT_MOOD = { warn: 50, low: 80, crit: 95, sleepAfterMin: 2, pin
 const ACTIVE = new Set(['thinking', 'reading', 'working', 'compiling']);
 const IDLEISH = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'done', 'cool', 'celebrate', 'sleep', 'yawn', 'wake', 'error']);
 // Quiet modes fall asleep after sleepAfterMin without activity; that includes a used-up 5-hour limit or a rate
-// limit: nothing is going to happen until it resets, so the screensaver takes over.
-const QUIET = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'overloaded']);
+// limit: nothing is going to happen until it resets, so the screensaver takes over. So do a turn that has ended
+// or failed (spotlight mode): they wait on you, and the screen must not stay lit for hours meanwhile.
+const QUIET = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'overloaded', 'done', 'error']);
 const DWELL_MS = 1500;
 const pctOf = w => (w && Number.isFinite(w.pct) ? w.pct : null);
 const dayOf = t => new Date(t).toDateString();
@@ -83,6 +84,11 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
     if (tr && tr.kind === 'cool') return { mode: 'cool', base: base('coolMoment'), bubble: null };
     if (tr && tr.kind === 'yawn') return { mode: 'yawn', base: base('yawn'), bubble: null };
     if (st.asleep) return { mode: 'sleep', base: base('asleep'), bubble: { text: 'Zzz…', tone: '' }, dim: true };
+    // Spotlight mode (the page's centred layout) lasts as long as the spotlight's session waits on you. Needing
+    // you is handled above; a turn that has ended or failed keeps its animation all along too, not only for the
+    // moment it happened (the transients above), until he falls asleep.
+    if (f && f.activity === 'done') return { mode: 'done', base: base('yourTurn'), bubble: { text: 'Your turn', tone: 'good' } };
+    if (f && f.activity === 'error') return { mode: 'error', base: base(st.errors >= 3 ? 'errorRepeated' : 'error'), bubble: { text: 'Error', tone: 'bad' } };
     const wOver = pw !== null && pw >= 100;
     const fOver = pf !== null && pf >= 100;
     if (wOver || fOver) return { mode: 'weekOver', base: base('weeklyLimitReached'), bubble: { text: `${wOver ? 'Week' : 'Fable'} limit reached`, tone: 'bad' } };
