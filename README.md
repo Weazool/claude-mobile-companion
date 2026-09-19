@@ -72,7 +72,7 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
   Both settings are remembered.
 - **Burn-in protection.** Everything is built to keep an OLED screen from burning in:
-  - **It drifts.** While Claude works, the whole dashboard moves slowly so no pixel stays lit in one place.
+  - **It drifts.** The whole dashboard moves slowly all the time, a few pixels either way, so no pixel stays lit in one place.
   - **Its bars flow.** Only the tip of each limit bar is in full colour. The rest is dimmed, with stripes that drift slowly along it.
   - **It sleeps.** When Clawd falls asleep (2 quiet minutes, or 2 minutes after a limit runs out), a screensaver takes over: the screen goes black and a small, dim Clawd with your three limit bars glides around it. Any Claude activity or a tap brings the dashboard back.
   - **It lets the phone lock.** While Claude works, the screen stays on. Once 30 minutes pass with no Claude Code activity and no taps, the page stops keeping the screen awake, so your phone locks on its own Auto-Lock. Unlock it and tap once to keep it on again.
