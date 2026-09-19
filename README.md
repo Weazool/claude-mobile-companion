@@ -13,8 +13,8 @@ Clawd isn't a looping GIF. He's a live SVG rig with 26 hand-timed animations tha
 Everything runs on your own machine. The plugin starts a small web server on your PC, and any phone or tablet browser on the same Wi-Fi opens the dashboard. There's no app to install, no account and no cloud.
 
 <p align="center">
-  <img src="docs/images/dashboard-landscape-standard.png" width="68%" alt="The dashboard in standard mode on a phone held sideways: Clawd lifting a dumbbell while one session runs npm test, the 5-hour, weekly and Fable limit bars with their hour and day legends, and three sessions, each with its ✕, the one that's up highlighted">
-  <img src="docs/images/dashboard-portrait-standard.png" width="25%" alt="The same dashboard upright">
+  <img src="docs/images/dashboard-landscape-rail.png" width="68%" alt="The dashboard in standard mode on a phone held sideways: Clawd lifting a dumbbell while one session runs npm test, the 5-hour, weekly and Fable limit bars with their hour and day legends, three sessions, each with its ✕, the one that's up highlighted, and on the right the yellow rotate button above the brightness slider at 100%">
+  <img src="docs/images/dashboard-portrait-rail.png" width="25%" alt="The same dashboard upright">
 </p>
 
 <p align="center"><img src="docs/images/clawd/working.png" height="64" alt="working"> <img src="docs/images/clawd/thinking.png" height="64" alt="thinking"> <img src="docs/images/clawd/reading.png" height="64" alt="reading"> <img src="docs/images/clawd/compiling.png" height="64" alt="compiling"> <img src="docs/images/clawd/surprised.png" height="64" alt="surprised"> <img src="docs/images/clawd/cool.png" height="64" alt="cool"> <img src="docs/images/clawd/overloaded.png" height="64" alt="overloaded"> <img src="docs/images/clawd/celebration.png" height="64" alt="celebration"> <img src="docs/images/clawd/love.png" height="64" alt="love"> <img src="docs/images/clawd/sleeping.png" height="64" alt="sleeping"></p>
@@ -61,8 +61,8 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 - **All your sessions.** The list shows every session and scrolls. Left alone, it follows the session that's up. Tap a session's **✕** to stop tracking it: it leaves the list and the cycle until you next prompt it or restart it, or until it needs your permission or has a question.
 
 <p align="center">
-  <img src="docs/images/needs-you-landscape.png" width="49%" alt="Focus mode's first 7 seconds: Clawd hopping with a yellow exclamation mark above &quot;Needs permission&quot; and the session's project, model, effort and context">
-  <img src="docs/images/needs-you-limits-landscape.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same details">
+  <img src="docs/images/focus-needs-you-rail.png" width="49%" alt="Focus mode's first 7 seconds: Clawd tilting his head under a question mark above &quot;Needs permission&quot; and the session's project, model, effort and context, with the rail on the right">
+  <img src="docs/images/focus-limits-rail.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same details">
 </p>
 
 - The **✕** at the top blanks the screen until you tap it (night mode).
