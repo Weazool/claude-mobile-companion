@@ -24,10 +24,7 @@
       <div id="sessions" class="sessions"></div>
     </section>
     <section id="attnCard" class="attn-card"><div id="attnTitle" class="attn-title"></div><div id="attnMeta" class="attn-meta"></div><button id="attnClose" class="attn-close" hidden>Close</button></section>
-    <nav class="controls">
-      <button id="btnClose" aria-label="Close">✕</button>
-    </nav>
-    <aside class="rail">
+    <aside id="rail" class="rail">
       <button id="btnRotate" class="rail-btn" aria-label="Rotate">⟲</button>
       <div id="bright" class="bright" role="slider" tabindex="0" aria-label="Brightness" aria-valuemin="10" aria-valuemax="100" aria-valuenow="100"><i class="bright-fill"></i><b class="bright-knob"></b></div>
       <div id="brightPct" class="bright-pct">100%</div>
@@ -35,7 +32,6 @@
     <div id="saver" hidden><div class="saver-field"><div class="saver-card"><div id="saverLimits" class="saver-limits"></div></div></div></div>
     <div id="offline" class="overlay" hidden><p>PC offline — waiting…</p></div>
     <div id="dimmer"></div>
-    <div id="blank" class="overlay blank" hidden></div>
   </main>
   <script src="/web/vendor/NoSleep.min.js"></script>
   <script type="module" src="/web/app.js"></script>

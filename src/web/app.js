@@ -119,6 +119,33 @@ slider.addEventListener('keydown', e => {
 // iOS only shows :active (the ⟲ filling in) on an element with a touch listener.
 $('btnRotate').addEventListener('touchstart', () => {}, { passive: true });
 
+// The rail rests at 10% (style.css) and comes up to full on a touch. That first touch only brings it up: a ⟲ or a
+// slider you can barely see is never pressed by accident. Once it is up, the controls work as usual, and 5 s after
+// the last touch (or the end of a drag) it fades back.
+const RAIL_AWAKE_MS = 5000;
+const rail = $('rail');
+let railTimer = 0;
+let swallowClick = false;
+function wakeRail() {
+  rail.classList.add('awake');
+  clearTimeout(railTimer);
+  railTimer = setTimeout(() => { if (dragId === null) rail.classList.remove('awake'); else wakeRail(); }, RAIL_AWAKE_MS);
+}
+rail.addEventListener('pointerdown', e => { // capture: before the ⟲ and the slider see it
+  swallowClick = !rail.classList.contains('awake');
+  wakeRail();
+  if (swallowClick) e.stopPropagation();
+}, true);
+rail.addEventListener('click', e => {
+  if (!swallowClick) return;
+  swallowClick = false;
+  e.stopPropagation();
+  e.preventDefault();
+}, true);
+rail.addEventListener('pointermove', () => { if (dragId !== null) wakeRail(); });
+rail.addEventListener('pointerup', wakeRail);
+rail.addEventListener('keydown', wakeRail, true);
+
 // The behaviour map (edited on the PC at /behaviours) arrives on connect and after every save. It is checked
 // against this page's rig (not its internal clips) in case the page and the server ever differ; the current
 // state then re-renders at once with its new animation. The same map again changes nothing.
@@ -456,17 +483,6 @@ $('btnRotate').addEventListener('click', e => {
   applyLayout();
 });
 
-$('btnClose').addEventListener('click', e => {
-  e.stopPropagation();
-  keepAwake(); // night mode keeps the (black) screen on, but never enters full screen
-  $('blank').hidden = false; // a page can't close itself on iOS: blank the screen until tapped
-  document.documentElement.classList.add('blanked');
-  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-});
-$('blank').addEventListener('click', () => {
-  $('blank').hidden = true;
-  document.documentElement.classList.remove('blanked');
-});
 $('saver').addEventListener('click', e => {
   e.stopPropagation();
   activate();

@@ -65,12 +65,11 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
   <img src="docs/images/focus-limits-blue.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same details">
 </p>
 
-- The **✕** at the top blanks the screen until you tap it (night mode).
 - **The rail on the right** holds two controls, one under the other:
   - **⟲** turns the layout 90° at a time, so it works with rotation lock on.
   - **The brightness slider** runs from 10% to 100%. Drag it or tap anywhere along it. The whole screen dims evenly, edges included. Nothing dims on its own; this slider is the only brightness control.
 
-  Both settings are remembered.
+  The rail rests at 10% so it stays out of the way. Touch it to bring it up to full, then use the controls; that first touch never presses anything. It fades back 5 seconds after you last touch it. Both settings are remembered.
 - **Burn-in protection.** Everything is built to keep an OLED screen from burning in:
   - **It drifts.** The whole dashboard moves slowly all the time, a few pixels either way, so no pixel stays lit in one place.
   - **Its bars flow.** Only the tip of each limit bar is in full colour. The rest is dimmed, with stripes that drift slowly along it.

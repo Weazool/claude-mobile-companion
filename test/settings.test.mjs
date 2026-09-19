@@ -99,23 +99,20 @@ test('style: safe-area insets are mapped onto #app edges per rotation', () => {
   }
   const app = r.get('#app');
   assert.equal(app['box-sizing'], 'border-box');
-  assert.equal(r.get('.controls').top, 'calc(3cqmin + var(--sa-t))');
-  assert.equal(r.get('.controls').right, 'calc(4cqmin + var(--pad-r))', 'the ✕ keeps to the dashboard, left of the rail');
   for (const [sel, d] of r) {
     for (const [k, v] of Object.entries(d)) if (v.includes('env(')) assert.match(k, /^--sa-[trbl]$/, `raw env() in ${sel} { ${k} }`);
   }
 });
 
-test('style: controls above the offline overlay, blank above everything, no settings panel', () => {
+test('style: the rail above the offline overlay; no ✕, no night-mode blank, no settings panel', () => {
   const r = styleRules();
   const z = sel => Number((r.get(sel) || {})['z-index']);
   assert.equal(z('.overlay'), 50);
-  assert.equal(z('.controls'), 55);
   assert.equal(z('.rail'), 55);
-  assert.equal(z('.overlay.blank'), 80);
   const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
   assert.match(html, /<div id="offline" class="overlay"/);
-  assert.match(html, /<div id="blank" class="overlay blank"/);
+  assert.doesNotMatch(html, /btnClose|id="blank"|class="controls"/, 'the ✕ and its blank screen are gone');
+  assert.equal(r.get('.controls'), undefined);
   assert.equal(r.get('.panel'), undefined, 'there is no settings panel');
   assert.doesNotMatch(html, /btnSettings|id="settings"/, 'no settings button or form');
   assert.equal(r.get('html')['touch-action'], 'manipulation');
@@ -126,8 +123,7 @@ test('style: the screensaver is black, inside #app, above the dashboard and belo
   const r = styleRules();
   const saver = r.get('#saver');
   assert.equal(saver.background, '#000');
-  assert.ok(Number(saver['z-index']) < 50, 'offline and blank overlays stay on top');
-  assert.equal(r.get('#app.saver .controls').visibility, 'hidden');
+  assert.ok(Number(saver['z-index']) < 50, 'the offline overlay stays on top');
   assert.equal(r.get('#app.dim'), undefined, 'asleep is the screensaver now, not a dimmed dashboard');
   assert.match(r.get('#app').transition, /translate 2s/, 'the burn-in drift is eased');
   const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
@@ -177,16 +173,13 @@ test('style: Clawd stands in the middle of the stage, as large as it allows, wit
     assert.ok(M >= 0.9 * Math.min(0.4 * W, H), `${W}x${H}: the square uses the column`);
     check(`${W}x${H}`, H, M, W, H);
   }
-  // Portrait: the stage is the top 42%, and the controls sit in its top-right corner.
+  // Portrait: the stage is the top 42%.
   assert.equal(r.get('#app.portrait')['grid-template-rows'], '42% minmax(0, 1fr)');
   for (const [W, H] of [[390, 844], [375, 667], [360, 800], [430, 932], [768, 1024], [800, 969]]) {
     const S = 0.42 * H, cq = Math.min(W, H) / 100;
     const M = lengthPx(r.get('#app.portrait .stage')['--mascot'], W, H);
     assert.ok(M >= 0.95 * Math.min(0.8 * W, S - 10 * cq), `${W}x${H}: the square uses the stage`);
     check(`${W}x${H}`, S, M, W, H);
-    // The flag rises on his right (x +2..+8 of 32 units): it must stay left of the ✕ where the two meet.
-    const flagRight = W / 2 + (8 / 32) * M, controlsLeft = W - 4 * cq - (4.4 + 2) * cq;
-    if (place(S, M).top + FLAG_TIP * M < 9.4 * cq) assert.ok(flagRight <= controlsLeft, `${W}x${H}: the flag clears the controls`);
   }
 });
 
@@ -239,13 +232,12 @@ test('the root background is the colour the dashboard shows, so the strip iOS wi
   assert.equal(r.get(':root')['--edge'], 'color-mix(in srgb, var(--bg) var(--lvl, 100%), #000)');
   assert.match(r.get('.overlay').background, /rgba\(0, 0, 0, \.82\)/);
   assert.equal(r.get('html.offline')['--edge'], 'color-mix(in srgb, var(--bg) var(--lvl-off, 18%), #000)');
-  assert.equal(r.get('html.blanked')['--edge'], '#000');
   assert.equal(r.get('html.saving')['--edge'], '#000');
   const app = fs.readFileSync(path.join(ROOT, 'src/web/app.js'), 'utf8');
   assert.match(app, /\$\('dimmer'\)\.style\.opacity = \(1 - b\)/);
   assert.match(app, /setProperty\('--lvl', `\$\{Math\.round\(b \* 100\)\}%`\)/);
   assert.match(app, /setProperty\('--lvl-off', `\$\{\(b \* 18\)/);
-  for (const cls of ['offline', 'blanked', 'saving']) assert.match(app, new RegExp(`documentElement\\.classList\\.(toggle|add)\\('${cls}'`), cls);
+  for (const cls of ['offline', 'saving']) assert.match(app, new RegExp(`documentElement\\.classList\\.(toggle|add)\\('${cls}'`), cls);
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/web/manifest.webmanifest'), 'utf8'));
   assert.equal(manifest.background_color, /--bg: (#[0-9a-f]{6})/i.exec(css)[1]);
 });
@@ -258,7 +250,7 @@ test('style: every text is white, never grey, so it stays readable when the scre
   for (const sel of ['.bar-head', '.note', '.meta', '.ctxl', '.attn-meta', '.bar-legend span', '.untrack', '.overlay', '.bright-pct']) {
     assert.equal(r.get(sel).color, 'var(--text)', sel);
   }
-  for (const sel of ['.untrack', '.controls button']) assert.equal(r.get(sel).opacity, undefined, `${sel} at full strength`);
+  assert.equal(r.get('.untrack').opacity, undefined, 'the ✕ on a row at full strength');
 });
 
 test('style: the rail holds ⟲ and the brightness slider, one under the other, on the right past the safe area', () => {
@@ -278,14 +270,17 @@ test('style: the rail holds ⟲ and the brightness slider, one under the other, 
   assert.equal(r.get('.rail-btn:active').background, 'var(--ctl)');
   assert.match(r.get('.bright').border, /solid var\(--ctl\)/);
   assert.equal(r.get('.bright-knob').background, 'var(--ctl)');
-  assert.equal(r.get('.controls button').color, 'var(--ctl)', 'the ✕ too');
+  assert.equal(rail.opacity, '.1', 'the rail rests at 10%');
+  assert.equal(r.get('.rail.awake').opacity, '1', 'and comes up to full on a touch');
+  const app = fs.readFileSync(path.join(ROOT, 'src/web/app.js'), 'utf8');
+  assert.match(app, /const RAIL_AWAKE_MS = 5000;/, 'it fades back 5 s after the last touch');
   assert.equal(r.get('.bright')['touch-action'], 'none');
   const d = r.get('#dimmer');
   assert.equal(d['pointer-events'], 'none', 'taps go through it');
   assert.equal(Number(d['z-index']), 60);
   assert.equal(r.get('#app.saver .rail').visibility, 'hidden');
   const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
-  assert.match(html, /<aside class="rail">\s*<button id="btnRotate"[^>]*>⟲<\/button>\s*<div id="bright" class="bright" role="slider"/);
+  assert.match(html, /<aside id="rail" class="rail">\s*<button id="btnRotate"[^>]*>⟲<\/button>\s*<div id="bright" class="bright" role="slider"/);
   assert.doesNotMatch(html, /id="hush"|class="gauges"|id="rings"/, 'no automatic dimming, no overview');
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'src/web/style.css'), 'utf8'), /overview|\.gauges|\.rings|#hush/);
 });
