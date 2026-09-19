@@ -116,6 +116,14 @@ export function attnView(s) {
   return null;
 }
 
+// The centred layout gives Clawd the spotlight's first 7 s; for the rest of it (3 s of the 10) the limit bars take
+// his place. A tap on a session starts its 10 s again, so Clawd comes first.
+export const ATTN_CLAWD_MS = 7000;
+
+export function attnLimitsUp(spot, now) {
+  return now - spot.since >= ATTN_CLAWD_MS;
+}
+
 // The first `max` sessions, in list order, always including the ones in keepIds (one id or a list: the spotlight
 // and the server's focus, which puts a session waiting on you first).
 export function visibleSessions(list, keepIds, max = 5) {

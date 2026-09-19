@@ -1,4 +1,4 @@
-import { limitsView, sessionMeta, dotClass, visibleSessions, nextSpot, attnView } from './format.js';
+import { limitsView, sessionMeta, dotClass, visibleSessions, nextSpot, attnView, attnLimitsUp } from './format.js';
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
@@ -175,8 +175,9 @@ function renderSessions() {
 // ---------- the spotlight ----------
 // One session at a time is in the spotlight (format.js nextSpot): the next one every 10 s, always, or the one you
 // tap. Clawd shows it (mood.setFocus) and the layout follows it: when it needs you, its turn has ended or its turn
-// failed, Clawd moves to the middle of the top 75% with the session's details centred under him (#app.attn);
-// otherwise the dashboard as always.
+// failed, Clawd moves to the middle of the top 75% with the session's details centred under him (#app.attn), and
+// 7 s in the limit bars take his place for the last 3 s (#app.limits-up, format.js attnLimitsUp); otherwise the
+// dashboard as always.
 let spot = { id: null, since: 0 };
 let attnKey = null;
 function updateSpot(now = Date.now(), tapped = null) {
@@ -187,14 +188,16 @@ function updateSpot(now = Date.now(), tapped = null) {
     renderSessions();
     apply(mood.setFocus(spot.id, now));
   }
-  renderAttn();
+  renderAttn(now);
 }
-function renderAttn() {
+function renderAttn(now) {
   const a = attnView(snap && snap.sessions.find(s => s.id === spot.id));
-  const key = a ? `${a.tone}|${a.title}|${a.meta}` : '';
+  const up = !!a && attnLimitsUp(spot, now);
+  const key = a ? `${a.tone}|${a.title}|${a.meta}|${up}` : '';
   if (key === attnKey) return;
   attnKey = key;
   $('app').classList.toggle('attn', !!a);
+  $('app').classList.toggle('limits-up', up);
   if (!a) return;
   $('attnTitle').textContent = a.title;
   $('attnTitle').className = `attn-title ${a.tone}`;

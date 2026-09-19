@@ -56,9 +56,12 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 ## <img src="docs/images/clawd/cool.png" height="40" alt="" align="absmiddle"> On the phone
 
 - **One session at a time.** Every 10 seconds the next session comes up: its row lights up and Clawd acts out what it's doing. Tap a session to bring it up at once; the rotation carries on from there.
-- **When a session needs you.** If the session that's up needs your permission, or its turn has ended or failed, the layout changes: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him. The next session still comes up 10 seconds later.
+- **When a session needs you.** If the session that's up needs your permission, or its turn has ended or failed, the layout changes: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him. After 7 seconds your limit bars take his place for the last 3, and then the next session comes up. With only one session, Clawd comes back and it starts over.
 
-<p align="center"><img src="docs/images/needs-you-landscape.png" width="68%" alt="The centred layout: Clawd hopping with a yellow exclamation mark above &quot;Needs permission&quot; and the session's project, model, effort and context"></p>
+<p align="center">
+  <img src="docs/images/needs-you-landscape.png" width="49%" alt="The centred layout's first 7 seconds: Clawd hopping with a yellow exclamation mark above &quot;Needs permission&quot; and the session's project, model, effort and context">
+  <img src="docs/images/needs-you-limits-landscape.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same details">
+</p>
 
 - **✕** blanks the screen until you tap it (night mode).
 - **⟲** turns the layout 90° at a time, so it works with rotation lock on. The choice is remembered.

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatReset, resetLine, limitsView, sessionMeta, dotClass, visibleSessions, STALE_MS, nextSpot, attnView, ROTATE_MS } from '../src/web/format.js';
+import { formatReset, resetLine, limitsView, sessionMeta, dotClass, visibleSessions, STALE_MS, nextSpot, attnView, ROTATE_MS, attnLimitsUp, ATTN_CLAWD_MS } from '../src/web/format.js';
 
 const MIN = 60000;
 
@@ -82,6 +82,17 @@ test('attnView: needs you, your turn and a failed turn get the centred layout; w
   assert.deepEqual(attnView({ ...s, activity: 'done', detail: 'Your turn' }), { tone: 'good', title: 'Your turn', meta: 'proj · Opus 5 · high · ctx 38%' });
   assert.equal(attnView({ ...s, activity: 'error', contextPct: null }).meta, 'proj · Opus 5 · high');
   assert.equal(attnView({ ...s, activity: 'error' }).title, 'Turn failed');
+});
+
+test('attnLimitsUp: the centred layout shows Clawd for the spotlight\'s first 7 s and the limit bars for its last 3', () => {
+  assert.equal(ATTN_CLAWD_MS, 7000);
+  const spot = { id: 'a', since: 5 };
+  assert.equal(attnLimitsUp(spot, 5), false);
+  assert.equal(attnLimitsUp(spot, 5 + ATTN_CLAWD_MS - 1), false);
+  assert.equal(attnLimitsUp(spot, 5 + ATTN_CLAWD_MS), true);
+  assert.equal(attnLimitsUp(spot, 5 + ROTATE_MS - 1), true);
+  const next = nextSpot([{ id: 'a' }], spot, 5 + ROTATE_MS);
+  assert.equal(attnLimitsUp(next, 5 + ROTATE_MS), false, 'one session: its next 10 s start with Clawd again');
 });
 
 test('visibleSessions keeps both the spotlight and the session waiting on you, in list order', () => {

@@ -140,6 +140,25 @@ html, body {
 .attn-title.good { color: var(--good); }
 .attn-title.bad { color: #ff9d8c; }
 .attn-meta { max-width: 100%; font-size: 3.4cqmin; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The centred layout's last 3 s (app.js #app.limits-up): the limit bars take Clawd's place in the top 75%, half as
+   big again as on the dashboard, above the same details. They are the dashboard's own bars, put into the stage's
+   grid cell (so the stage and the details are placed explicitly), and their flow carries on. The rules name
+   .limits so the screensaver's compact bars, which the spotlight keeps turning under, stay as they are. */
+#app.attn .stage { grid-area: 1 / 1; }
+#app.attn .attn-card { grid-area: 2 / 1; }
+#app.limits-up .stage { visibility: hidden; }
+#app.limits-up .data { position: static; grid-area: 1 / 1; visibility: visible; justify-content: center; padding: 3cqmin 5cqmin; }
+#app.limits-up .sessions, #app.limits-up .note:empty { display: none; }
+#app.limits-up .note { text-align: center; }
+#app.limits-up .limits { width: min(100%, 160cqmin); margin: 0 auto; gap: 3.6cqmin; }
+#app.limits-up .limits .bar { grid-template-columns: minmax(0, 1fr) 13.5cqmin; column-gap: 3cqmin; }
+#app.limits-up .limits .bar-head { font-size: 4.2cqmin; margin-bottom: 1.3cqmin; }
+#app.limits-up .limits .bar-track { height: 3.6cqmin; border-radius: 1.8cqmin; }
+#app.limits-up .limits .bar-num { font-size: 5.4cqmin; }
+#app.limits-up .limits .bar-legend { margin-top: 1cqmin; }
+/* Sideways the bars are half as long again as on the dashboard, so the legend grows with them; upright they are
+   not, and it keeps the dashboard's size, so a short first day still fits its name. */
+#app.landscape.limits-up .limits .bar-legend span { font-size: 3.1cqmin; }
 
 .controls { position: absolute; top: calc(3cqmin + var(--sa-t)); right: calc(4cqmin + var(--sa-r)); display: flex; gap: 3cqmin; z-index: 55; } /* above #offline */
 .controls button { background: none; border: 0; color: var(--text); opacity: .45; font-size: 4.4cqmin; line-height: 1; cursor: pointer; padding: 1cqmin; }
