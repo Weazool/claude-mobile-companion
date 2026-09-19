@@ -13,8 +13,8 @@ Clawd isn't a looping GIF. He's a live SVG rig with 26 hand-timed animations tha
 Everything runs on your own machine. The plugin starts a small web server on your PC, and any phone or tablet browser on the same Wi-Fi opens the dashboard. There's no app to install, no account and no cloud.
 
 <p align="center">
-  <img src="docs/images/dashboard-landscape-spotlight.png" width="68%" alt="The dashboard on a phone held sideways: Clawd lifting a dumbbell while one session runs npm test, the 5-hour, weekly and Fable limit bars with their hour and day legends, and three sessions with the one in the spotlight lit up">
-  <img src="docs/images/dashboard-portrait-spotlight.png" width="25%" alt="The same dashboard upright">
+  <img src="docs/images/dashboard-landscape-standard.png" width="68%" alt="The dashboard in standard mode on a phone held sideways: Clawd lifting a dumbbell while one session runs npm test, the 5-hour, weekly and Fable limit bars with their hour and day legends, and three sessions, each with its ✕, the one that's up highlighted">
+  <img src="docs/images/dashboard-portrait-standard.png" width="25%" alt="The same dashboard upright">
 </p>
 
 <p align="center"><img src="docs/images/clawd/working.png" height="64" alt="working"> <img src="docs/images/clawd/thinking.png" height="64" alt="thinking"> <img src="docs/images/clawd/reading.png" height="64" alt="reading"> <img src="docs/images/clawd/compiling.png" height="64" alt="compiling"> <img src="docs/images/clawd/surprised.png" height="64" alt="surprised"> <img src="docs/images/clawd/cool.png" height="64" alt="cool"> <img src="docs/images/clawd/overloaded.png" height="64" alt="overloaded"> <img src="docs/images/clawd/celebration.png" height="64" alt="celebration"> <img src="docs/images/clawd/love.png" height="64" alt="love"> <img src="docs/images/clawd/sleeping.png" height="64" alt="sleeping"></p>
