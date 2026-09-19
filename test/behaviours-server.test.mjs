@@ -223,11 +223,13 @@ async function loadDashboard() {
     }
   }
   const el = () => ({
-    hidden: false, textContent: '', className: '', innerHTML: '', children: [], dataset: {},
-    style: { setProperty() {} }, classList: { toggle() {} }, addEventListener() {}, querySelector: () => el(),
+    hidden: false, textContent: '', className: '', innerHTML: '', children: [], dataset: {}, firstElementChild: null,
+    style: { setProperty() {} }, classList: { toggle() {}, contains: () => false, add() {}, remove() {} },
+    addEventListener() {}, querySelector: () => el(), insertBefore() {}, remove() {}, scrollTo() {},
   });
   const byId = new Map();
   const document = {
+    createElement: () => el(),
     getElementById: id => { if (!byId.has(id)) byId.set(id, el()); return byId.get(id); },
     addEventListener() {}, visibilityState: 'visible', documentElement: el(), fullscreenElement: null,
   };

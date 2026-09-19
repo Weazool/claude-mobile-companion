@@ -113,6 +113,26 @@ test('dev limits endpoint updates the snapshot', async () => {
   s.close();
 });
 
+test('untrack: the session leaves the snapshots, its moments stay off the phone, and a prompt brings it back', async () => {
+  const s = await openSse(`/events?k=${TOKEN}`);
+  const one = { session_id: 'u1', cwd: '/x/one' };
+  await hook({ hook_event_name: 'SessionStart', ...one });
+  await hook({ hook_event_name: 'Stop', ...one });
+  const untrack = id => req('POST', `/api/untrack?k=${TOKEN}`, { 'content-type': 'application/json' }, JSON.stringify({ id }));
+  assert.equal((await untrack('u1')).status, 204);
+  const lastSnap = () => s.events.filter(e => e.type === 'snapshot').at(-1).data;
+  await until(() => !lastSnap().sessions.some(x => x.id === 'u1'));
+  const from = s.events.length;
+  await hook({ hook_event_name: 'Stop', ...one });
+  await hook({ hook_event_name: 'UserPromptSubmit', ...one });
+  await until(() => s.events.some(e => e.type === 'event' && e.data.type === 'prompt' && e.data.sessionId === 'u1'));
+  const later = s.events.slice(from);
+  assert.ok(!later.some(e => e.type === 'event' && e.data.type === 'stop'), 'the stop of an untracked session is not sent');
+  assert.ok(lastSnap().sessions.some(x => x.id === 'u1' && x.activity === 'thinking'), 'back with the prompt');
+  assert.equal((await untrack('nope')).status, 204, 'an unknown id changes nothing');
+  s.close();
+});
+
 test('a second instance exits 0 at once', async () => {
   const t0 = Date.now();
   assert.equal(await run([]), 0);

@@ -101,7 +101,18 @@ export class SessionStore {
     if ('detail' in c) s.detail = c.detail;
     if (c.needsYou !== undefined) s.needsYou = c.needsYou;
     s.lastEventAt = now;
-    return { discrete: c.discrete || null };
+    if (s.untracked && (c.discrete === 'prompt' || c.discrete === 'sessionStart' || c.needsYou === true)) s.untracked = false;
+    return { discrete: c.discrete || null, ...(s.untracked ? { hidden: true } : {}) };
+  }
+
+  // The phone's ✕ and Close: the session leaves the dashboard until next time, that is until you prompt it again,
+  // it (re)starts or it needs you (a permission prompt or a question). Meanwhile its record keeps up with its
+  // events (apply says hidden), so it comes back as it is; SessionEnd and expiry still remove it.
+  untrack(id) {
+    const s = this.sessions.get(id);
+    if (!s || s.untracked) return false;
+    s.untracked = true;
+    return true;
   }
 
   expire(now) {
@@ -117,6 +128,7 @@ export class SessionStore {
 
   list() {
     return [...this.sessions.values()]
+      .filter(s => !s.untracked)
       .sort((a, b) => a.startedAt - b.startedAt)
       .map(s => ({ id: s.id, name: s.name, modelLabel: s.modelLabel, effort: s.effort, contextPct: s.contextPct,
                    activity: s.activity, detail: s.detail, needsYou: s.needsYou, lastEventAt: s.lastEventAt }));
@@ -124,7 +136,7 @@ export class SessionStore {
 
   // Spec §3 focus rule: newest needsYou, else newest active, else newest overall.
   focusId() {
-    const all = [...this.sessions.values()].sort((a, b) => b.lastEventAt - a.lastEventAt);
+    const all = [...this.sessions.values()].filter(s => !s.untracked).sort((a, b) => b.lastEventAt - a.lastEventAt);
     const pick = all.find(s => s.needsYou) || all.find(s => ACTIVE.has(s.activity)) || all[0];
     return pick ? pick.id : null;
   }

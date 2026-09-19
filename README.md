@@ -56,18 +56,19 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 ## <img src="docs/images/clawd/cool.png" height="40" alt="" align="absmiddle"> On the phone
 
 - **One session at a time.** Every 10 seconds the next session comes up: its row lights up and Clawd acts out what it's doing. Tap a session to bring it up at once; the rotation carries on from there.
-- **Spotlight mode.** If the session that's up needs your permission, or its turn has ended or failed, the dashboard switches to spotlight mode: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him, and plays the animation you picked for Needs you, Your turn or Error (see Customise Clawd below) the whole time. After 7 seconds your limit bars take his place for the last 3, and then the next session comes up. With only one session, Clawd comes back and it starts over.
+- **All your sessions.** The list shows every session and scrolls. Left alone, it follows the session that's up. Tap a session's **✕** to stop tracking it: it leaves the list and the rotation until you next prompt it or restart it, or until it needs your permission or has a question.
+- **Spotlight mode.** If the session that's up needs your permission, or its turn has ended or failed, the dashboard switches to spotlight mode: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him, and plays the animation you picked for Needs you, Your turn or Error (see Customise Clawd below) the whole time. After 7 seconds your limit bars take his place for the last 3, and then the next session comes up. With only one session, Clawd comes back and it starts over. When its turn has ended, a **Close** button under the details stops tracking the session, like its ✕.
 
 <p align="center">
   <img src="docs/images/needs-you-landscape.png" width="49%" alt="Spotlight mode's first 7 seconds: Clawd hopping with a yellow exclamation mark above &quot;Needs permission&quot; and the session's project, model, effort and context">
   <img src="docs/images/needs-you-limits-landscape.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same details">
 </p>
 
-- **✕** blanks the screen until you tap it (night mode).
+- The **✕** at the top blanks the screen until you tap it (night mode).
 - **⟲** turns the layout 90° at a time, so it works with rotation lock on. The choice is remembered.
 - **Burn-in protection.** Everything is built to keep an OLED screen from burning in:
   - **It drifts.** While Claude works, the whole dashboard moves slowly so no pixel stays lit in one place.
-  - **It dims.** After 2 minutes with the same status (Claude thinking and working away), the dashboard fades to half brightness. It comes back to full as soon as it's your turn, Claude needs permission, or you tap the screen. That first tap only brings the brightness back; it never presses ✕ or ⟲.
+  - **It dims.** After 2 minutes with the same status (Claude thinking and working away), the dashboard fades to half brightness. It comes back to full as soon as it's your turn, Claude needs permission, or you tap the screen. That first tap only brings the brightness back; it never presses a button.
   - **Its bars flow.** Only the tip of each limit bar is in full colour. The rest is dimmed, with stripes that drift slowly along it.
   - **It sleeps.** When Clawd falls asleep (2 quiet minutes, or 2 minutes after a limit runs out), a screensaver takes over: the screen goes black and a small, dim Clawd with your three limit bars glides around it. Any Claude activity or a tap brings the dashboard back.
   - **It lets the phone lock.** While Claude works, the screen stays on. Once 30 minutes pass with no Claude Code activity and no taps, the page stops keeping the screen awake, so your phone locks on its own Auto-Lock. Unlock it and tap once to keep it on again.

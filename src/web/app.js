@@ -1,4 +1,4 @@
-import { limitsView, sessionMeta, dotClass, visibleSessions, nextSpot, attnView, attnLimitsUp } from './format.js';
+import { limitsView, sessionMeta, dotClass, nextSpot, attnView, attnLimitsUp } from './format.js';
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
@@ -159,17 +159,72 @@ function drawBars(box, bars, compact = false) {
 }
 
 // ---------- sessions ----------
+// Every session, in the order they started, in a list that scrolls. Its rows are kept and updated in place: a
+// snapshot comes with every hook event, and rebuilding the list would break a scroll or lose a tap on a row
+// replaced under the finger. With none, the list's :empty rule says so (style.css).
+const list = $('sessions');
+const put = (el, text) => { if (el.textContent !== text) el.textContent = text; };
+function makeRow(id) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.dataset.id = id;
+  row.innerHTML = '<span class="dot"></span><div><div class="name"></div><div class="meta"></div></div>'
+    + '<div><div class="ctx"><i></i></div><div class="ctxl"></div></div><button class="untrack" aria-label="Stop tracking">✕</button>';
+  return row;
+}
+function fillRow(row, s) {
+  row.classList.toggle('focus', s.id === spot.id);
+  const dot = row.querySelector('.dot');
+  if (dot.className !== `dot ${dotClass(s)}`) dot.className = `dot ${dotClass(s)}`;
+  put(row.querySelector('.name'), s.name || 'session');
+  const meta = row.querySelector('.meta');
+  put(meta, sessionMeta(s));
+  meta.classList.toggle('need', !!s.needsYou);
+  row.querySelector('.ctx i').style.width = `${s.contextPct ?? 0}%`;
+  put(row.querySelector('.ctxl'), s.contextPct == null ? 'ctx —' : `ctx ${s.contextPct}%`);
+}
 function renderSessions() {
-  const list = snap ? snap.sessions : [];
-  const { shown, more } = visibleSessions(list, [spot.id, snap && snap.focusId], 5);
-  $('sessions').innerHTML = shown.map(s => `
-    <div class="row${s.id === spot.id ? ' focus' : ''}" data-id="${esc(s.id)}">
-      <span class="dot ${dotClass(s)}"></span>
-      <div><div class="name">${esc(s.name || 'session')}</div><div class="meta${s.needsYou ? ' need' : ''}">${esc(sessionMeta(s))}</div></div>
-      <div><div class="ctx"><i style="width:${s.contextPct ?? 0}%"></i></div><div class="ctxl">${s.contextPct == null ? 'ctx —' : `ctx ${s.contextPct}%`}</div></div>
-    </div>`).join('')
-    + (more ? `<div class="more">+${more} more</div>` : '')
-    + (list.length ? '' : '<div class="more">No Claude Code sessions yet</div>');
+  const old = new Map([...list.children].map(row => [row.dataset.id, row]));
+  let at = list.firstElementChild;
+  for (const s of snap ? snap.sessions : []) {
+    const row = old.get(s.id) || makeRow(s.id);
+    old.delete(s.id);
+    fillRow(row, s);
+    if (row === at) at = at.nextElementSibling; else list.insertBefore(row, at);
+  }
+  for (const row of old.values()) row.remove();
+  edges();
+}
+
+// The list follows the spotlight, unless you touched it in the last 15 s. Spotlight mode lays the list out
+// elsewhere, which loses its scroll, so the dashboard's is kept and put back. Faded edges say there is more.
+const LEAVE_BE_MS = 15000;
+let listTouchedAt = 0;
+let listScroll = 0;
+const attnOn = () => $('app').classList.contains('attn');
+function edges() {
+  list.classList.toggle('more-above', list.scrollTop > 1);
+  list.classList.toggle('more-below', list.scrollTop + list.clientHeight < list.scrollHeight - 1);
+}
+list.addEventListener('scroll', () => { if (!attnOn()) listScroll = list.scrollTop; edges(); }, { passive: true });
+for (const type of ['touchstart', 'wheel', 'pointerdown']) list.addEventListener(type, () => { listTouchedAt = Date.now(); }, { passive: true });
+function followSpot(now = Date.now()) {
+  if (attnOn() || now - listTouchedAt < LEAVE_BE_MS) return;
+  const row = [...list.children].find(r => r.dataset.id === spot.id);
+  if (!row) return;
+  const top = row.offsetTop, bottom = top + row.offsetHeight;
+  if (top < list.scrollTop) list.scrollTo({ top, behavior: 'smooth' });
+  else if (bottom > list.scrollTop + list.clientHeight) list.scrollTo({ top: bottom - list.clientHeight, behavior: 'smooth' });
+}
+
+// ✕ on a row and Close in spotlight mode: the server stops tracking the session until you prompt it again, it
+// restarts or it needs you, and its next snapshot takes the session away. The control dims meanwhile, and
+// comes back if the server says no (a server started before this version has no /api/untrack).
+function untrack(id, el) {
+  el.classList.add('closing');
+  fetch(`/api/untrack${location.search}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) })
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
+    .catch(() => el.classList.remove('closing'));
 }
 
 // ---------- the spotlight ----------
@@ -189,24 +244,35 @@ function updateSpot(now = Date.now(), tapped = null) {
     apply(mood.setFocus(spot.id, now));
   }
   renderAttn(now);
+  if (moved) followSpot(now);
 }
+// A session whose turn has ended gets a Close under its details: the same as its ✕ in the list.
 function renderAttn(now) {
   const a = attnView(snap && snap.sessions.find(s => s.id === spot.id));
   const up = !!a && attnLimitsUp(spot, now);
-  const key = a ? `${a.tone}|${a.title}|${a.meta}|${up}` : '';
+  const key = a ? `${spot.id}|${a.tone}|${a.title}|${a.meta}|${up}` : '';
   if (key === attnKey) return;
   attnKey = key;
+  const was = attnOn();
   $('app').classList.toggle('attn', !!a);
   $('app').classList.toggle('limits-up', up);
-  if (!a) return;
+  if (!a) {
+    if (was) { list.scrollTop = listScroll; edges(); }
+    return;
+  }
   $('attnTitle').textContent = a.title;
   $('attnTitle').className = `attn-title ${a.tone}`;
   $('attnMeta').textContent = a.meta;
+  $('attnClose').hidden = a.tone !== 'good';
+  $('attnClose').classList.remove('closing');
 }
-$('sessions').addEventListener('click', e => { // its own listener, so iOS turns the tap into a click
+list.addEventListener('click', e => { // its own listener, so iOS turns the tap into a click
   const row = e.target.closest('.row');
-  if (row && row.dataset.id) updateSpot(Date.now(), row.dataset.id);
+  if (!row || !row.dataset.id) return;
+  if (e.target.closest('.untrack')) untrack(row.dataset.id, row);
+  else updateSpot(Date.now(), row.dataset.id);
 });
+$('attnClose').addEventListener('click', e => { if (spot.id) untrack(spot.id, e.currentTarget); });
 
 // ---------- bubble ----------
 function setBubble(text, tone) {
@@ -297,7 +363,7 @@ function applyLayout() {
   app.classList.toggle('portrait', layout === 'portrait');
   for (const r of [0, 90, 180, 270]) app.classList.toggle(`rot${r}`, r === settings.rotation); // safe-area mapping in style.css
 }
-window.addEventListener('resize', () => { applyLayout(); saverBox = null; });
+window.addEventListener('resize', () => { applyLayout(); saverBox = null; edges(); });
 applyLayout();
 
 // Full screen and keep-awake need a tap. The controls stop propagation, so they call this themselves.

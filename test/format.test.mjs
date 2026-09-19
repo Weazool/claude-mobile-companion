@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatReset, resetLine, limitsView, sessionMeta, dotClass, visibleSessions, STALE_MS, nextSpot, attnView, ROTATE_MS, attnLimitsUp, ATTN_CLAWD_MS } from '../src/web/format.js';
+import { formatReset, resetLine, limitsView, sessionMeta, dotClass, STALE_MS, nextSpot, attnView, ROTATE_MS, attnLimitsUp, ATTN_CLAWD_MS } from '../src/web/format.js';
 
 const MIN = 60000;
 
@@ -52,15 +52,6 @@ test('sessionMeta and dotClass', () => {
   assert.equal(dotClass({ needsYou: false, activity: 'done' }), 'idle');
 });
 
-test('visibleSessions keeps the focus session visible', () => {
-  const list = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(id => ({ id }));
-  assert.deepEqual(visibleSessions(list, 'b', 5).shown.map(s => s.id), ['a', 'b', 'c', 'd', 'e']);
-  const r = visibleSessions(list, 'g', 5);
-  assert.deepEqual(r.shown.map(s => s.id), ['a', 'b', 'c', 'd', 'g']);
-  assert.equal(r.more, 2);
-  assert.deepEqual(visibleSessions([], null, 5), { shown: [], more: 0 });
-});
-
 test('nextSpot: the next session every 10 s in list order, wrapping round; a gone one moves to the focus', () => {
   const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
   assert.deepEqual(nextSpot(list, { id: null, since: 0 }, 5, 'b'), { id: 'b', since: 5 });
@@ -95,11 +86,3 @@ test('attnLimitsUp: the centred layout shows Clawd for the spotlight\'s first 7 
   assert.equal(attnLimitsUp(next, 5 + ROTATE_MS), false, 'one session: its next 10 s start with Clawd again');
 });
 
-test('visibleSessions keeps both the spotlight and the session waiting on you, in list order', () => {
-  const list = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(id => ({ id }));
-  const ids = r => r.shown.map(s => s.id).join('');
-  assert.equal(ids(visibleSessions(list, ['b', null], 5)), 'abcde');
-  assert.equal(ids(visibleSessions(list, ['f', 'g'], 5)), 'abcfg');
-  assert.equal(ids(visibleSessions(list, ['g', 'g'], 5)), 'abcdg');
-  assert.equal(visibleSessions(list, ['f', 'g'], 5).more, 2);
-});

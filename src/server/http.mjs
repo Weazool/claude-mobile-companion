@@ -14,6 +14,7 @@ const PC_PAGES = new Set(['pair.html', 'behaviours.html']); // loopback-only pag
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const LOOPBACK_HOST = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i;
 const BEHAVIOURS_MAX = 16 * 1024; // a full map is about 1 KB
+const UNTRACK_MAX = 1024;         // { "id": "<a session id>" }
 const STATUS_TEXT = { 400: 'Bad request', 404: 'Not found', 405: 'Method not allowed', 413: 'Too large' };
 
 export function isLoopback(req) {
@@ -69,7 +70,8 @@ function readBody(req, limit) {
 
 // getBehaviours() -> the current behaviour map; setBehaviours(input) -> the map after a save (the server
 // validates and stores it; { reset: true } restores the defaults), throws when it cannot be saved.
-export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, getPairInfo, getBehaviours, setBehaviours, log = () => {}, isLoopbackReq = isLoopback }) {
+// onUntrack(id): the dashboard's ✕ or Close on a session (the server stops showing it until next time).
+export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, getPairInfo, getBehaviours, setBehaviours, onUntrack = () => {}, log = () => {}, isLoopbackReq = isLoopback }) {
   const root = path.resolve(webRoot);
   const clients = new Set();
   const send = (res, type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -117,6 +119,17 @@ export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, ge
         }
         broadcast('behaviours', { map });
         return json(res, { map, pages: clients.size });
+      }
+      // The dashboard's ✕ on a session and its Close in spotlight mode: the phone with its token (the link or the
+      // cookie), or loopback from this server's own pages (the pair page's preview), never another site's page.
+      if (req.method === 'POST' && p === '/api/untrack') {
+        if (!authed || !sameOrigin(req)) return deny(res);
+        if (Number(req.headers['content-length']) > UNTRACK_MAX) return deny(res, 413);
+        let body;
+        try { body = JSON.parse(await readBody(req, UNTRACK_MAX)); } catch { return deny(res, 400); }
+        if (!isObject(body) || typeof body.id !== 'string' || !body.id) return deny(res, 400);
+        onUntrack(body.id);
+        return res.writeHead(204).end();
       }
       if (req.method !== 'GET') return deny(res, 405);
       if (p === '/api/health') return loop ? json(res, { ok: true, pid: process.pid }) : deny(res);

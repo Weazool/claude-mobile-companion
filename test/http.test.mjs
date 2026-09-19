@@ -26,11 +26,12 @@ async function start() {
   const hooks = [];
   const devLimits = [];
   const saves = [];               // what setBehaviours was given
+  const untracks = [];            // the session ids onUntrack was given
   let map = { tap: ['hop'] };     // the server's current behaviour map (validation is the server's job)
   const app = createApp({
     token: TOKEN, webRoot: webRoot(),
     getSnapshot: () => ({ v: 1, hello: true }),
-    onHook: e => hooks.push(e), onDevLimits: l => devLimits.push(l),
+    onHook: e => hooks.push(e), onDevLimits: l => devLimits.push(l), onUntrack: id => untracks.push(id),
     getPairInfo: () => ({ urls: ['http://x'] }),
     getBehaviours: () => map,
     setBehaviours(input) {
@@ -43,7 +44,7 @@ async function start() {
   });
   await new Promise(r => app.server.listen(0, '127.0.0.1', r));
   return {
-    app, hooks, devLimits, saves, port: app.server.address().port,
+    app, hooks, devLimits, saves, untracks, port: app.server.address().port,
     loopback: v => { loop = v; }, failSave: v => { failSave = v; },
   };
 }
@@ -394,4 +395,29 @@ test('buildSnapshot shape', () => {
   const store = { list: () => [{ id: 'a' }], focusId: () => 'a' };
   assert.deepEqual(buildSnapshot(store, null, 42),
     { v: 1, serverTime: 42, sessions: [{ id: 'a' }], focusId: 'a', limits: EMPTY_LIMITS });
+});
+
+test('POST /api/untrack: the phone\'s token (link or cookie) or this server\'s own page on loopback, never another site', async t => {
+  const { app, port, untracks, loopback } = await start();
+  t.after(() => app.close());
+  assert.equal((await post(port, '/api/untrack', { id: 'A' })).status, 403, 'no token');
+  assert.equal((await post(port, `/api/untrack?k=${TOKEN}`, { id: 'A' })).status, 204);
+  assert.equal((await post(port, '/api/untrack', { id: 'B' }, { cookie: `dc=${TOKEN}` })).status, 204);
+  assert.equal((await post(port, `/api/untrack?k=${TOKEN}`, { id: 'C' }, { origin: 'https://evil.example' })).status, 403, 'another site');
+  loopback(true);
+  assert.equal((await post(port, '/api/untrack', { id: 'D' }, { origin: 'https://evil.example' })).status, 403, 'another site in the PC\'s browser');
+  assert.equal((await post(port, '/api/untrack', { id: 'E' }, { host: `evil.example:${port}` })).status, 403, 'a foreign Host');
+  assert.equal((await post(port, '/api/untrack', { id: 'F' }, { origin: `http://127.0.0.1:${port}` })).status, 204, 'the pair page\'s preview');
+  assert.equal((await req(port, 'GET', `/api/untrack?k=${TOKEN}`)).status, 404, 'POST only');
+  assert.deepEqual(untracks, ['A', 'B', 'F']);
+});
+
+test('POST /api/untrack: 400 on bad JSON or no session id, 413 over 1 KB', async t => {
+  const { app, port, untracks } = await start();
+  t.after(() => app.close());
+  for (const body of ['{', '[]', '{}', '"A"', JSON.stringify({ id: 5 }), JSON.stringify({ id: '' })]) {
+    assert.equal((await post(port, `/api/untrack?k=${TOKEN}`, body)).status, 400, body);
+  }
+  assert.equal((await post(port, `/api/untrack?k=${TOKEN}`, { id: 'x'.repeat(2000) })).status, 413);
+  assert.deepEqual(untracks, []);
 });

@@ -111,8 +111,12 @@ async function start() {
       const r = store.apply(evt, Date.now(), tail);
       if (!r) return;
       app.broadcast('snapshot', snapshot());
-      if (r.discrete) app.broadcast('event', { type: r.discrete, sessionId: evt.session_id });
+      // An untracked session's moments stay off the phone; its stop still refreshes the limits.
+      if (r.discrete && !r.hidden) app.broadcast('event', { type: r.discrete, sessionId: evt.session_id });
       if (r.discrete === 'stop') onStop();
+    },
+    onUntrack(id) {
+      if (store.untrack(id)) app.broadcast('snapshot', snapshot());
     },
     onDevLimits(l) {
       limits = { ...EMPTY_LIMITS, status: 'ok', asOf: Date.now(), ...l };

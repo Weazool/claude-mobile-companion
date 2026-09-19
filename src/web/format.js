@@ -123,13 +123,3 @@ export const ATTN_CLAWD_MS = 7000;
 export function attnLimitsUp(spot, now) {
   return now - spot.since >= ATTN_CLAWD_MS;
 }
-
-// The first `max` sessions, in list order, always including the ones in keepIds (one id or a list: the spotlight
-// and the server's focus, which puts a session waiting on you first).
-export function visibleSessions(list, keepIds, max = 5) {
-  if (list.length <= max) return { shown: list.slice(), more: 0 };
-  const keep = new Set([].concat(keepIds).filter(id => list.some(s => s.id === id)));
-  let room = max - keep.size;
-  const shown = list.filter(s => keep.has(s.id) || (room > 0 && room-- > 0));
-  return { shown, more: list.length - max };
-}

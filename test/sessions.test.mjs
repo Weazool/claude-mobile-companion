@@ -157,3 +157,35 @@ test('unknown events and events without session_id change nothing', () => {
   assert.equal(st.apply({ hook_event_name: 'Stop' }, 1), null);
   assert.deepEqual(st.list(), []);
 });
+
+test('untrack: the session leaves the list and the focus until you prompt it, it restarts or it needs you', () => {
+  const st = new SessionStore();
+  st.apply({ ...ev('UserPromptSubmit'), session_id: 'A' }, 1000);
+  st.apply({ ...ev('Stop'), session_id: 'B' }, 2000);
+  assert.equal(st.untrack('A'), true);
+  assert.equal(st.untrack('A'), false, 'already untracked');
+  assert.equal(st.untrack('nope'), false);
+  assert.deepEqual(st.list().map(s => s.id), ['B']);
+  assert.equal(st.focusId(), 'B');
+  // Its turn goes on out of sight, and the idle reminder a minute after the stop does not bring it back.
+  assert.deepEqual(st.apply({ ...ev('PreToolUse', { tool_name: 'Read', target: 'a.js' }), session_id: 'A' }, 3000), { discrete: null, hidden: true });
+  assert.deepEqual(st.apply({ ...ev('Stop'), session_id: 'A' }, 4000), { discrete: 'stop', hidden: true });
+  assert.deepEqual(st.apply({ ...ev('Notification', { notification_type: 'idle_prompt' }), session_id: 'A' }, 64000), { discrete: null, hidden: true });
+  assert.deepEqual(st.list().map(s => s.id), ['B']);
+  // Next time: a prompt brings it back, in its place in the list and as it is now.
+  assert.deepEqual(st.apply({ ...ev('UserPromptSubmit'), session_id: 'A' }, 70000), { discrete: 'prompt' });
+  assert.deepEqual(st.list().map(s => [s.id, s.activity]), [['A', 'thinking'], ['B', 'done']]);
+  // So does needing you (a permission prompt or a question), and so does a (re)start.
+  st.untrack('A');
+  assert.deepEqual(st.apply({ ...ev('Notification', { notification_type: 'permission_prompt' }), session_id: 'A' }, 71000), { discrete: 'needsYou' });
+  assert.equal(st.focusId(), 'A');
+  st.untrack('A');
+  assert.deepEqual(st.apply({ ...ev('PreToolUse', { tool_name: 'AskUserQuestion' }), session_id: 'A' }, 72000), { discrete: 'needsYou' });
+  st.untrack('B');
+  assert.deepEqual(st.apply({ ...ev('SessionStart'), session_id: 'B' }, 73000), { discrete: 'sessionStart' });
+  assert.deepEqual(st.list().map(s => s.id), ['A', 'B']);
+  // SessionEnd removes an untracked session like any other.
+  st.untrack('B');
+  st.apply({ ...ev('SessionEnd'), session_id: 'B' }, 74000);
+  assert.equal(st.sessions.has('B'), false);
+});
