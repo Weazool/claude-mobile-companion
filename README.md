@@ -89,7 +89,7 @@ Every behaviour has a live preview, and a gallery at the bottom plays all 26 ani
 ## <img src="docs/images/clawd/reading.png" height="40" alt="" align="absmiddle"> Privacy
 
 The phone sees:
-- project folder names, model, effort and context %;
+- session names as the Claude app shows them (or the project folder name for a session without one), model, effort and context %;
 - for Bash, only the program name, plus one subcommand for common dev tools (`git status`, `npm test`); a leading `cd …` is skipped;
 - for file tools, only the file name;
 - for MCP tools, only the tool's own name.

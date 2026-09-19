@@ -84,11 +84,14 @@ export class SessionStore {
     }
     let s = this.sessions.get(id);
     if (!s) {
-      s = { id, name: '', model: null, modelLabel: null, effort: null, contextPct: null,
+      s = { id, name: '', folder: '', title: null, model: null, modelLabel: null, effort: null, contextPct: null,
             activity: 'idle', detail: '', needsYou: false, startedAt: now, lastEventAt: now };
       this.sessions.set(id, s);
     }
-    if (evt.cwd) s.name = path.posix.basename(evt.cwd.replace(/\\/g, '/').replace(/\/+$/, '')) || s.name;
+    if (evt.cwd) s.folder = path.posix.basename(evt.cwd.replace(/\\/g, '/').replace(/\/+$/, '')) || s.folder;
+    // Its name: the one the Claude app shows (the transcript's title, kept once seen), else the project folder.
+    if (tail && tail.title) s.title = tail.title;
+    s.name = s.title || s.folder;
     const model = evt.model || (tail && tail.model);
     if (model && model !== '<synthetic>') {
       s.model = model;

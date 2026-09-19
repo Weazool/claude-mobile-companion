@@ -2,15 +2,26 @@ import fs from 'node:fs';
 
 export const TAIL_BYTES = 65536;
 
-const empty = () => ({ model: null, effort: null, contextTokens: null });
+const empty = () => ({ model: null, effort: null, contextTokens: null, title: null });
 
-// Scans lines newest-first. Content is never returned; only model id, effort and a token count.
+// The session's name as the Claude app shows it (a custom-title line, written again on every prompt and when you
+// rename the session): one line of plain text, at most 80 characters, or null.
+export const TITLE_MAX = 80;
+export function cleanTitle(t) {
+  if (typeof t !== 'string') return null;
+  const s = t.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return null;
+  return s.length > TITLE_MAX ? `${s.slice(0, TITLE_MAX - 1).trimEnd()}…` : s;
+}
+
+// Scans lines newest-first. Content is never returned; only model id, effort, a token count and the session's title.
 export function parseTail(text, dropFirstLine = false) {
   let lines = text.split('\n');
   if (dropFirstLine) lines = lines.slice(1);
   let model = null;
   let effort = null;
   let contextTokens = null;
+  let title = null;
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
     if (!line) continue;
@@ -18,6 +29,7 @@ export function parseTail(text, dropFirstLine = false) {
     try { o = JSON.parse(line); } catch { continue; }
     if (!o || typeof o !== 'object' || o.isSidechain === true) continue;
     if (effort === null && typeof o.effort === 'string') effort = o.effort;
+    if (title === null && o.type === 'custom-title') title = cleanTitle(o.customTitle);
     const msg = o.type === 'assistant' ? o.message : null;
     if (msg && msg.model && msg.model !== '<synthetic>') {
       if (model === null) model = msg.model;
@@ -26,9 +38,9 @@ export function parseTail(text, dropFirstLine = false) {
         contextTokens = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
       }
     }
-    if (model !== null && effort !== null && contextTokens !== null) break;
+    if (model !== null && effort !== null && contextTokens !== null && title !== null) break;
   }
-  return { model, effort, contextTokens };
+  return { model, effort, contextTokens, title };
 }
 
 // Reads only the last `bytes` of the file; a line cut in half at the start is dropped.

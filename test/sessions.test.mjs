@@ -15,6 +15,18 @@ test('modelLabel', () => {
   assert.equal(modelLabel('gpt-x'), 'gpt-x');
 });
 
+test('a session is named as the Claude app shows it, else after its folder', () => {
+  const st = new SessionStore();
+  st.apply(ev('SessionStart'), 1000, { title: null });
+  assert.equal(st.list()[0].name, 'my_claude_companion', 'no title yet: the folder');
+  st.apply(ev('UserPromptSubmit'), 2000, { title: 'iPhone background color consistency' });
+  assert.equal(st.list()[0].name, 'iPhone background color consistency');
+  st.apply(ev('PreToolUse', { tool_name: 'Read' }), 3000, { title: null });
+  assert.equal(st.list()[0].name, 'iPhone background color consistency', 'a tail without the title keeps it');
+  st.apply(ev('Stop'), 4000, { title: 'Renamed' });
+  assert.equal(st.list()[0].name, 'Renamed', 'a rename in the app follows');
+});
+
 test('classify maps tools to activity and detail', () => {
   const pre = (tool_name, extra = {}) => classify({ hook_event_name: 'PreToolUse', tool_name, ...extra });
   assert.deepEqual(pre('Read', { target: 'hooks.json' }), { needsYou: false, activity: 'reading', detail: 'Reading hooks.json' });
