@@ -100,7 +100,7 @@ test('style: safe-area insets are mapped onto #app edges per rotation', () => {
   const app = r.get('#app');
   assert.equal(app['box-sizing'], 'border-box');
   assert.equal(r.get('.controls').top, 'calc(3cqmin + var(--sa-t))');
-  assert.equal(r.get('.controls').right, 'calc(4cqmin + var(--sa-r))');
+  assert.equal(r.get('.controls').right, 'calc(4cqmin + var(--pad-r))', 'the ✕ keeps to the dashboard, left of the rail');
   for (const [sel, d] of r) {
     for (const [k, v] of Object.entries(d)) if (v.includes('env(')) assert.match(k, /^--sa-[trbl]$/, `raw env() in ${sel} { ${k} }`);
   }
@@ -250,13 +250,15 @@ test('the root background is the colour the dashboard shows, so the strip iOS wi
   assert.equal(manifest.background_color, /--bg: (#[0-9a-f]{6})/i.exec(css)[1]);
 });
 
-test('style: the rail holds ⟲ and the brightness slider, one under the other, on the left past the safe area', () => {
+test('style: the rail holds ⟲ and the brightness slider, one under the other, on the right past the safe area', () => {
   const r = styleRules();
-  assert.equal(r.get('#app').padding, 'var(--sa-t) var(--sa-r) var(--sa-b) calc(var(--rail-at) + var(--rail))');
-  assert.equal(r.get('#app')['--rail-at'], 'max(var(--sa-l), 2.5vmax)', 'past the safe area, and the drift (2.5%) never takes it off screen');
+  assert.equal(r.get('#app').padding, 'var(--sa-t) var(--pad-r) var(--sa-b) var(--sa-l)');
+  assert.equal(r.get('#app')['--pad-r'], 'calc(var(--rail-at) + var(--rail))');
+  assert.equal(r.get('#app')['--rail-at'], 'max(var(--sa-r), 2.5vmax)', 'past the safe area, and the drift (2.5%) never takes it off screen');
   const rail = r.get('.rail');
   assert.equal(rail.position, 'absolute');
-  assert.equal(rail.left, 'var(--rail-at)');
+  assert.equal(rail.right, 'var(--rail-at)');
+  assert.equal(rail.left, undefined);
   assert.equal(rail.width, 'var(--rail)');
   assert.equal(rail['flex-direction'], 'column');
   assert.equal(rail['--warn'], '#ffc107', "Bootstrap's warning yellow");

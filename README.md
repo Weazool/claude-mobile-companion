@@ -66,7 +66,7 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 </p>
 
 - The **✕** at the top blanks the screen until you tap it (night mode).
-- **The rail on the left** holds two controls, one under the other:
+- **The rail on the right** holds two controls, one under the other:
   - **⟲** turns the layout 90° at a time, so it works with rotation lock on.
   - **The brightness slider** runs from 10% to 100%. Drag it or tap anywhere along it. The whole screen dims evenly, edges included. Nothing dims on its own; this slider is the only brightness control.
 

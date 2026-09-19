@@ -25,10 +25,10 @@ html, body {
   /* Burn-in drift (app.js): --dx/--dy move the whole dashboard along the physical screen, eased over 2 s. */
   translate: var(--dx, 0px) var(--dy, 0px);
   background: var(--bg); container-type: size; display: grid; overflow: hidden;
-  box-sizing: border-box; padding: var(--sa-t) var(--sa-r) var(--sa-b) calc(var(--rail-at) + var(--rail));
-  /* The rail on the left: vmin is the screen's short side at every rotation. It keeps clear of the safe area, and
+  box-sizing: border-box; padding: var(--sa-t) var(--pad-r) var(--sa-b) var(--sa-l);
+  /* The rail on the right: vmin is the screen's short side at every rotation. It keeps clear of the safe area, and
      at least as far from the edge as the drift can carry it (2.5% of the screen, saver.js DRIFT). */
-  --rail: 19vmin; --rail-at: max(var(--sa-l), 2.5vmax);
+  --rail: 19vmin; --rail-at: max(var(--sa-r), 2.5vmax); --pad-r: calc(var(--rail-at) + var(--rail));
   transition: translate 2s linear;
 }
 /* Safe areas. viewport-fit=cover lets the page run under the notch, the Dynamic Island and the home
@@ -38,7 +38,7 @@ html, body {
    of 90deg). --sa-t/-r/-b/-l are the insets of the physical edges that #app's top/right/bottom/left
    face; applyLayout sets exactly one rotN class. #app pads itself by them, so the grid (stage, data)
    stays clear; absolute children are placed against the padding box, so .controls and .rail add them too.
-   Its left padding also makes room for the rail, so every cq length inside keeps to the rest of the screen. */
+   Its right padding also makes room for the rail, so every cq length inside keeps to the rest of the screen. */
 #app, #app.rot0 { --sa-t: env(safe-area-inset-top, 0px); --sa-r: env(safe-area-inset-right, 0px); --sa-b: env(safe-area-inset-bottom, 0px); --sa-l: env(safe-area-inset-left, 0px); }
 #app.rot90 { --sa-t: env(safe-area-inset-right, 0px); --sa-r: env(safe-area-inset-bottom, 0px); --sa-b: env(safe-area-inset-left, 0px); --sa-l: env(safe-area-inset-top, 0px); }
 #app.rot180 { --sa-t: env(safe-area-inset-bottom, 0px); --sa-r: env(safe-area-inset-left, 0px); --sa-b: env(safe-area-inset-top, 0px); --sa-l: env(safe-area-inset-right, 0px); }
@@ -194,7 +194,7 @@ html, body {
    not, and it keeps the dashboard's size, so a short first day still fits its name. */
 #app.landscape.limits-up .limits .bar-legend span { font-size: 3.1cqmin; }
 
-.controls { position: absolute; top: calc(3cqmin + var(--sa-t)); right: calc(4cqmin + var(--sa-r)); display: flex; gap: 3cqmin; z-index: 55; } /* above #offline */
+.controls { position: absolute; top: calc(3cqmin + var(--sa-t)); right: calc(4cqmin + var(--pad-r)); display: flex; gap: 3cqmin; z-index: 55; } /* above #offline */
 .controls button { background: none; border: 0; color: var(--text); opacity: .45; font-size: 4.4cqmin; line-height: 1; cursor: pointer; padding: 1cqmin; }
 
 .overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .82); color: var(--dim); font-size: 18px; }
@@ -202,11 +202,11 @@ html, body {
 
 .overlay.blank { background: #000; z-index: 80; } /* above the controls */
 
-/* The rail, down the left of the screen at every rotation: ⟲, then the brightness slider and its value, one under
+/* The rail, down the right of the screen at every rotation: ⟲, then the brightness slider and its value, one under
    the other, in Bootstrap's outline-warning style (a yellow outline that fills when pressed). It sits in #app's
-   left padding, past the safe area, above the offline overlay like the ✕. Sized in vmin, like its width. */
+   right padding, past the safe area, above the offline overlay like the ✕ (just left of it). Sized in vmin, like its width. */
 .rail {
-  --warn: #ffc107; position: absolute; z-index: 55; top: var(--sa-t); bottom: var(--sa-b); left: var(--rail-at); width: var(--rail);
+  --warn: #ffc107; position: absolute; z-index: 55; top: var(--sa-t); bottom: var(--sa-b); right: var(--rail-at); width: var(--rail);
   display: flex; flex-direction: column; align-items: center; gap: 3vmin; padding: 4vmin 0 3vmin;
 }
 .rail-btn {
