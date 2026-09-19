@@ -57,7 +57,7 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
 - **Two modes, in turn, 10 seconds a step.** Then it starts over. Tap a session to bring it up at once; the cycle carries on from there.
   - **Standard mode**, every session in turn: its row lights up, and Clawd, on the left, acts out what it's doing next to your limit bars and the list of sessions.
-  - **Focus mode**, every session in turn: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him, and acts it out with the animations you picked (see Customise Clawd below). After 7 seconds your limit bars take his place for the last 3. When the session's turn has ended, a **Close** button under the details stops tracking it, like its ✕.
+  - **Focus mode**, every session in turn: Clawd takes the top three quarters of the screen, with his caption under him as in standard mode, and acts the session out with the animations you picked (see Customise Clawd below). Under him is the session's own row from the list, twice the size; its ✕ stops tracking the session, as in the list. After 7 seconds your limit bars take his place for the last 3.
 - **All your sessions.** The list shows every session and scrolls. Left alone, it follows the session that's up. Tap a session's **✕** to stop tracking it: it leaves the list and the cycle until you next prompt it or restart it, or until it needs your permission or has a question.
 
 <p align="center">
