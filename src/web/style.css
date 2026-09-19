@@ -121,7 +121,9 @@ html, body {
   mask-image: linear-gradient(transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
 }
 .sessions:empty::before { content: 'No Claude Code sessions yet'; font-size: 2.7cqmin; color: var(--dim); padding: 1.4cqmin 1cqmin; }
-.row { flex: none; display: grid; grid-template-columns: 2.4cqmin minmax(0, 1fr) 18cqmin 7cqmin; gap: 2cqmin; align-items: center; padding: 1.6cqmin 1cqmin; border-top: 1px solid var(--line); border-radius: 1.2cqmin; }
+/* A row: the dot, then its name over model · effort · step and its context bar, sharing the rest 8 to 4 (as
+   Bootstrap's col-8 and col-4), then the ✕. */
+.row { flex: none; display: grid; grid-template-columns: 2.4cqmin minmax(0, 8fr) minmax(0, 4fr) 7cqmin; gap: 2cqmin; align-items: center; padding: 1.6cqmin 1cqmin; border-top: 1px solid var(--line); border-radius: 1.2cqmin; }
 .row { cursor: pointer; transition: background .3s, opacity .2s; }
 .row.focus { background: #14141c; }
 /* ✕: stop tracking the session (app.js untrack). The button runs the row's full height, so it is easy to hit. */
@@ -188,7 +190,17 @@ html, body {
 .gauges { display: none; }
 #app.overview { grid-template-columns: minmax(0, 1fr) 28cqw; grid-template-rows: 100%; }
 #app.overview .stage { display: none; }
-#app.overview .data { grid-area: 1 / 1; justify-content: flex-start; padding: 5cqmin 3cqmin 4cqmin 5cqmin; }
+#app.overview .data { grid-area: 1 / 1; justify-content: center; padding: 5cqmin 4cqmin; }
+/* The overview's list: centred both ways in the left side, its rows twice as tall as elsewhere, with bigger type
+   to fill them. The ✕ still runs the row's full height. */
+#app.overview .row { grid-template-columns: 3.4cqmin minmax(0, 8fr) minmax(0, 4fr) 9cqmin; gap: 3cqmin; padding: 4.6cqmin 2cqmin; }
+#app.overview .row:last-child { border-bottom: 1px solid var(--line); }
+#app.overview .dot { width: 3.4cqmin; height: 3.4cqmin; }
+#app.overview .name { font-size: 5.6cqmin; }
+#app.overview .meta { font-size: 4cqmin; margin-top: .6cqmin; }
+#app.overview .ctx { height: 2.2cqmin; border-radius: 1.4cqmin; }
+#app.overview .ctxl { font-size: 3.4cqmin; margin-top: 1cqmin; }
+#app.overview .untrack { font-size: 5cqmin; margin: -4.6cqmin 0; }
 #app.overview #limits, #app.overview #limitsNote { position: absolute; visibility: hidden; }
 #app.overview .gauges { grid-area: 1 / 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; padding: 11cqmin 4cqmin 3cqmin 0; }
 .rings { --ring: min(21cqh, 22cqw); display: flex; flex-direction: column; align-items: center; gap: 2.2cqmin; }

@@ -58,7 +58,7 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 - **Three modes, in turn, 10 seconds a step.** Then it starts over. Tap a session to bring it up at once; the cycle carries on from there.
   - **Standard mode**, every session in turn: its row lights up, and Clawd, on the left, acts out what it's doing next to your limit bars and the list of sessions.
   - **Focus mode**, every session in turn: Clawd moves to the middle of the top three quarters of the screen, with the session's details centred under him, and acts it out with the animations you picked (see Customise Clawd below). After 7 seconds your limit bars take his place for the last 3. When the session's turn has ended, a **Close** button under the details stops tracking it, like its ✕.
-  - **Overview mode**, once: all your sessions on the left, and your limits on the right as three rings, one under the other.
+  - **Overview mode**, once: all your sessions in big rows, centred on the left, and your limits on the right as three rings, one under the other.
 - **All your sessions.** The list shows every session and scrolls. Left alone, it follows the session that's up. Tap a session's **✕** to stop tracking it: it leaves the list and the cycle until you next prompt it or restart it, or until it needs your permission or has a question.
 
 <p align="center">
@@ -66,7 +66,7 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
   <img src="docs/images/needs-you-limits-landscape.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same details">
 </p>
 
-<p align="center"><img src="docs/images/overview-landscape.png" width="68%" alt="Overview mode: three sessions on the left, and the 5-hour, weekly and Fable limits on the right as rings, one under the other"></p>
+<p align="center"><img src="docs/images/overview-centred-landscape.png" width="68%" alt="Overview mode: three sessions on the left, and the 5-hour, weekly and Fable limits on the right as rings, one under the other"></p>
 
 - The **✕** at the top blanks the screen until you tap it (night mode).
 - **⟲** turns the layout 90° at a time, so it works with rotation lock on. The choice is remembered.
