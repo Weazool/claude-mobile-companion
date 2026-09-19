@@ -57,9 +57,14 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
 - **✕** blanks the screen until you tap it (night mode).
 - **⟲** turns the layout 90° at a time, so it works with rotation lock on. The choice is remembered.
-- **Burn-in protection.** While Claude works, the whole dashboard drifts slowly so no pixel stays lit in one place. When Clawd falls asleep (5 quiet minutes), a screensaver takes over: the screen goes black and a small, dim Clawd with your three limit bars glides around it. Any Claude activity or a tap brings the dashboard back.
+- **Burn-in protection.** Everything is built to keep an OLED screen from burning in:
+  - **It drifts.** While Claude works, the whole dashboard moves slowly so no pixel stays lit in one place.
+  - **It dims.** After 2 minutes with the same status (Claude thinking and working away), the dashboard fades to half brightness. It comes back to full as soon as it's your turn, Claude needs permission, or you tap the screen. That first tap only brings the brightness back; it never presses ✕ or ⟲.
+  - **Its bars flow.** Only the tip of each limit bar is in full colour. The rest is dimmed, with stripes that drift slowly along it.
+  - **It sleeps.** When Clawd falls asleep (2 quiet minutes, or 2 minutes after a limit runs out), a screensaver takes over: the screen goes black and a small, dim Clawd with your three limit bars glides around it. Any Claude activity or a tap brings the dashboard back.
+  - **It lets the phone lock.** While Claude works, the screen stays on. Once 30 minutes pass with no Claude Code activity and no taps, the page stops keeping the screen awake, so your phone locks on its own Auto-Lock. Unlock it and tap once to keep it on again.
 
-The page keeps the screen awake while it's open. If your phone still locks, set iPhone Settings → Display & Brightness → Auto-Lock → Never, or turn on Android Developer options → Stay awake while charging.
+The page keeps the screen awake while something is going on, so leave your phone's Auto-Lock at a normal setting (iPhone: Settings → Display & Brightness → Auto-Lock, e.g. 5 minutes). Keep-awake starts with your first tap on the dashboard. If the phone still locks while Claude is working, your browser isn't holding the screen awake, and Auto-Lock → Never (or Android Developer options → Stay awake while charging) is the fallback, without the lock after 30 quiet minutes.
 
 ## <img src="docs/images/clawd/celebration.png" height="40" alt="" align="absmiddle"> Customise Clawd
 

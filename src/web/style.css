@@ -76,7 +76,27 @@ html, body {
 .bar-head { grid-column: 1 / -1; font-size: 2.8cqmin; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: .9cqmin; }
 .bar-head b { color: var(--text); font-weight: 600; }
 .bar-track { position: relative; height: 2.4cqmin; background: var(--track); border-radius: 1.2cqmin; overflow: hidden; }
-.bar-track i { display: block; width: 0; height: 100%; background: var(--c); border-radius: inherit; transition: width .9s ease; }
+.bar-track i { position: relative; display: block; width: 0; height: 100%; border-radius: inherit; overflow: hidden; transition: width .9s ease; }
+/* Burn-in-friendly fills: a solid bar would light the same pixels for hours, so only its leading edge (the value
+   itself) shows the full colour and the rest is the colour dimmed. On the limit bars the dimmed part also carries
+   diagonal stripes and a soft dark wave that flow slowly towards the edge, so no pixel inside stays lit at one
+   brightness (the context bars are thin and keep still). The flowing layer starts one wave (96px, eight stripe
+   tiles) to the left and slides right by exactly that, so the loop is seamless. Whole CSS pixels, not cqmin:
+   WebKit snaps a background tile to device pixels but not the slide, so a fractional tile would jump each loop. */
+.bar-track i, .ctx i { background: linear-gradient(rgb(0 0 0 / .5), rgb(0 0 0 / .5)), var(--c); }
+.bar-track i::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: -96px; width: calc(100% + 96px);
+  background:
+    linear-gradient(45deg, rgb(0 0 0 / .42) 25%, transparent 25% 50%, rgb(0 0 0 / .42) 50% 75%, transparent 75%) 0 0 / 12px 12px,
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0) 0, rgb(0 0 0 / .3) 48px, rgb(0 0 0 / 0) 96px);
+  animation: flow 48s linear infinite;
+}
+.bar-track i::after, .ctx i::after {
+  content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 3cqmin;
+  background: linear-gradient(90deg, transparent, var(--c) 70%);
+}
+@keyframes flow { to { transform: translateX(96px); } }
+@media (prefers-reduced-motion: reduce) { .bar-track i::before { animation: none; } }
 .bar-track .ticks b { position: absolute; top: 0; bottom: 0; width: .4cqmin; margin-left: -.2cqmin; background: var(--bg); }
 .bar-num { font-size: 3.6cqmin; font-weight: 700; text-align: right; line-height: 1; }
 .bar-num.hot { color: var(--bad); }
@@ -98,7 +118,7 @@ html, body {
 .dot.bad { background: var(--bad); }
 @keyframes pulse { 50% { opacity: .35; } }
 .ctx { height: 1.5cqmin; background: var(--track); border-radius: 1cqmin; overflow: hidden; }
-.ctx i { display: block; height: 100%; background: #9d9daa; transition: width .6s; }
+.ctx i { --c: #9d9daa; position: relative; display: block; height: 100%; border-radius: inherit; overflow: hidden; transition: width .6s; }
 .ctxl { font-size: 2.5cqmin; color: var(--dim); text-align: right; margin-top: .6cqmin; }
 .more { font-size: 2.7cqmin; color: var(--dim); padding: 1.4cqmin 1cqmin; }
 
@@ -123,6 +143,13 @@ html.saving, html.saving body, html.saving #app { background: #000; }
 .saver-limits .bar { grid-template-columns: 7cqmin minmax(0, 1fr) 6.5cqmin; column-gap: 1.2cqmin; }
 .saver-limits .bar-head { grid-column: auto; margin: 0; font-size: 2.2cqmin; }
 .saver-limits .bar-track { height: 1.6cqmin; }
+.saver-limits .bar-track i::before { animation: none; } /* the whole card glides already */
 .saver-limits .bar-num { font-size: 2.4cqmin; }
 #app.saver .controls { visibility: hidden; }
+
+/* Half brightness (app.js): after 2 minutes on one status a black layer fades in at half opacity over the whole
+   dashboard, controls and offline note included, and lifts at once on a new status or a tap. While it is up it
+   takes the tap, so the first tap only brings the brightness back. Below the night-mode blank. */
+#hush { position: absolute; inset: 0; z-index: 60; background: #000; opacity: 0; pointer-events: none; transition: opacity .3s; }
+#hush.on { opacity: .5; pointer-events: auto; transition: opacity 3s; }
 

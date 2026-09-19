@@ -1,7 +1,7 @@
 // Phone-side settings (spec §6), kept in localStorage.
 export const STORAGE_KEY = 'desk-companion.settings.v1';
 export const DEFAULTS = Object.freeze({
-  mood: { warn: 50, low: 80, crit: 95, sleepAfterMin: 5, pinnedId: null },
+  mood: { warn: 50, low: 80, crit: 95, sleepAfterMin: 2, pinnedId: null },
   idle: { blinksPerMin: 26, glancesPerMin: 2, movingPct: 50 },
   rotation: 0,
   keepAwake: true,
@@ -21,7 +21,7 @@ export function validate(s) {
   const low = Math.max(warn, num(m.low, 1, 99, 80));
   const crit = Math.max(low, num(m.crit, 1, 100, 95));
   return {
-    mood: { warn, low, crit, sleepAfterMin: num(m.sleepAfterMin, 1, 120, 5), pinnedId: typeof m.pinnedId === 'string' && m.pinnedId ? m.pinnedId : null },
+    mood: { warn, low, crit, sleepAfterMin: num(m.sleepAfterMin, 1, 120, 2), pinnedId: typeof m.pinnedId === 'string' && m.pinnedId ? m.pinnedId : null },
     idle: { blinksPerMin: num(i.blinksPerMin, 0, 60, 26), glancesPerMin: num(i.glancesPerMin, 0, 20, 2), movingPct: num(i.movingPct, 5, 95, 50) },
     rotation: [0, 90, 180, 270].includes(Number(src.rotation)) ? Number(src.rotation) : 0,
     keepAwake: src.keepAwake !== false,

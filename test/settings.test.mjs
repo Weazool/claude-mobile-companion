@@ -9,7 +9,7 @@ import { decodePng } from '../tools/lib/png.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEF = {
-  mood: { warn: 50, low: 80, crit: 95, sleepAfterMin: 5, pinnedId: null },
+  mood: { warn: 50, low: 80, crit: 95, sleepAfterMin: 2, pinnedId: null },
   idle: { blinksPerMin: 26, glancesPerMin: 2, movingPct: 50 },
   rotation: 0, keepAwake: true,
 };

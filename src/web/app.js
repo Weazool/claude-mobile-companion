@@ -3,7 +3,7 @@ import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { loadSettings, saveSettings, validate, rotationFor, nextRotation } from './settings.js';
-import { drift, bounce, startState } from './saver.js';
+import { drift, bounce, startState, createHush, keepAwakeWanted } from './saver.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -30,6 +30,7 @@ function apply(cmd) {
   setBubble(cmd.bubble && cmd.bubble.text, cmd.bubble && cmd.bubble.tone);
   dimmed = !!cmd.dim;
   setSaver(dimmed || forceSaver);
+  updateHush();
 }
 
 // ---------- screensaver (burn-in protection while Clawd sleeps) ----------
@@ -62,6 +63,29 @@ function moveSaver(dt) {
   card.style.transform = `translate(${saverState.x.toFixed(1)}px, ${saverState.y.toFixed(1)}px)`;
 }
 
+// ---------- half brightness (burn-in protection while awake) ----------
+// Once the dashboard has shown one status for 2 minutes (saver.js createHush) a black layer over it fades in at
+// half opacity. A new status or any tap lifts it at once; while it is up it takes the tap, so the first tap only
+// brings the brightness back and never lands on ✕ or ⟲. ?hush forces it on (checks and screenshots).
+const forceHush = new URLSearchParams(location.search).has('hush');
+const hush = createHush();
+let hushed = false;
+let tapAt = 0;
+function updateHush(now = Date.now()) {
+  const on = forceHush || hush.update(saverOn ? null : mood.status(now), now);
+  if (on === hushed) return;
+  hushed = on;
+  $('hush').classList.toggle('on', on);
+}
+document.addEventListener('click', () => { // capture: every tap counts, even one a control stops
+  tapAt = Date.now();
+  hush.tap(tapAt);
+  updateHush(tapAt);
+}, true);
+// iOS WebKit only turns a tap into a click on an element (below <body>) with a click listener of its own; without
+// this one a tap on the layer would never reach the listener above.
+$('hush').addEventListener('click', () => {});
+
 // The behaviour map (edited on the PC at /behaviours) arrives on connect and after every save. It is checked
 // against this page's rig (not its internal clips) in case the page and the server ever differ; the current
 // state then re-renders at once with its new animation. The same map again changes nothing.
@@ -91,7 +115,11 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
-setInterval(() => apply(mood.tick(Date.now())), 500);
+setInterval(() => {
+  apply(mood.tick(Date.now()));
+  updateHush();
+  holdAwake();
+}, 500);
 $('mascot').addEventListener('click', () => { if (!saverOn) apply(mood.onTap(Date.now())); }); // in the screensaver, #saver handles the tap
 
 // ---------- limits ----------
@@ -177,6 +205,7 @@ function connect() {
   src.addEventListener('snapshot', e => {
     snap = JSON.parse(e.data);
     skew = snap.serverTime - Date.now();
+    noteHooks(snap);
     seen();
     render();
     apply(mood.onSnapshot(snap, Date.now()));
@@ -235,9 +264,14 @@ window.addEventListener('resize', () => { applyLayout(); saverBox = null; });
 applyLayout();
 
 // Full screen and keep-awake need a tap. The controls stop propagation, so they call this themselves.
+// Over the LAN's plain http the page is not a secure context, so NoSleep keeps the screen on with a hidden looping
+// video; on localhost it takes a wake lock. `arming` keeps a second request from starting while one is pending.
 const noSleep = window.NoSleep ? new window.NoSleep() : null;
+let arming = false;
 function keepAwake() {
-  if (settings.keepAwake && noSleep && !noSleep.isEnabled) Promise.resolve(noSleep.enable()).catch(() => {});
+  if (!settings.keepAwake || !noSleep || noSleep.isEnabled || arming) return;
+  arming = true;
+  Promise.resolve(noSleep.enable()).catch(() => {}).finally(() => { arming = false; });
 }
 function activate() {
   const el = document.documentElement;
@@ -245,9 +279,35 @@ function activate() {
   keepAwake();
 }
 document.addEventListener('click', activate);
-// The OS pauses the keep-awake video (or drops the wake lock) while the page is hidden; disable it so the next tap re-arms it.
+// The page keeps the screen on while Claude works, and otherwise until 30 minutes pass with no Claude Code event
+// and no tap (saver.js keepAwakeWanted); then it lets go, so the phone locks on its own Auto-Lock. Whenever it
+// wants the screen and does not hold it (first load, back from the background, activity after a quiet spell) it
+// asks for it again: best effort, as iOS may want a tap, and then the next tap does it. The pair page's preview
+// (in an iframe on the PC) only arms on a tap, as before.
+// Claude Code events are counted from the sessions' lastEventAt, not from snapshots: the limits poll sends one
+// every 5 minutes even when nothing happens (an unanswered prompt, a turn stopped with Esc).
+const embedded = window.top !== window;
+let hookSeen = 0;        // the newest session event in the snapshots (PC clock)
+let hookAt = Date.now(); // when this page saw it move (phone clock)
+function noteHooks(s) {
+  const t = Math.max(0, ...s.sessions.map(x => x.lastEventAt || 0));
+  if (t > hookSeen) { hookSeen = t; hookAt = Date.now(); }
+}
+let released = true; // not holding the screen yet
+function holdAwake(now = Date.now()) {
+  if (document.visibilityState === 'hidden') return; // nothing to hold; the handler below let go
+  const wanted = mood.status(now) === 'work' || keepAwakeWanted(now, hookAt, tapAt);
+  if (wanted === !released) return;
+  released = !wanted;
+  if (released) { if (noSleep && noSleep.isEnabled) noSleep.disable(); }
+  else if (!embedded) keepAwake();
+}
+// The OS pauses the keep-awake video (or drops the wake lock) while the page is hidden: let go, and the first tick
+// back in view (or the next tap) takes it again.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && noSleep && noSleep.isEnabled) noSleep.disable();
+  if (document.visibilityState !== 'hidden') return;
+  if (noSleep && noSleep.isEnabled) noSleep.disable();
+  released = true;
 });
 
 $('btnRotate').addEventListener('click', e => {

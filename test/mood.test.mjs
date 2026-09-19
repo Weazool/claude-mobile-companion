@@ -230,6 +230,65 @@ test('offline: the companion sleeps until the connection returns', () => {
   assert.equal(m.setOffline(false, T0 + 2).base, 'working');
 });
 
+test('by default he falls asleep after 2 quiet minutes', () => {
+  const m = createMood({}, { rand: mid });
+  m.onSnapshot(snap([sess('done')]), T0);
+  assert.equal(m.tick(T0 + 2 * MIN - 1), null);
+  assert.equal(m.tick(T0 + 2 * MIN).base, 'yawning');
+  assert.equal(m.tick(T0 + 2 * MIN + 2500).dim, true);
+});
+
+test('a used-up 5-hour limit or a rate limit, once quiet, still yawns and sleeps; activity wakes him to it', () => {
+  const m = createMood({ sleepAfterMin: 2 }, { rand: mid });
+  assert.equal(m.onSnapshot(snap([sess('done')], five(100)), T0).base, 'overloaded');
+  assert.equal(m.tick(T0 + 2 * MIN - 1).base, 'overloaded'); // the countdown moved on
+  assert.deepEqual(m.tick(T0 + 2 * MIN), { base: 'yawning', play: [], bubble: null, dim: false });
+  assert.deepEqual(m.tick(T0 + 2 * MIN + 2500), { base: 'sleeping', play: [], bubble: { text: 'Zzz…', tone: '' }, dim: true });
+  const w = m.onSnapshot(snap([sess('working', { detail: 'x' })], five(100)), T0 + 3 * MIN);
+  assert.deepEqual([w.base, w.dim], ['overloaded', false]);
+
+  const r = createMood({ sleepAfterMin: 2 }, { rand: mid });
+  assert.equal(r.onSnapshot(snap([sess('rateLimited', { detail: 'Rate limited' })]), T0).base, 'overloaded');
+  r.tick(T0 + 2 * MIN);
+  assert.equal(r.tick(T0 + 2 * MIN + 2500).dim, true);
+});
+
+test('status: thinking, reading, working and compiling are one status; needs, your turn and idle are their own', () => {
+  const m = makeMood({}, { rand: mid }); // status() is not a command
+  m.onSnapshot(snap([sess('thinking', { detail: 'Thinking…' })]), T0);
+  assert.equal(m.status(T0), 'work');
+  m.onSnapshot(snap([sess('working', { detail: 'Editing a' })]), T0 + 2000);
+  assert.equal(m.status(T0 + 2000), 'work');
+  m.onSnapshot(snap([sess('thinking', { needsYou: true, detail: 'Needs permission' })]), T0 + 3000);
+  assert.equal(m.status(T0 + 3000), 'needs');
+  m.onSnapshot(snap([sess('done')]), T0 + 4000);
+  m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 4001);
+  assert.equal(m.status(T0 + 4001), 'done');
+  m.tick(T0 + 8000);
+  assert.equal(m.status(T0 + 8000), 'idle');
+});
+
+test('status: at a used-up limit a permission prompt and your turn still count as new statuses', () => {
+  const m = makeMood({}, { rand: mid });
+  m.onSnapshot(snap([sess('working', { detail: 'x' })], five(100)), T0);
+  assert.equal(m.status(T0), 'overloaded');
+  m.onSnapshot(snap([sess('working', { needsYou: true, detail: 'Needs permission' })], five(100)), T0 + MIN);
+  assert.equal(m.status(T0 + MIN), 'needs');
+  m.onSnapshot(snap([sess('done')], five(100)), T0 + 2 * MIN);
+  m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 2 * MIN + 1);
+  assert.equal(m.status(T0 + 2 * MIN + 1), 'done');
+  assert.equal(m.status(T0 + 2 * MIN + 3001), 'overloaded');
+});
+
+test('at a used-up limit he stays up while Claude works on, with no snapshot for minutes', () => {
+  const m = createMood({ sleepAfterMin: 2 }, { rand: mid });
+  m.onSnapshot(snap([sess('compiling', { detail: 'Running npm test' })], five(100)), T0);
+  for (let t = T0 + 500; t <= T0 + 6 * MIN; t += 500) {
+    const c = m.tick(t);
+    assert.ok(!c || c.base === 'overloaded', `t=${t - T0}: ${c && c.base}`);
+  }
+});
+
 // ---------- the behaviour map ----------
 // These use makeMood directly: their remapped names are not what the defaults ask for (the last test's list).
 

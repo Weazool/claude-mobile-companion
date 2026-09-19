@@ -71,7 +71,7 @@ const SCENARIOS = {
     await limits(38);
     await hook('demo-1', 'SessionStart', { model: 'claude-opus-5', effort: 'high' });
     await hook('demo-1', 'Stop', {});
-    console.log('Now leave it: the companion falls asleep after the "sleep after" setting (default 5 min).');
+    console.log('Now leave it: the companion falls asleep after the "sleep after" setting (default 2 min).');
     console.log('Then run: node tools/fake-events.mjs wake');
   },
   async wake() {

@@ -4,12 +4,14 @@ import { DEFAULT_MAP } from './behaviours.js';
 // The companion's state machine (spec §7), adapted from clawdio's state_machine.cpp (cegware/clawdio, MIT).
 // Modes are what is going on (thinking, needs, sleep...); which animation each one plays comes from the
 // behaviour map (behaviours.js), so the user can remap them without touching this file.
-export const DEFAULT_MOOD = { warn: 50, low: 80, crit: 95, sleepAfterMin: 5, pinnedId: null };
+export const DEFAULT_MOOD = { warn: 50, low: 80, crit: 95, sleepAfterMin: 2, pinnedId: null };
 
 // The active modes are named after their behaviour keys: B[mode] is the mode's animation.
 const ACTIVE = new Set(['thinking', 'reading', 'working', 'compiling']);
 const IDLEISH = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'done', 'cool', 'celebrate', 'sleep', 'yawn', 'wake', 'error']);
-const QUIET = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver']);
+// Quiet modes fall asleep after sleepAfterMin without activity; that includes a used-up 5-hour limit or a rate
+// limit: nothing is going to happen until it resets, so the screensaver takes over.
+const QUIET = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'overloaded']);
 const DWELL_MS = 1500;
 const pctOf = w => (w && Number.isFinite(w.pct) ? w.pct : null);
 const dayOf = t => new Date(t).toDateString();
@@ -55,13 +57,14 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
     const p5 = pctOf(L.fiveHour);
     const pw = pctOf(L.week);
     const pf = pctOf(L.fable);
-    if ((p5 !== null && p5 >= 100) || (f && f.activity === 'rateLimited')) {
+    const tr = live(now);
+    const resting = st.asleep || (tr && tr.kind === 'yawn'); // quiet at the limit, he still falls asleep
+    if (!resting && ((p5 !== null && p5 >= 100) || (f && f.activity === 'rateLimited'))) {
       const reached = p5 !== null && p5 >= 100;
       const text = reached ? `Limit reached · resets in ${formatReset(L.fiveHour.resetsAt, now) || 'soon'}` : 'Rate limited';
       return { mode: 'overloaded', base: base(reached ? 'limitReached' : 'rateLimited'), bubble: { text, tone: 'bad' } };
     }
     if (f && f.needsYou) return { mode: 'needs', base: base('needsYou'), bubble: { text: f.detail || 'Needs you', tone: 'need' } };
-    const tr = live(now);
     if (tr && tr.kind === 'done') return { mode: 'done', base: base('yourTurn'), bubble: { text: 'Your turn', tone: 'good' } };
     if (tr && (tr.kind === 'error' || tr.kind === 'angry')) {
       return { mode: 'error', base: base(tr.kind === 'angry' ? 'errorRepeated' : 'error'), bubble: { text: 'Error', tone: 'bad' } };
@@ -217,10 +220,23 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
         const p5 = pctOf(snap && snap.limits && snap.limits.fiveHour);
         if (p5 !== null && p5 <= 5 && rand() < 1 / 1200) st.transient = { kind: 'cool', since: now, until: now + 8000 };
       }
-      if (QUIET.has(st.mode) && !st.asleep && !st.transient && now - st.lastActiveAt >= S.sleepAfterMin * 60000) {
+      const overloadedAtWork = st.mode === 'overloaded' && busy(focus()); // he stays up while Claude works on at the limit
+      if (QUIET.has(st.mode) && !overloadedAtWork && !st.asleep && !st.transient && now - st.lastActiveAt >= S.sleepAfterMin * 60000) {
         st.transient = { kind: 'yawn', since: now, until: now + 2500 };
       }
       return out(now);
+    },
+
+    // The status the dashboard shows, for the page's half brightness: the mode, with thinking, reading, working and
+    // compiling all 'work' (one stretch of Claude at work). A used-up limit's red face covers a permission prompt
+    // and the end of a turn, but those still count as a new status, so the screen comes back to full for them.
+    status(now) {
+      const s = ACTIVE.has(st.mode) ? 'work' : st.mode;
+      if (s !== 'overloaded') return s;
+      const f = focus();
+      const tr = live(now);
+      if (f && f.needsYou) return 'needs';
+      return tr && tr.kind === 'done' ? 'done' : s;
     },
 
     setSettings(partial) { S = { ...S, ...partial }; },

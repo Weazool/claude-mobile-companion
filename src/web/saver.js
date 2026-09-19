@@ -1,5 +1,5 @@
-// Burn-in protection for OLED phones: the pure motion behind the dashboard's drift and the screensaver card.
-// No DOM; app.js applies the numbers.
+// Burn-in protection for OLED phones: the pure motion behind the dashboard's drift and the screensaver card, and
+// the clocks behind half brightness and letting the phone lock. No DOM; app.js applies the numbers.
 
 const TAU = Math.PI * 2;
 
@@ -40,3 +40,26 @@ export function bounce(s, dt, W, H, w, h) {
   if (y < 0) { y = -y; vy = Math.abs(vy); } else if (y > my) { y = 2 * my - y; vy = -Math.abs(vy); }
   return { x: Math.min(mx, Math.max(0, x)), y: Math.min(my, Math.max(0, y)), vx, vy };
 }
+
+// Half brightness: once the dashboard has shown the same status for HUSH_AFTER_MS (Claude thinking and working
+// away, a permission prompt nobody has answered yet) it dims to half. A new status (your turn, a permission
+// prompt, an error) or a tap brings it back to full at once. When all is quiet, Clawd's sleep takes over instead.
+export const HUSH_AFTER_MS = 2 * 60000;
+
+export function createHush(afterMs = HUSH_AFTER_MS) {
+  let status = null;
+  let since = 0;
+  return {
+    // Whether to dim now, given the status the dashboard shows (null: nothing to dim, e.g. the screensaver is up).
+    update(next, now) {
+      if (next !== status) { status = next; since = now; }
+      return status !== null && now - since >= afterMs;
+    },
+    tap(now) { since = now; },
+  };
+}
+
+// After this long with nothing going on (no Claude activity, no tap) the page lets go of the screen, so the phone
+// locks on its own Auto-Lock. Activity or a tap takes it back.
+export const RELEASE_AFTER_MS = 30 * 60000;
+export const keepAwakeWanted = (now, lastActiveAt, lastTapAt) => now - Math.max(lastActiveAt, lastTapAt) < RELEASE_AFTER_MS;

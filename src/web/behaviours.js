@@ -63,7 +63,7 @@ const ROWS = [
   ['idle', 'idleGlance', 'Glance', 'pick', ['look_left', 'look_right'], 'About twice a minute while idle'],
   ['idle', 'idleLife', 'Idle life', 'pick', ['walk', 'hop'], 'Now and then while idle, a stroll or a hop'],
   ['idle', 'yawn', 'Yawn', 'base', 'yawning', 'Before he falls asleep'],
-  ['idle', 'asleep', 'Asleep', 'base', 'sleeping', 'After 5 quiet minutes (the screensaver starts)', 'Zzz…'],
+  ['idle', 'asleep', 'Asleep', 'base', 'sleeping', 'After 2 quiet minutes (the screensaver starts)', 'Zzz…'],
   ['idle', 'offline', 'PC offline', 'base', 'sleeping', 'The phone lost its connection to the PC'],
 ];
 

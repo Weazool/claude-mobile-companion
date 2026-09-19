@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { drift, DRIFT, bounce, startState, SAVER_SPEED } from '../src/web/saver.js';
+import { drift, DRIFT, bounce, startState, SAVER_SPEED, createHush, HUSH_AFTER_MS, keepAwakeWanted, RELEASE_AFTER_MS } from '../src/web/saver.js';
 
 test('drift: starts at rest, stays within ±2.5% of each side, and moves smoothly', () => {
   assert.deepEqual(drift(0, 844, 390), { dx: 0, dy: 0 });
@@ -38,4 +38,35 @@ test('bounce: the card stays inside, reflects at the edges, keeps its speed, and
 
 test('bounce: a card larger than the area just sits at the corner', () => {
   assert.deepEqual(bounce({ x: 5, y: 5, vx: 12, vy: 12 }, 1000, 100, 100, 200, 200), { x: 0, y: 0, vx: -12, vy: -12 });
+});
+
+test('hush: dims after 2 minutes on one status; a new status or a tap brings it back', () => {
+  assert.equal(HUSH_AFTER_MS, 2 * 60000);
+  const h = createHush();
+  assert.equal(h.update('work', 0), false);
+  assert.equal(h.update('work', HUSH_AFTER_MS - 1), false);
+  assert.equal(h.update('work', HUSH_AFTER_MS), true);
+  assert.equal(h.update('needs', HUSH_AFTER_MS + 10), false, 'a permission prompt: full brightness at once');
+  assert.equal(h.update('needs', 2 * HUSH_AFTER_MS + 10), true, 'unanswered, it dims too');
+  h.tap(2 * HUSH_AFTER_MS + 20);
+  assert.equal(h.update('needs', 2 * HUSH_AFTER_MS + 20), false, 'a tap: full brightness');
+  assert.equal(h.update('needs', 3 * HUSH_AFTER_MS + 19), false);
+  assert.equal(h.update('needs', 3 * HUSH_AFTER_MS + 20), true, 'and 2 more minutes dim it again');
+});
+
+test('hush: nothing to dim (the screensaver) never dims, and coming back starts the clock afresh', () => {
+  const h = createHush(1000);
+  assert.equal(h.update(null, 0), false);
+  assert.equal(h.update(null, 60000), false);
+  assert.equal(h.update('wake', 60000), false);
+  assert.equal(h.update('wake', 60999), false);
+  assert.equal(h.update('wake', 61000), true);
+});
+
+test('keepAwakeWanted: lets go after 30 minutes with no activity and no tap', () => {
+  assert.equal(RELEASE_AFTER_MS, 30 * 60000);
+  assert.equal(keepAwakeWanted(RELEASE_AFTER_MS - 1, 0, 0), true);
+  assert.equal(keepAwakeWanted(RELEASE_AFTER_MS, 0, 0), false);
+  assert.equal(keepAwakeWanted(RELEASE_AFTER_MS + 5, 0, 10), true, 'a later tap holds it');
+  assert.equal(keepAwakeWanted(RELEASE_AFTER_MS + 5, 10, 0), true, 'later activity holds it');
 });
