@@ -29,30 +29,27 @@ function listenOnce(server, port, host) {
   });
 }
 
-// Binds to `port`. Hyper-V, WSL and Docker reserve moving port blocks inside 50000-60000 (EACCES), and a
-// foreign program may hold the port (EADDRINUSE with no health answer from us); then it tries fresh ports
-// from pickPort(), `attempts` binds in all. Resolves { port, code } with the bound port and the first port's
-// error code (''), or null when health() shows another instance of ours already serves `port`.
-export async function listenWithFallback(server, port, { health, pickPort, log = () => {}, attempts = 5, host = '0.0.0.0' }) {
-  const first = port;
-  const tried = new Set();
+// Binds to `port`, and only ever to `port`: the phone's link holds the port and the token, so the server never
+// moves itself to another one. A port can be busy for a moment (a socket from the server we just replaced, or a
+// port block Windows has reserved), so it retries a few times, and then reports back instead of wandering off.
+// Resolves { bound: true }; { bound: false, ours } when another desk-companion answers there (its /api/health,
+// so the caller can compare versions); or { bound: false, code } with the last EADDRINUSE / EACCES.
+export async function listenFixed(server, port, { health, log = () => {}, tries = 4, waitMs = 400, host = '0.0.0.0', sleep = ms => new Promise(r => setTimeout(r, ms)) }) {
   let code = '';
-  let lastCode = '';
-  for (let i = 0; i < attempts; i++) {
-    tried.add(port);
+  for (let i = 0; i < tries; i++) {
+    if (i > 0) await sleep(waitMs);
     try {
       await listenOnce(server, port, host);
-      return { port, code };
+      return { bound: true };
     } catch (e) {
       if (e.code !== 'EACCES' && e.code !== 'EADDRINUSE') throw e;
-      if (port === first && e.code === 'EADDRINUSE' && await health(port)) return null; // lost a start-up race
-      if (port === first) code = e.code;
-      else log(`port ${port} unavailable (${e.code})`);
-      lastCode = e.code;
-      do { port = pickPort(); } while (tried.has(port));
+      code = e.code;
+      const ours = e.code === 'EADDRINUSE' ? await health(port) : null;
+      if (ours) return { bound: false, ours };
+      if (i + 1 < tries) log(`port ${port} unavailable (${e.code}), trying again`);
     }
   }
-  throw new Error(`gave up after ${attempts} ports (${lastCode})`);
+  return { bound: false, code };
 }
 
 export function phoneUrls({ port, token }, ifaces, hostname = os.hostname()) {

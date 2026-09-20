@@ -5,11 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { homeDir, dataFile, readJson, loadOrCreateConfig } from '../src/server/paths.mjs';
+import { homeDir, loadOrCreateConfig } from '../src/server/paths.mjs';
 import { phoneUrls } from '../src/server/net.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-let cfg = loadOrCreateConfig(homeDir());
+const cfg = loadOrCreateConfig(homeDir()); // the port and the token, the same ones every time
 
 function health() {
   return new Promise(resolve => {
@@ -22,21 +22,15 @@ function health() {
   });
 }
 
-// A server that finds its port reserved moves to a new one and saves it in config.json.
-function reloadConfig() {
-  const c = readJson(dataFile('config.json', homeDir()));
-  if (c && Number.isInteger(c.port) && typeof c.token === 'string') cfg = c;
-}
-
+// Always start this copy, even when a server already answers: the server itself decides, leaving a same or
+// newer one alone and replacing an older one (version.mjs), so a session with an old plugin root cannot leave a
+// stale server on the port. Never the session's project folder as its cwd (Windows would lock that folder).
 async function ensureServer() {
-  if (await health()) return true;
-  // Never the session's project folder as the server's cwd (Windows would lock that folder).
   spawn(process.execPath, [path.join(ROOT, 'bin', 'server.mjs')],
     { detached: true, stdio: 'ignore', windowsHide: true, cwd: os.homedir() }).unref();
-  for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 100));
-    reloadConfig();
+  for (let i = 0; i < 40; i++) {
     if (await health()) return true;
+    await new Promise(r => setTimeout(r, 100));
   }
   return false;
 }

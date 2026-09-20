@@ -158,7 +158,7 @@ test('--stop falls back to config.port when the port in server.json is stale', a
   assert.equal(fs.existsSync(file(home, 'server.json')), false);
 });
 
-test('a configured port held by a foreign process is replaced, persisted and logged', async t => {
+test('a configured port held by another program never moves the server: it says so and stops', async t => {
   const port = await freePort();
   // Same address as the server: on Windows a 127.0.0.1 listener does not block a 0.0.0.0 bind.
   const blocker = net.createServer(s => s.destroy());
@@ -170,15 +170,55 @@ test('a configured port held by a foreign process is replaced, persisted and log
     await cleanUp(home, env, [srv.pid]);
     blocker.close();
   });
-  let cfg;
-  await until(() => { cfg = readJson(file(home, 'config.json')); return cfg && cfg.port !== port; });
-  assert.ok(cfg.port >= 50000 && cfg.port <= 60000, `new port ${cfg.port}`);
-  assert.equal(cfg.token, TOKEN);
+  assert.equal(await new Promise(r => srv.on('exit', r)), 1, 'it gives up instead of taking another port');
+  const cfg = readJson(file(home, 'config.json'));
+  assert.equal(cfg.port, port, 'the port in config.json is untouched');
+  assert.equal(cfg.token, TOKEN, 'and so is the token');
   assert.deepEqual(cfg.contextWindow, { 'claude-x': 5 });
-  await until(async () => (await health(cfg.port)) !== null);
-  assert.equal((await health(cfg.port)).pid, srv.pid);
-  await until(() => fs.existsSync(file(home, 'server.json')));
-  assert.equal(readJson(file(home, 'server.json')).port, cfg.port);
+  assert.equal(fs.existsSync(file(home, 'server.json')), false);
   const log = fs.readFileSync(file(home, 'server.log'), 'utf8');
-  assert.match(log, new RegExp(`port ${port} unavailable \\(EADDRINUSE\\); switched to ${cfg.port}, re-pair the phone`));
+  assert.match(log, new RegExp(`port ${port} is held by another program \\(EADDRINUSE\\); desk-companion did not start`));
+  assert.match(log, /--port <number>/, 'and says how to move it on purpose');
+});
+
+test('--port moves the port only when asked, keeping the token', async t => {
+  const port = await freePort();
+  const next = await freePort();
+  const home = tmpHome(port);
+  const env = envFor(home);
+  t.after(() => cleanUp(home, env));
+  const r = await runNode([SERVER, '--port', String(next)], { env });
+  assert.equal(r.code, 0);
+  assert.match(r.out, new RegExp(`port set to ${next}`));
+  const cfg = readJson(file(home, 'config.json'));
+  assert.equal(cfg.port, next);
+  assert.equal(cfg.token, TOKEN);
+  assert.equal((await runNode([SERVER, '--port', '80'], { env })).code, 2, 'a port below 1024 is refused');
+  assert.equal(readJson(file(home, 'config.json')).port, next, 'and changes nothing');
+});
+
+test('one server on the port: an older one is replaced, a same-version one is left alone', async t => {
+  const port = await freePort();
+  const home = tmpHome(port);
+  const env = envFor(home);
+  // An old server: answers /api/health with a version from before the handshake.
+  const old = spawn(process.execPath, ['-e', `require('http').createServer((q, s) => {
+      s.writeHead(200, { 'content-type': 'application/json' });
+      s.end(JSON.stringify({ ok: true, pid: process.pid, version: '0.8.6' }));
+    }).listen(${port}, '0.0.0.0');`], { stdio: 'ignore' });
+  const first = spawn(process.execPath, [SERVER], { env, stdio: 'ignore' });
+  t.after(async () => {
+    try { process.kill(old.pid); } catch { /* gone */ }
+    await cleanUp(home, env, [first.pid]);
+  });
+  await until(async () => { const h = await health(port); return h && h.pid === first.pid; });
+  assert.equal(alive(old.pid), false, 'the older server was stopped');
+  assert.equal((await health(port)).version, readJson(path.join(ROOT, 'package.json')).version);
+  assert.equal(readJson(file(home, 'config.json')).port, port, 'the port never moved');
+
+  // A second start of this very version stands down and leaves the first serving.
+  const second = spawn(process.execPath, [SERVER], { env, stdio: 'ignore' });
+  assert.equal(await new Promise(r => second.on('exit', r)), 0);
+  assert.equal((await health(port)).pid, first.pid, 'still the first server');
+  assert.equal(alive(first.pid), true);
 });

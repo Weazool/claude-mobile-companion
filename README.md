@@ -100,7 +100,7 @@ Prompts, file contents and command arguments are never sent. The plugin never re
 
 - **The phone can't connect.** Open `/pair` on the PC and click one of the other addresses under the QR code. The first one isn't always the real Wi-Fi adapter: a virtual adapter, such as VirtualBox or Hyper-V, can sort first.
 - **Windows Firewall.** The first time the server starts, allow Node on **Private networks** when asked.
-- **A new port after a restart.** Windows sometimes reserves the configured port block. The server then switches to a new port by itself and logs the switch. Re-pair with `/claude-companion-pair`.
+- **The phone shows nothing new.** There is only ever one server, on one port, with one token, and the link never changes by itself. If something else on the PC holds that port, the server says so in `server.log` and stops rather than moving: free the port, or move desk-companion on purpose with `node bin/server.mjs --port <number>` (then re-pair with `/claude-companion-pair`). A session you have had open since an older version of the plugin can start that older server; the next start of the current one replaces it, and restarting those sessions stops it happening.
 - **Logs** are in `~/.desk-companion/server.log` and `hook.log` (Windows: `%USERPROFILE%\.desk-companion\`).
 
 ## <img src="docs/images/clawd/compiling.png" height="40" alt="" align="absmiddle"> Development

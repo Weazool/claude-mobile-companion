@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Claude Code hook forwarder (spec §1). Never blocks Claude, never prints, always exits 0.
+import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -39,8 +40,14 @@ function request(method, port, urlPath, token, body, timeoutMs) {
 
 // Hooks run in the session's project folder. The server must not inherit it: Windows locks a process's cwd
 // against rename and delete. The home dir always exists; the server then moves into its data dir.
+// Every hook of every session would otherwise start a server of its own whenever the port is unusable, so a
+// start is tried at most once every SPAWN_GAP_MS across all of them (the stamp file's mtime says when).
+const SPAWN_GAP_MS = 10000;
 function spawnServer() {
   if (process.env.DESK_COMPANION_NO_SPAWN) return;
+  const stamp = dataFile('spawn.at', HOME);
+  try { if (Date.now() - fs.statSync(stamp).mtimeMs < SPAWN_GAP_MS) return; } catch { /* no stamp yet */ }
+  try { fs.writeFileSync(stamp, ''); } catch { /* read-only home: start anyway */ }
   try {
     spawn(process.execPath, [path.join(ROOT, 'bin', 'server.mjs')],
       { detached: true, stdio: 'ignore', windowsHide: true, env: process.env, cwd: os.homedir() }).unref();

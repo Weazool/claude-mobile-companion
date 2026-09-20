@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { lanAddresses, phoneUrls, listenWithFallback } from '../src/server/net.mjs';
+import { lanAddresses, phoneUrls, listenFixed } from '../src/server/net.mjs';
 
 const IFACES = {
   'vEthernet (WSL)': [{ family: 'IPv4', address: '172.20.0.1', internal: false }],
@@ -44,57 +44,55 @@ function fakeServer(codeFor) {
   return s;
 }
 
-function deps({ ours = [], picks = [51001, 51002, 51003, 51004, 51005, 51006] } = {}) {
-  const d = { logs: [], healthAsked: [], picked: 0 };
-  d.health = async port => { d.healthAsked.push(port); return ours.includes(port) ? { ok: true, pid: 7 } : null; };
-  d.pickPort = () => picks[d.picked++];
+function deps({ ours = [] } = {}) {
+  const d = { logs: [], healthAsked: [], waits: [] };
+  d.health = async port => { d.healthAsked.push(port); return ours.includes(port) ? { ok: true, pid: 7, version: '0.9.0' } : null; };
   d.log = m => d.logs.push(m);
+  d.sleep = async ms => { d.waits.push(ms); };
   return d;
 }
 
-test('listenWithFallback: the configured port when it binds', async () => {
+test('listenFixed: the configured port when it binds, first try', async () => {
   const s = fakeServer(() => undefined);
   const d = deps();
-  assert.deepEqual(await listenWithFallback(s, 50500, d), { port: 50500, code: '' });
+  assert.deepEqual(await listenFixed(s, 50500, d), { bound: true });
   assert.deepEqual(s.calls, [[50500, '0.0.0.0']]);
-  assert.equal(d.picked, 0);
-  assert.equal(s.listenerCount('error'), 0);
-});
-
-test('listenWithFallback: a reserved port (EACCES) moves to a new one', async () => {
-  const s = fakeServer(p => (p === 50500 ? 'EACCES' : undefined));
-  const d = deps();
-  assert.deepEqual(await listenWithFallback(s, 50500, d), { port: 51001, code: 'EACCES' });
   assert.deepEqual(d.healthAsked, []);
+  assert.deepEqual(d.waits, []);
   assert.equal(s.listenerCount('error'), 0);
-  assert.equal(s.listenerCount('listening'), 0);
 });
 
-test('listenWithFallback: EADDRINUSE is a lost race if our server answers, a foreign holder otherwise', async () => {
-  const busy = fakeServer(p => (p === 50500 ? 'EADDRINUSE' : undefined));
-  assert.equal(await listenWithFallback(busy, 50500, deps({ ours: [50500] })), null);
-  const d = deps();
-  assert.deepEqual(await listenWithFallback(fakeServer(p => (p === 50500 ? 'EADDRINUSE' : undefined)), 50500, d),
-    { port: 51001, code: 'EADDRINUSE' });
+test('listenFixed: another desk-companion on the port comes back with its health, to compare versions', async () => {
+  const d = deps({ ours: [50500] });
+  assert.deepEqual(await listenFixed(fakeServer(() => 'EADDRINUSE'), 50500, d),
+    { bound: false, ours: { ok: true, pid: 7, version: '0.9.0' } });
   assert.deepEqual(d.healthAsked, [50500]);
 });
 
-test('listenWithFallback: a busy new port is skipped without asking its health, and logged', async () => {
-  const s = fakeServer(p => (p === 50500 ? 'EACCES' : p === 51001 ? 'EADDRINUSE' : undefined));
-  const d = deps({ ours: [51001] });
-  assert.deepEqual(await listenWithFallback(s, 50500, d), { port: 51002, code: 'EACCES' });
-  assert.deepEqual(d.healthAsked, []);
-  assert.deepEqual(d.logs, ['port 51001 unavailable (EADDRINUSE)']);
+test('listenFixed: a port held by another program is tried again, then reported; never a different port', async () => {
+  for (const code of ['EADDRINUSE', 'EACCES']) {
+    const s = fakeServer(() => code);
+    const d = deps();
+    assert.deepEqual(await listenFixed(s, 50500, d), { bound: false, code }, code);
+    assert.deepEqual(s.calls.map(c => c[0]), [50500, 50500, 50500, 50500], 'the same port every time');
+    assert.deepEqual(d.waits, [400, 400, 400]);
+    assert.deepEqual(d.logs, [
+      `port 50500 unavailable (${code}), trying again`,
+      `port 50500 unavailable (${code}), trying again`,
+      `port 50500 unavailable (${code}), trying again`,
+    ]);
+  }
 });
 
-test('listenWithFallback: gives up after 5 attempts; other errors are not retried', async () => {
-  const s = fakeServer(() => 'EACCES');
-  const d = deps();
-  await assert.rejects(listenWithFallback(s, 50500, d), /gave up after 5 ports \(EACCES\)/);
-  assert.deepEqual(s.calls.map(c => c[0]), [50500, 51001, 51002, 51003, 51004]);
-  const odd = fakeServer(() => 'EADDRNOTAVAIL');
-  await assert.rejects(listenWithFallback(odd, 50500, deps()), { code: 'EADDRNOTAVAIL' });
-  assert.equal(odd.calls.length, 1);
+test('listenFixed: a port that frees up on the second try binds', async () => {
+  let n = 0;
+  const s = fakeServer(() => (n++ === 0 ? 'EADDRINUSE' : undefined));
+  assert.deepEqual(await listenFixed(s, 50500, deps()), { bound: true });
+  assert.deepEqual(s.calls.map(c => c[0]), [50500, 50500]);
+});
+
+test('listenFixed: an error that is not about the port is thrown', async () => {
+  await assert.rejects(listenFixed(fakeServer(() => 'EPERM'), 50500, deps()), /listen EPERM/);
 });
 
 test('phoneUrls builds token URLs plus a .local hostname URL', () => {

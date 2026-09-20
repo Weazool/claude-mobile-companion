@@ -4,12 +4,13 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { homeDir, dataDir, dataFile, readJson, appendLog, loadOrCreateConfig, randomPort } from '../src/server/paths.mjs';
+import { homeDir, dataDir, dataFile, readJson, appendLog, loadOrCreateConfig } from '../src/server/paths.mjs';
 import { SessionStore } from '../src/server/sessions.mjs';
 import { readTail } from '../src/server/transcript.mjs';
 import { buildSnapshot, EMPTY_LIMITS } from '../src/server/snapshot.mjs';
 import { createApp } from '../src/server/http.mjs';
-import { phoneUrls, listenWithFallback } from '../src/server/net.mjs';
+import { phoneUrls, listenFixed } from '../src/server/net.mjs';
+import { startupAction } from '../src/server/version.mjs';
 import { createLimitsPoller, fetchUsage } from '../src/server/limits.mjs';
 import { validateMap, clipsFrom } from '../src/web/behaviours.js';
 import { SPEC } from '../src/web/clawd/core.js';
@@ -22,13 +23,14 @@ const STATE = dataFile('server.json', HOME);
 const CONFIG = dataFile('config.json', HOME);
 const BEHAVIOURS = dataFile('behaviours.json', HOME);
 const CLIPS = clipsFrom(SPEC); // the rig's clips and kinds: what a behaviour map may name
-const LISTEN_ATTEMPTS = 5;
+const VERSION = (readJson(path.join(ROOT, 'package.json')) || {}).version || '0.0.0';
 const log = msg => appendLog(dataFile('server.log', HOME), msg, 1024 * 1024);
 
 // A stray rejection must not take the dashboard down: log it and keep serving.
 process.on('unhandledRejection', e => log(`unhandled rejection: ${(e && e.message) || e}`));
 
-// Our /api/health answer on this port ({ ok: true, pid }), or null for silence or anything else.
+// Our /api/health answer on this port ({ ok: true, pid, version }; no version before 0.9.8), or null for
+// silence or anything else.
 function health(port) {
   return new Promise(resolve => {
     const req = http.get({ host: '127.0.0.1', port, path: '/api/health', timeout: 500 }, res => {
@@ -65,11 +67,31 @@ async function stop() {
   try { fs.unlinkSync(STATE); } catch { /* no state file */ }
 }
 
-// Only the port changes; the token and every other field stay.
-function savePort(config, port) {
-  const disk = readJson(CONFIG);
-  const base = disk && typeof disk === 'object' && !Array.isArray(disk) ? disk : config;
-  fs.writeFileSync(CONFIG, JSON.stringify({ ...base, port }, null, 2) + '\n');
+// The port moves only when asked (--port), never by itself: the phone's saved link carries it. The token and
+// every other field stay as they are, and the phone has to be paired again afterwards.
+async function setPort(port) {
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+    console.error('Usage: server.mjs --port <1024-65535>');
+    process.exit(2);
+  }
+  const cfg = loadOrCreateConfig(HOME);
+  await stop();
+  fs.writeFileSync(CONFIG, JSON.stringify({ ...cfg, port }, null, 2) + '\n');
+  log(`port set to ${port} by hand (was ${cfg.port}); re-pair the phone`);
+  console.log(`desk-companion port set to ${port}. Start it again and re-pair the phone.`);
+}
+
+// An older desk-companion on our port (a session that still has an older plugin root can launch one): stop it,
+// so there is one server, on one port, with one token. Waits for the port to fall quiet.
+async function takeOver(running, port) {
+  log(`replacing desk-companion ${running.version || '(pre-0.9.8)'} (pid ${running.pid}) with ${VERSION}`);
+  try { process.kill(running.pid); } catch { /* already gone */ }
+  for (let i = 0; i < 30; i++) {
+    const h = await health(port);
+    if (!h || h.pid !== running.pid) return;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  log(`desk-companion ${running.version || '(pre-0.9.8)'} (pid ${running.pid}) would not stop`);
 }
 
 // The behaviour map the editor at /behaviours saved: every behaviour, anything missing, unreadable or not
@@ -94,7 +116,11 @@ function saveBehaviours(input) {
 async function start() {
   const config = loadOrCreateConfig(HOME);
   process.chdir(DATA); // never hold a project folder: Windows locks a process's cwd against rename and delete
-  if (await health(config.port)) return; // another instance already serves this port
+  // One server on the configured port: the newer version serves and the other stands down (version.mjs).
+  const running = await health(config.port);
+  const action = startupAction(VERSION, running);
+  if (action === 'stand-down') return;
+  if (action === 'take-over') await takeOver(running, config.port);
   const store = new SessionStore({ contextWindow: config.contextWindow });
   let limits = EMPTY_LIMITS;
   let behaviours = loadBehaviours();
@@ -103,6 +129,7 @@ async function start() {
 
   const app = createApp({
     token: config.token,
+    version: VERSION,
     webRoot: WEB,
     log,
     getSnapshot: snapshot,
@@ -131,14 +158,14 @@ async function start() {
     },
   });
 
-  // A reserved or foreign-held port moves the server to a new port, saved once bound, so the hook and the
-  // pair page follow it; the phone must be re-paired.
-  const bound = await listenWithFallback(app.server, config.port, { health, pickPort: randomPort, log, attempts: LISTEN_ATTEMPTS });
-  if (!bound) process.exit(0); // another instance won the start-up race
-  if (bound.port !== config.port) {
-    savePort(config, bound.port);
-    log(`port ${config.port} unavailable (${bound.code}); switched to ${bound.port}, re-pair the phone`);
-    config.port = bound.port;
+  // The configured port or nothing: a server that wandered to another port would leave the phone's link and the
+  // sessions' events on different endpoints. Somebody else's program on the port is reported, not worked around.
+  const bound = await listenFixed(app.server, config.port, { health, log });
+  if (!bound.bound) {
+    if (bound.ours) log(`desk-companion ${bound.ours.version || '(pre-0.9.8)'} (pid ${bound.ours.pid}) serves port ${config.port}; standing down`);
+    else log(`port ${config.port} is held by another program (${bound.code}); desk-companion did not start. `
+      + `Free that port, or move desk-companion to another one on purpose: node bin/server.mjs --port <number>, then re-pair the phone.`);
+    process.exit(bound.ours ? 0 : 1);
   }
   app.server.on('error', e => {
     log(`server error: ${e.message}`);
@@ -167,5 +194,7 @@ async function start() {
   process.on('SIGINT', bye);
 }
 
+const portArg = process.argv.indexOf('--port');
 if (process.argv.includes('--stop')) stop().catch(e => log(`stop failed: ${e.message}`)).finally(() => process.exit(0));
+else if (portArg >= 0) setPort(Number.parseInt(process.argv[portArg + 1], 10)).catch(e => { log(`--port failed: ${e.message}`); process.exit(1); }).finally(() => process.exit(0));
 else start().catch(e => { log(`start failed: ${e.message}`); process.exit(1); });

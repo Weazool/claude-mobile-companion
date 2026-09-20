@@ -71,7 +71,7 @@ function readBody(req, limit) {
 // getBehaviours() -> the current behaviour map; setBehaviours(input) -> the map after a save (the server
 // validates and stores it; { reset: true } restores the defaults), throws when it cannot be saved.
 // onUntrack(id): the dashboard's ✕ or Close on a session (the server stops showing it until next time).
-export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, getPairInfo, getBehaviours, setBehaviours, onUntrack = () => {}, log = () => {}, isLoopbackReq = isLoopback }) {
+export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, getPairInfo, getBehaviours, setBehaviours, onUntrack = () => {}, log = () => {}, isLoopbackReq = isLoopback, version = '0.0.0' }) {
   const root = path.resolve(webRoot);
   const clients = new Set();
   const send = (res, type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -132,7 +132,8 @@ export function createApp({ token, webRoot, getSnapshot, onHook, onDevLimits, ge
         return res.writeHead(204).end();
       }
       if (req.method !== 'GET') return deny(res, 405);
-      if (p === '/api/health') return loop ? json(res, { ok: true, pid: process.pid }) : deny(res);
+      // version: a starting server compares it with its own, so the newer one serves and the other stands down.
+      if (p === '/api/health') return loop ? json(res, { ok: true, pid: process.pid, version }) : deny(res);
       if (p === '/pair') return loop ? serveFile(res, path.join(root, 'pair.html')) : deny(res);
       if (p === '/behaviours') return loop ? serveFile(res, path.join(root, 'behaviours.html')) : deny(res);
       if (p === '/api/pair-info') return loop ? json(res, { ...getPairInfo(), pages: clients.size }) : deny(res);
