@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatReset, resetLine, limitsView, sessionMeta, dotClass, STALE_MS, nextSlot, tapSlot, SLOT_MS, attnLimitsUp, ATTN_CLAWD_MS } from '../src/web/format.js';
+import { formatReset, resetLine, limitsView, sessionMeta, dotClass, STALE_MS, nextSlot, stepSlot, SLOT_MS } from '../src/web/format.js';
 
 const MIN = 60000;
 
@@ -52,17 +52,18 @@ test('sessionMeta and dotClass', () => {
   assert.equal(dotClass({ needsYou: false, activity: 'done' }), 'idle');
 });
 
-test('nextSlot: every session in standard mode, then every session in focus mode, 10 s each, and round again', () => {
+test('nextSlot: every session in standard mode, then every session in focus mode, 30 s each, and round again', () => {
+  assert.equal(SLOT_MS, 30000);
   const list = [{ id: 'a' }, { id: 'b' }];
   let s = nextSlot(list, { mode: 'standard', id: null, at: 0, since: 0 }, 5);
   assert.deepEqual(s, { mode: 'standard', id: 'a', at: 0, since: 5 }, 'the first session comes up at once');
-  assert.equal(nextSlot(list, s, 5 + SLOT_MS - 1), s, 'for 10 s');
+  assert.equal(nextSlot(list, s, 5 + SLOT_MS - 1), s, 'for 30 s');
   const seq = [];
   for (let t = 5 + SLOT_MS; seq.length < 6; t += SLOT_MS) { s = nextSlot(list, s, t); seq.push(`${s.mode} ${s.id}`); }
   assert.deepEqual(seq, ['standard b', 'focus a', 'focus b', 'standard a', 'standard b', 'focus a']);
 });
 
-test('nextSlot: a session that goes gives way at once to the next; with none, standard mode, empty; one session goes round in 20 s', () => {
+test('nextSlot: a session that goes gives way at once to the next; with none, standard mode, empty; one session goes round in a minute', () => {
   const slot = { mode: 'focus', id: 'b', at: 1, since: 0 };
   assert.deepEqual(nextSlot([{ id: 'a' }, { id: 'c' }], slot, 3), { mode: 'focus', id: 'c', at: 1, since: 3 }, 'c took its place');
   assert.deepEqual(nextSlot([{ id: 'a' }], slot, 3), { mode: 'standard', id: 'a', at: 0, since: 3 }, 'it was the last: standard mode');
@@ -79,22 +80,16 @@ test('nextSlot: a session that goes gives way at once to the next; with none, st
   assert.deepEqual(seq, ['focus', 'standard', 'focus']);
 });
 
-test('tapSlot: the tapped session at once for a whole slot, in the mode under way', () => {
+test('stepSlot: ‹ and › bring up the session before or after, round the ends, for a whole slot in the mode under way', () => {
   const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
-  assert.deepEqual(tapSlot(list, { mode: 'standard', id: 'a', at: 0, since: 0 }, 'c', 7), { mode: 'standard', id: 'c', at: 2, since: 7 });
-  assert.deepEqual(tapSlot(list, { mode: 'focus', id: 'a', at: 0, since: 0 }, 'b', 7), { mode: 'focus', id: 'b', at: 1, since: 7 });
+  assert.deepEqual(stepSlot(list, { mode: 'standard', id: 'a', at: 0, since: 0 }, 1, 7), { mode: 'standard', id: 'b', at: 1, since: 7 });
+  assert.deepEqual(stepSlot(list, { mode: 'focus', id: 'b', at: 1, since: 0 }, -1, 7), { mode: 'focus', id: 'a', at: 0, since: 7 });
+  assert.deepEqual(stepSlot(list, { mode: 'focus', id: 'c', at: 2, since: 0 }, 1, 7), { mode: 'focus', id: 'a', at: 0, since: 7 }, 'past the last: the first, in the same mode');
+  assert.deepEqual(stepSlot(list, { mode: 'standard', id: 'a', at: 0, since: 0 }, -1, 7), { mode: 'standard', id: 'c', at: 2, since: 7 }, 'before the first: the last');
+  assert.deepEqual(stepSlot(list, { mode: 'standard', id: 'gone', at: 1, since: 0 }, 1, 7), { mode: 'standard', id: 'c', at: 2, since: 7 }, 'from the place of one that went');
   const s = { mode: 'standard', id: 'a', at: 0, since: 0 };
-  assert.equal(tapSlot(list, s, 'gone', 7), s);
+  assert.equal(stepSlot([{ id: 'a' }], s, 1, 7), s, 'one session: nowhere to go');
+  assert.equal(stepSlot([], { ...s, id: null }, -1, 7).id, null);
+  const next = nextSlot(list, stepSlot(list, s, 1, 7), 7 + SLOT_MS);
+  assert.deepEqual([next.mode, next.id], ['standard', 'c'], 'the cycle carries on from there');
 });
-
-test('attnLimitsUp: focus mode shows Clawd for a slot\'s first 7 s and the limit bars for its last 3', () => {
-  assert.equal(ATTN_CLAWD_MS, 7000);
-  const spot = { mode: 'focus', id: 'a', at: 0, since: 5 };
-  assert.equal(attnLimitsUp(spot, 5), false);
-  assert.equal(attnLimitsUp(spot, 5 + ATTN_CLAWD_MS - 1), false);
-  assert.equal(attnLimitsUp(spot, 5 + ATTN_CLAWD_MS), true);
-  assert.equal(attnLimitsUp(spot, 5 + SLOT_MS - 1), true);
-  const next = nextSlot([{ id: 'a' }, { id: 'b' }], spot, 5 + SLOT_MS);
-  assert.deepEqual([next.id, attnLimitsUp(next, 5 + SLOT_MS)], ['b', false], 'the next session starts with Clawd again');
-});
-

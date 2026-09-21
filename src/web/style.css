@@ -46,41 +46,69 @@ html, body {
 #app.rot90 { --sa-t: env(safe-area-inset-right, 0px); --sa-r: env(safe-area-inset-bottom, 0px); --sa-b: env(safe-area-inset-left, 0px); --sa-l: env(safe-area-inset-top, 0px); }
 #app.rot180 { --sa-t: env(safe-area-inset-bottom, 0px); --sa-r: env(safe-area-inset-left, 0px); --sa-b: env(safe-area-inset-top, 0px); --sa-l: env(safe-area-inset-right, 0px); }
 #app.rot270 { --sa-t: env(safe-area-inset-left, 0px); --sa-r: env(safe-area-inset-top, 0px); --sa-b: env(safe-area-inset-right, 0px); --sa-l: env(safe-area-inset-bottom, 0px); }
-#app.landscape { grid-template-columns: 40% 60%; }
-#app.portrait { grid-template-rows: 42% minmax(0, 1fr); --rail-at: max(var(--sa-b), 2.5vmax); --pad-r: var(--sa-r); --pad-b: calc(var(--rail-at) + var(--rail)); }
+/* The layout. Along the bottom, the session that's up, in a card between ‹ and › (.deck, --deck high). The rest is
+   Clawd's and the limit bars': in standard mode Clawd on the left and the bars on the right (upright: Clawd above the
+   bars, which get a strip --lim high); in focus mode (app.js #app.attn) Clawd alone, in the middle, the bars faded
+   out. --deck and --lim are only used inside #app, never on it: a cq length on the container itself would not
+   measure it. */
+#app { --deck: 23cqmin; --glide: .8s cubic-bezier(.4, 0, .2, 1); }
+#app.landscape { grid-template: minmax(0, 1fr) auto / 40% 60%; }
+#app.portrait { grid-template: minmax(0, 1fr) auto auto / 100%; --deck: 37cqmin; --lim: 48cqmin; --rail-at: max(var(--sa-b), 2.5vmax); --pad-r: var(--sa-r); --pad-b: calc(var(--rail-at) + var(--rail)); }
 
-/* Clawd's stage. His SVG viewBox (-16 -28 32 32) keeps the top of the square free for the flag, the Zzz and
-   the confetti: his body is 12 of its 32 units (37.5% of the width) and runs from y -10 to his feet at y 0,
-   so his middle (y -5) sits 23/32 = 71.875% down the square. The square is as large as the stage allows and
-   is placed so that middle is the stage's centre: Clawd stands in the middle of the stage, as big as the old
-   sprite. Only effect tails (the last Z, confetti peaks) can reach the top 15% of the square, which may run
-   past the stage top; the flag's tip (19%) always stays in view.
-   The bubble is a caption just under his feet (87.5% of the square, i.e. 15.6% of it below his middle): it
-   never covers the flag, the "!" or the Zzz above him, and the layout never moves when it comes and goes.
-   --mascot (the square's side) lives on the stage so the bubble can use it too.
-   Landscape (cqmin = cqh): the stage is the full-height 40cqw column.
-   Portrait (cqmin = cqw): the stage is the top 42cqh. */
-.stage { position: relative; min-height: 0; background: radial-gradient(circle at 50% 50%, #1a1622 0%, var(--bg) 70%); }
-#app.landscape .stage { --mascot: min(40cqw, 100cqh - 4cqmin); }
-#app.portrait .stage { --mascot: min(80cqw, 42cqh - 10cqmin); }
+/* Clawd's stage: everything above the card, in both modes, with the bars laid over their part of it, so going from
+   one mode to the other is a glide. Clawd has a box in it: --bw by --bh from the top left (standard mode: the left
+   40% sideways, what the bars leave upright; focus mode: all of it). Only the box changes between the modes, and
+   #mascot, his caption and his glow ease to their new place and size (--glide; not when the layout itself turns,
+   app.js .snap).
+   His SVG viewBox (-16 -28 32 32) keeps the top of the square free for the flag, the Zzz and the confetti: his body
+   is 12 of its 32 units (37.5% of the width) and runs from y -10 to his feet at y 0, so his middle (y -5) sits
+   23/32 = 71.875% down the square. --mascot is the square's side: as wide as --mw allows, and 92% of the box's
+   height at most. His middle (--cx, --cy) is the middle of the box, a little lower (6% of the square), so the "!",
+   the "?", the flag and the hop that goes with them have room above him: only effect tails (the last Z, confetti
+   peaks) can reach the top 15% of the square, which may run past the top of the screen; the flag's tip (19%) always
+   stays in view.
+   The bubble is a caption just under his feet (87.5% of the square, i.e. 15.6% of it below his middle): it never
+   covers the flag, the "!" or the Zzz above him, and the layout never moves when it comes and goes. */
+.stage {
+  position: relative; min-width: 0; min-height: 0;
+  --top: calc(100cqh - var(--deck)); --bw: 100cqw; --bh: var(--top); --mw: 92cqw; --cx: 50%;
+  --mascot: min(var(--mw), 0.92 * var(--bh)); --cy: calc(var(--bh) / 2 + 0.06 * var(--mascot));
+}
+#app.landscape .stage { grid-area: 1 / 1 / 2 / 3; --bw: 40cqw; --mw: 40cqw; --cx: 20%; }
+#app.portrait .stage { grid-area: 1 / 1 / 3 / 2; --bh: calc(var(--top) - var(--lim)); }
+#app.attn .stage { --bw: 100cqw; --bh: var(--top); --mw: 92cqw; --cx: 50%; }
+/* His glow, behind everything: a circle that ends in nothing, so it never stops in a line at the card or the bars. */
+.stage::before {
+  content: ''; position: absolute; z-index: -1; left: var(--cx); top: var(--cy); transform: translate(-50%, -50%);
+  width: calc(1.2 * var(--mascot)); height: calc(1.2 * var(--mascot)); pointer-events: none;
+  background: radial-gradient(closest-side, #1a1622, transparent);
+  transition: left var(--glide), top var(--glide), width var(--glide), height var(--glide);
+}
 #mascot {
-  position: absolute; left: 50%; top: calc(50% - 0.71875 * var(--mascot)); transform: translateX(-50%);
+  position: absolute; left: var(--cx); top: calc(var(--cy) - 0.71875 * var(--mascot)); transform: translateX(-50%);
   width: var(--mascot); height: var(--mascot); aspect-ratio: 1; cursor: pointer;
+  transition: left var(--glide), top var(--glide), width var(--glide), height var(--glide);
 }
 
 .bubble {
-  position: absolute; z-index: 1; left: 50%; transform: translateX(-50%); top: calc(50% + 0.18 * var(--mascot));
-  max-width: 90%; background: #1b1b24; border: 1px solid #2c2c38; border-radius: 2.4cqmin;
+  position: absolute; z-index: 1; left: var(--cx); transform: translateX(-50%); top: calc(var(--cy) + 0.18 * var(--mascot));
+  max-width: calc(0.9 * var(--bw)); background: #1b1b24; border: 1px solid #2c2c38; border-radius: 2.4cqmin;
   padding: 1.4cqmin 2.6cqmin; font-size: 3.6cqmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  visibility: hidden; transition: border-color .3s, color .3s;
+  visibility: hidden; transition: border-color .3s, color .3s, left var(--glide), top var(--glide);
 }
 .bubble.show { visibility: visible; }
 .bubble.need { border-color: var(--need); color: #ffcf70; }
 .bubble.good { border-color: #3f8a3f; color: var(--good); }
 .bubble.bad { border-color: #b23a3a; color: #ff9d8c; }
+#app.snap .stage::before, #app.snap #mascot, #app.snap .bubble { transition: none; }
 
-.data { min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 3cqmin; padding: 6cqmin 5cqmin 4cqmin 2cqmin; }
-#app.portrait .data { justify-content: flex-start; padding: 3cqmin 5cqmin 5cqmin; }
+/* The limit bars' part: they fade in once Clawd is on his way back to his side, and out as he sets off for the
+   middle (hidden, not display:none, which would restart the bars' flow). */
+.data { min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 3cqmin; transition: opacity .5s ease .3s; }
+#app.landscape .data { grid-area: 1 / 2; padding: 4cqmin 5cqmin 3cqmin 2cqmin; }
+#app.portrait .data { grid-area: 2 / 1; height: var(--lim); padding: 0 5cqmin; }
+#app.attn .data { opacity: 0; visibility: hidden; transition: opacity .4s ease, visibility 0s .4s; }
+#app.snap .data { transition: none; }
 /* The limits: one bar each, stacked. The name and reset sit above the bar, the percentage at its end, and the
    legend under the bar only (same column, so its slots line up with the ticks cut into the fill). */
 .limits { display: flex; flex-direction: column; gap: 2.4cqmin; }
@@ -117,84 +145,67 @@ html, body {
 .bar-legend span { flex: none; min-width: 0; font-size: 2.1cqmin; line-height: 1.7; color: var(--text); text-align: center; white-space: nowrap; overflow: hidden; border-left: 1px solid #2a2a33; }
 .bar-legend span:last-child { border-right: 1px solid #2a2a33; }
 .bar-legend span.now { color: var(--text); font-weight: 600; border-radius: .7cqmin; box-shadow: inset 0 0 0 1px var(--c); }
-.note { font-size: 2.7cqmin; color: var(--text); min-height: 3cqmin; }
+.note { font-size: 2.7cqmin; color: var(--text); }
+.note:empty { display: none; }
+/* Sideways the bars have the right of the screen to themselves, and are a third bigger. The rules name .limits so
+   the screensaver's compact bars stay as they are. The legend grows less: a short first day still fits its name. */
+#app.landscape .limits { gap: 3.4cqmin; }
+#app.landscape .limits .bar { grid-template-columns: minmax(0, 1fr) 12cqmin; column-gap: 2.6cqmin; }
+#app.landscape .limits .bar-head { font-size: 3.8cqmin; margin-bottom: 1.2cqmin; }
+#app.landscape .limits .bar-track { height: 3.2cqmin; border-radius: 1.6cqmin; }
+#app.landscape .limits .bar-num { font-size: 4.8cqmin; }
+#app.landscape .limits .bar-legend { margin-top: .9cqmin; }
+#app.landscape .limits .bar-legend span { font-size: 2.6cqmin; }
+#app.landscape .note { font-size: 3.2cqmin; }
 
-/* Every session, in a list that scrolls (app.js keeps its rows): it takes what the column has left, and its faded
-   edges say there is more above or below. No scrollbar; the phone shows its own while you scroll. */
-.sessions {
-  position: relative; min-height: 0; display: flex; flex-direction: column;
-  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
-  --fade: 6cqmin;
+/* The card along the bottom: ‹, the session that's up, ›. The row is the dot, then its name over model · effort ·
+   step and its context bar, sharing the rest 8 to 4 (as Bootstrap's col-8 and col-4), then the ✕. It turns to the
+   next session like a carousel (app.js turnCard): .deck-view clips the rows as they slide, and .ghost is the copy
+   on its way out. ‹ and › are the rail's buttons again (Bootstrap's outline-primary), greyed out with fewer than
+   two sessions. */
+.deck { grid-area: 2 / 1 / 3 / 3; height: var(--deck); min-width: 0; display: grid; grid-template-columns: 13cqmin minmax(0, 1fr) 13cqmin; gap: 3cqmin; align-items: center; padding: 0 3cqmin 2cqmin; }
+#app.portrait .deck { grid-area: 3 / 1; }
+.deck-view { position: relative; min-width: 0; overflow: hidden; border-radius: 2.2cqmin; }
+.deck-none { padding: 2cqmin; font-size: 3.6cqmin; text-align: center; }
+.deck-btn {
+  height: 15cqmin; display: grid; place-items: center; padding: 0;
+  background: transparent; color: var(--ctl); border: 2px solid var(--ctl); border-radius: 2.2cqmin;
+  cursor: pointer; transition: color .15s, background-color .15s, border-color .3s, opacity .3s, box-shadow .15s;
 }
-.sessions::-webkit-scrollbar { display: none; }
-.sessions.more-below { -webkit-mask-image: linear-gradient(#000 calc(100% - var(--fade)), transparent); mask-image: linear-gradient(#000 calc(100% - var(--fade)), transparent); }
-.sessions.more-above { -webkit-mask-image: linear-gradient(transparent, #000 var(--fade)); mask-image: linear-gradient(transparent, #000 var(--fade)); }
-.sessions.more-above.more-below {
-  -webkit-mask-image: linear-gradient(transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
-  mask-image: linear-gradient(transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
-}
-.sessions:empty::before { content: 'No Claude Code sessions yet'; font-size: 2.7cqmin; color: var(--text); padding: 1.4cqmin 1cqmin; }
-/* A row: the dot, then its name over model · effort · step and its context bar, sharing the rest 8 to 4 (as
-   Bootstrap's col-8 and col-4), then the ✕. */
-.row { flex: none; display: grid; grid-template-columns: 2.4cqmin minmax(0, 8fr) minmax(0, 4fr) 7cqmin; gap: 2cqmin; align-items: center; padding: 1.6cqmin 1cqmin; border-top: 1px solid var(--line); border-radius: 1.2cqmin; }
-.row { cursor: pointer; transition: background .3s, opacity .2s; }
-.row.focus { background: #14141c; }
-/* ✕: stop tracking the session (app.js untrack). The button runs the row's full height, so it is easy to hit. */
-.untrack { align-self: stretch; margin: -1.6cqmin 0; padding: 0; background: none; border: 0; color: var(--text); font: inherit; font-size: 3.4cqmin; line-height: 1; cursor: pointer; }
+.deck-btn svg { width: 8cqmin; height: 8cqmin; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.deck-btn:active { background: var(--ctl); color: #fff; }
+.deck-btn:focus-visible { outline: 0; box-shadow: 0 0 0 1cqmin rgb(61 139 253 / .5); }
+@media (hover: hover) { .deck-btn:hover { background: var(--ctl); color: #fff; } }
+.deck-btn:disabled { background: transparent; color: #6c757d; border-color: #6c757d; opacity: .45; cursor: default; }
+.row { display: grid; grid-template-columns: 4cqmin minmax(0, 8fr) minmax(0, 4fr) 12cqmin; gap: 3.4cqmin; align-items: center; padding: 2.6cqmin 2cqmin; border-radius: 2.2cqmin; background: #14141c; transition: opacity .2s; }
+.row[hidden], .deck-none[hidden] { display: none; }
+.row.ghost { position: absolute; inset: 0; pointer-events: none; }
 .row.closing { opacity: .35; pointer-events: none; }
-.name { font-size: 3.6cqmin; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.meta { font-size: 2.8cqmin; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ✕: stop tracking the session (app.js untrack). The button runs the row's full height, so it is easy to hit. */
+.untrack { align-self: stretch; margin: -2.6cqmin 0; padding: 0; background: none; border: 0; color: var(--text); font: inherit; font-size: 5.8cqmin; line-height: 1; cursor: pointer; }
+.name { font-size: 6.2cqmin; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meta { font-size: 4.8cqmin; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .meta.need { color: var(--need); }
-.dot { width: 2.2cqmin; height: 2.2cqmin; border-radius: 50%; background: #4a4a55; }
-.dot.work { background: var(--work); box-shadow: 0 0 1.6cqmin var(--work); }
-.dot.need { background: var(--need); box-shadow: 0 0 2cqmin var(--need); animation: pulse 1.2s ease-in-out infinite; }
+.dot { width: 3.8cqmin; height: 3.8cqmin; border-radius: 50%; background: #4a4a55; }
+.dot.work { background: var(--work); box-shadow: 0 0 2.8cqmin var(--work); }
+.dot.need { background: var(--need); box-shadow: 0 0 3.4cqmin var(--need); animation: pulse 1.2s ease-in-out infinite; }
 .dot.bad { background: var(--bad); }
 @keyframes pulse { 50% { opacity: .35; } }
-.ctx { height: 1.5cqmin; background: var(--track); border-radius: 1cqmin; overflow: hidden; }
+.ctx { height: 2.6cqmin; background: var(--track); border-radius: 1.7cqmin; overflow: hidden; }
 .ctx i { --c: #9d9daa; position: relative; display: block; height: 100%; border-radius: inherit; overflow: hidden; transition: width .6s; }
-.ctxl { font-size: 2.5cqmin; color: var(--text); text-align: right; margin-top: .6cqmin; }
-
-/* Focus mode (app.js #app.attn), for each session in turn. Clawd takes the top 75%, his body centred in it both
-   ways (#mascot's usual top puts his middle, 71.875% down the square, at the stage's centre) and then 5% of the
-   screen lower, with his caption under his feet as on the dashboard. The square is 72cqh of the 75cqh stage in
-   landscape, so the "!", the "?", the flag and the hop that goes with them have room above him. Under him, in the
-   bottom 25%, is the session's own row from the list, twice the size; the limits and the list step aside. */
-.attn-card { display: none; }
-#app.attn { grid-template-columns: 100%; grid-template-rows: 75% 25%; }
-#app.attn .data { position: absolute; visibility: hidden; } /* not display:none, which would restart the bars' flow */
-#app.attn .stage { --mascot: min(92cqw, 72cqh); background: none; } /* the glow would end in a line above the row */
-#app.attn #mascot { top: calc(50% - 0.71875 * var(--mascot) + 5cqh); }
-#app.attn .bubble { top: calc(50% + 0.18 * var(--mascot) + 5cqh); }
-#app.attn .attn-card { display: flex; align-items: center; min-width: 0; padding: 0 4cqmin; }
-/* The row, twice the list's: every length doubled. It runs the full width (twice the list's would not fit). */
-.attn-card .row { width: 100%; grid-template-columns: 4.8cqmin minmax(0, 8fr) minmax(0, 4fr) 14cqmin; gap: 4cqmin; padding: 3.2cqmin 2cqmin; border-top: 0; border-radius: 2.4cqmin; cursor: default; }
-.attn-card .dot { width: 4.4cqmin; height: 4.4cqmin; }
-.attn-card .dot.work { box-shadow: 0 0 3.2cqmin var(--work); }
-.attn-card .dot.need { box-shadow: 0 0 4cqmin var(--need); }
-.attn-card .name { font-size: 7.2cqmin; }
-.attn-card .meta { font-size: 5.6cqmin; }
-.attn-card .ctx { height: 3cqmin; border-radius: 2cqmin; }
-.attn-card .ctxl { font-size: 5cqmin; margin-top: 1.2cqmin; }
-.attn-card .untrack { font-size: 6.8cqmin; margin: -3.2cqmin 0; }
-/* Focus mode's last 3 s (app.js #app.limits-up): the limit bars take Clawd's place in the top 75%, half as big
-   again as on the dashboard, above the same details. They are the dashboard's own bars, put into the stage's
-   grid cell (so the stage and the details are placed explicitly), and their flow carries on. The rules name
-   .limits so the screensaver's compact bars, which the cycle keeps turning under, stay as they are. */
-#app.attn .stage { grid-area: 1 / 1; }
-#app.attn .attn-card { grid-area: 2 / 1; }
-#app.limits-up .stage, #app.limits-up .bubble { visibility: hidden; } /* the caption too: .bubble.show would show through */
-#app.limits-up .data { position: static; grid-area: 1 / 1; visibility: visible; justify-content: center; padding: 3cqmin 5cqmin; }
-#app.limits-up .sessions, #app.limits-up .note:empty { display: none; }
-#app.limits-up .note { text-align: center; }
-#app.limits-up .limits { width: min(100%, 160cqmin); margin: 0 auto; gap: 3.6cqmin; }
-#app.limits-up .limits .bar { grid-template-columns: minmax(0, 1fr) 13.5cqmin; column-gap: 3cqmin; }
-#app.limits-up .limits .bar-head { font-size: 4.2cqmin; margin-bottom: 1.3cqmin; }
-#app.limits-up .limits .bar-track { height: 3.6cqmin; border-radius: 1.8cqmin; }
-#app.limits-up .limits .bar-num { font-size: 5.4cqmin; }
-#app.limits-up .limits .bar-legend { margin-top: 1cqmin; }
-/* Sideways the bars are half as long again as on the dashboard, so the legend grows with them; upright they are
-   not, and it keeps the dashboard's size, so a short first day still fits its name. */
-#app.landscape.limits-up .limits .bar-legend span { font-size: 3.1cqmin; }
+.ctxl { font-size: 4.2cqmin; color: var(--text); text-align: right; margin-top: 1cqmin; }
+/* Upright the row is half as wide: the name gets a line to itself (with the dot and the ✕), and the context bar
+   the next one, its value beside it. ‹ and › are narrower and taller, and everything sits a little closer. */
+#app.portrait .deck { grid-template-columns: 10cqmin minmax(0, 1fr) 10cqmin; gap: 2cqmin; padding: 0 2cqmin 2cqmin; }
+#app.portrait .deck-btn { height: 22cqmin; }
+#app.portrait .deck-btn svg { width: 7cqmin; height: 7cqmin; }
+#app.portrait .row { grid-template-columns: 3.8cqmin minmax(0, 1fr) 8cqmin; gap: 2cqmin 2.4cqmin; }
+#app.portrait .name { font-size: 5.4cqmin; }
+#app.portrait .meta { font-size: 4.4cqmin; }
+#app.portrait .ctxbox { grid-area: 2 / 1 / 3 / 3; display: flex; align-items: center; gap: 2.4cqmin; }
+#app.portrait .ctx { flex: 1; }
+#app.portrait .ctxl { margin-top: 0; }
+#app.portrait .untrack { grid-area: 1 / 3 / 3 / 4; }
 
 
 .overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .82); color: var(--text); font-size: 18px; }

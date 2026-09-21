@@ -143,43 +143,51 @@ function lengthPx(expr, W, H) {
   return m ? Math.min(...m[1].split(',').map(a => sum(a.replace(/calc\(|\)/g, '')))) : sum(expr);
 }
 
-test('style: Clawd stands in the middle of the stage, as large as it allows, with the bubble as a caption under his feet', () => {
+test('style: Clawd stands in the middle of his box, as large as it allows, with the bubble as a caption under his feet', () => {
   const r = styleRules();
   const m = r.get('#mascot');
   assert.equal(m['mix-blend-mode'], undefined, 'an SVG has no black square to blend away');
   assert.equal(m['aspect-ratio'], '1');
   assert.deepEqual([m.width, m.height], ['var(--mascot)', 'var(--mascot)'], 'both set, so the square never depends on how a browser sizes an SVG');
-  // His middle (y -5 of the viewBox -28..4) is 23/32 = 71.875% down the square; that point is the stage centre.
-  assert.deepEqual([m.position, m.top], ['absolute', 'calc(50% - 0.71875 * var(--mascot))'], 'his middle is the stage centre');
+  // His middle (y -5 of the viewBox -28..4) is 23/32 = 71.875% down the square; that point is (--cx, --cy).
+  assert.deepEqual([m.position, m.left, m.top], ['absolute', 'var(--cx)', 'calc(var(--cy) - 0.71875 * var(--mascot))'], 'his middle is (--cx, --cy)');
   const b = r.get('.bubble');
   assert.equal(b.position, 'absolute', 'the bubble never pushes Clawd around when it comes and goes');
-  assert.equal(b.top, 'calc(50% + 0.18 * var(--mascot))', 'a caption just under his feet (15.6% of the square below his middle)');
+  assert.deepEqual([b.left, b.top], ['var(--cx)', 'calc(var(--cy) + 0.18 * var(--mascot))'], 'a caption just under his feet (15.6% of the square below his middle)');
+  // The stage is everything above the card; Clawd's box in it is --bw by --bh, and he is as large as it allows.
+  const stage = r.get('.stage');
+  assert.equal(stage['--top'], 'calc(100cqh - var(--deck))');
+  assert.equal(stage['--mascot'], 'min(var(--mw), 0.92 * var(--bh))');
+  assert.equal(stage['--cy'], 'calc(var(--bh) / 2 + 0.06 * var(--mascot))', 'the middle of the box, a little lower: room above him for the flag and the "!"');
+  assert.equal(r.get('#app.landscape')['grid-template'], 'minmax(0, 1fr) auto / 40% 60%');
+  assert.deepEqual([r.get('#app.landscape .stage')['--bw'], r.get('#app.landscape .stage')['--mw'], r.get('#app.landscape .stage')['--cx']], ['40cqw', '40cqw', '20%'], 'sideways: the left 40%');
+  assert.equal(r.get('#app.portrait .stage')['--bh'], 'calc(var(--top) - var(--lim))', 'upright: what the bars leave');
+  const attn = r.get('#app.attn .stage');
+  assert.deepEqual([attn['--bw'], attn['--bh'], attn['--mw'], attn['--cx']], ['100cqw', 'var(--top)', '92cqw', '50%'], 'focus mode: all of it, Clawd in the middle');
+  for (const [k, v] of Object.entries({ ...r.get('#app'), ...r.get('#app.landscape'), ...r.get('#app.portrait') })) {
+    if (!k.startsWith('--')) assert.doesNotMatch(v, /\dcq|var\(--(deck|lim)\)/, `#app { ${k} }: a cq length on the container itself would not measure it`);
+  }
   // The bubble with text: line-height normal (at most 1.35 for these fonts), padding top and bottom, 1px borders.
   const bubbleH = (W, H) => 1.35 * lengthPx(b['font-size'], W, H) + 2 * lengthPx(b.padding.split(' ')[0], W, H) + 2;
   const FLAG_TIP = 0.19; // share of the square, from its top, that only Zzz and confetti tails ever reach
   const FEET = 0.875;    // the ground line, as a share of the square from its top
-  const place = (S, M) => ({ top: S / 2 - 0.71875 * M, feet: S / 2 - 0.71875 * M + FEET * M, caption: S / 2 + 0.18 * M });
-  const check = (label, S, M, W, H) => {
-    const p = place(S, M);
-    assert.ok(p.top + FLAG_TIP * M >= 0, `${label}: the flag's tip stays in view`);
-    assert.ok(p.caption > p.feet, `${label}: the caption sits under his feet`);
-    assert.ok(p.caption + bubbleH(W, H) <= S, `${label}: the caption stays inside the stage`);
+  const check = (label, boxW, boxH, mw, W, H) => {
+    const M = Math.min(mw, 0.92 * boxH), cy = boxH / 2 + 0.06 * M, top = cy - 0.71875 * M, caption = cy + 0.18 * M;
+    assert.ok(M <= boxW + 0.5, `${label}: the ${M.toFixed(1)}px square fits the box`);
+    assert.ok(M >= 0.9 * Math.min(mw, boxH), `${label}: the square uses the box`);
+    assert.ok(top + FLAG_TIP * M >= 0, `${label}: the flag's tip stays in view`);
+    assert.ok(caption > top + FEET * M, `${label}: the caption sits under his feet`);
+    assert.ok(caption + bubbleH(W, H) <= boxH, `${label}: the caption stays inside the box, off the bars and the card`);
   };
-  // Landscape: the stage is the full-height 40% column.
-  assert.equal(r.get('#app.landscape')['grid-template-columns'], '40% 60%');
-  for (const [W, H] of [[844, 390], [667, 375], [932, 430], [1024, 768]]) {
-    const M = lengthPx(r.get('#app.landscape .stage')['--mascot'], W, H);
-    assert.ok(M <= 0.4 * W + 0.5 && M <= H, `${W}x${H}: the ${M.toFixed(1)}px square fits the column`);
-    assert.ok(M >= 0.9 * Math.min(0.4 * W, H), `${W}x${H}: the square uses the column`);
-    check(`${W}x${H}`, H, M, W, H);
+  for (const [W, H] of [[844, 390], [667, 375], [757, 430], [932, 430], [1024, 768]]) {
+    const top = H - lengthPx(r.get('#app')['--deck'], W, H);
+    check(`${W}x${H} standard`, 0.4 * W, top, 0.4 * W, W, H);
+    check(`${W}x${H} focus`, W, top, 0.92 * W, W, H);
   }
-  // Portrait: the stage is the top 42%.
-  assert.equal(r.get('#app.portrait')['grid-template-rows'], '42% minmax(0, 1fr)');
-  for (const [W, H] of [[390, 844], [375, 667], [360, 800], [430, 932], [768, 1024], [800, 969]]) {
-    const S = 0.42 * H, cq = Math.min(W, H) / 100;
-    const M = lengthPx(r.get('#app.portrait .stage')['--mascot'], W, H);
-    assert.ok(M >= 0.95 * Math.min(0.8 * W, S - 10 * cq), `${W}x${H}: the square uses the stage`);
-    check(`${W}x${H}`, S, M, W, H);
+  for (const [W, H] of [[390, 844], [375, 667], [360, 800], [430, 757], [430, 932], [768, 1024], [800, 969]]) {
+    const top = H - lengthPx(r.get('#app.portrait')['--deck'], W, H);
+    check(`${W}x${H} standard`, W, top - lengthPx(r.get('#app.portrait')['--lim'], W, H), 0.92 * W, W, H);
+    check(`${W}x${H} focus`, W, top, 0.92 * W, W, H);
   }
 });
 
@@ -253,19 +261,34 @@ test('style: every text is white, never grey, so it stays readable when the scre
   assert.equal(r.get('.untrack').opacity, undefined, 'the ✕ on a row at full strength');
 });
 
-test('style: focus mode: Clawd 5% of the screen lower with his caption, over the session\'s row twice the size', () => {
+test('style: the session that\'s up is a card along the bottom between ‹ and ›; between the modes Clawd glides and the bars fade', () => {
   const r = styleRules();
-  assert.equal(r.get('#app.attn #mascot').top, 'calc(50% - 0.71875 * var(--mascot) + 5cqh)');
-  assert.equal(r.get('#app.attn .bubble').top, 'calc(50% + 0.18 * var(--mascot) + 5cqh)', 'the caption moves with him');
-  assert.equal(r.get('#app.attn .bubble').display, undefined, 'and shows, as on the dashboard');
-  assert.equal(r.get('#app.limits-up .bubble').visibility, 'hidden', 'but not over the limit bars in the last 3 s');
-  const cq = v => Number(/^(-?[\d.]+)cqmin$/.exec(v)[1]);
-  const twice = (sel, prop) => assert.equal(cq(r.get(`.attn-card ${sel}`)[prop]), 2 * cq(r.get(sel)[prop]), `${sel} ${prop}`);
-  for (const [sel, prop] of [['.name', 'font-size'], ['.meta', 'font-size'], ['.dot', 'width'], ['.dot', 'height'], ['.ctx', 'height'], ['.ctxl', 'font-size'], ['.row', 'gap'], ['.row', 'border-radius'], ['.untrack', 'font-size']]) twice(sel, prop);
-  assert.equal(r.get('.attn-card .row').padding, '3.2cqmin 2cqmin', 'the list row pads 1.6cqmin 1cqmin');
   const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
-  assert.match(html, /<section id="attnCard" class="attn-card"><\/section>/, 'app.js puts the row in');
-  assert.doesNotMatch(html, /attnTitle|attnMeta|attnClose/);
+  assert.match(html, /<section class="deck">\s*<button id="btnPrev" class="deck-btn" aria-label="Previous session" disabled>[\s\S]*<div id="card" class="row" hidden>[\s\S]*<div id="deckNone"[\s\S]*<button id="btnNext" class="deck-btn" aria-label="Next session" disabled>/, '‹, the card, ›; greyed out until app.js finds two sessions');
+  assert.doesNotMatch(html, /id="sessions"|attnCard/, 'the list and focus mode\'s own card are gone');
+  assert.equal(r.get('.sessions'), undefined);
+  assert.equal(r.get('#app.limits-up .data'), undefined, 'the bars no longer take Clawd\'s place in focus mode');
+  assert.equal(r.get('.deck').height, 'var(--deck)');
+  assert.equal(r.get('.deck-view').overflow, 'hidden', 'the rows slide out of sight');
+  assert.deepEqual([r.get('.row.ghost').position, r.get('.row.ghost')['pointer-events']], ['absolute', 'none'], 'the copy on its way out takes no taps');
+  assert.equal(r.get('.row[hidden]').display, 'none', 'display: grid would show a hidden row');
+  const off = r.get('.deck-btn:disabled');
+  assert.deepEqual([off.color, off['border-color']], ['#6c757d', '#6c757d'], 'greyed out');
+  assert.equal(r.get('.deck-btn').color, 'var(--ctl)', 'the rail\'s blue otherwise');
+  // Slightly smaller than focus mode's old row (twice the list's: 7.2cqmin), and well above the old list's 3.6.
+  const cq = v => Number(/^(-?[\d.]+)cqmin$/.exec(v)[1]);
+  assert.ok(cq(r.get('.name')['font-size']) < 7.2 && cq(r.get('.name')['font-size']) >= 5.4);
+  // The glide: Clawd, his caption and his glow ease to their new place; not when the layout itself turns.
+  for (const sel of ['#mascot', '.stage::before']) assert.equal(r.get(sel).transition, 'left var(--glide), top var(--glide), width var(--glide), height var(--glide)', sel);
+  assert.match(r.get('.bubble').transition, /left var\(--glide\), top var\(--glide\)$/);
+  assert.equal(r.get('#app.snap #mascot').transition, 'none');
+  assert.equal(r.get('#app.snap .data').transition, 'none');
+  assert.equal(r.get('.stage::before')['z-index'], '-1', 'the glow behind everything');
+  const gone = r.get('#app.attn .data');
+  assert.deepEqual([gone.opacity, gone.visibility, gone.display], ['0', 'hidden', undefined], 'hidden, not display:none, which would restart the bars\' flow');
+  const app = fs.readFileSync(path.join(ROOT, 'src/web/app.js'), 'utf8');
+  assert.match(app, /classList\.toggle\('attn', spot\.mode === 'focus' && spot\.id !== null\)/);
+  assert.match(app, /\$\('btnPrev'\)\.disabled = \$\('btnNext'\)\.disabled = sessions\.length < 2/);
 });
 
 test('style: the rail holds ⟲ and the brightness slider, one under the other, on the right past the safe area', () => {

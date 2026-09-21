@@ -92,12 +92,12 @@ export function dotClass(s) {
   return 'idle';
 }
 
-// The dashboard's cycle (app.js): every session in turn in standard mode, then every session in turn in focus
-// mode, SLOT_MS each, and round again. A slot is { mode, id, at, since }: 'standard' or 'focus', its session,
-// that session's place in the list (the order they started) and when the slot began. A slot whose session has
-// gone gives way at once to the one that took its place, or, past the end, to the other mode. With no sessions
-// nothing goes round: standard mode, empty.
-export const SLOT_MS = 10000;
+// The dashboard's cycle (app.js): every session in turn in standard mode (Clawd beside the limit bars), then every
+// session in turn in focus mode (Clawd alone, in the middle), SLOT_MS each, and round again. A slot is
+// { mode, id, at, since }: 'standard' or 'focus', its session, that session's place among the sessions (the order
+// they started) and when the slot began. A slot whose session has gone gives way at once to the one that took its
+// place, or, past the end, to the other mode. With no sessions nothing goes round: standard mode, empty.
+export const SLOT_MS = 30000;
 const AFTER = { standard: 'focus', focus: 'standard' };
 
 export function nextSlot(sessions, slot, now) {
@@ -109,17 +109,13 @@ export function nextSlot(sessions, slot, now) {
   return start(slot.mode, i + 1);
 }
 
-// A tap on a session brings it up at once for a whole slot, in the mode under way, and the cycle carries on from
-// there.
-export function tapSlot(sessions, slot, id, now) {
-  const at = sessions.findIndex(s => s.id === id);
-  return at < 0 ? slot : { mode: slot.mode === 'focus' ? 'focus' : 'standard', id, at, since: now };
-}
-
-// Focus mode gives Clawd a slot's first 7 s; for the rest of it (3 s of the 10) the limit bars take his place.
-// A tap on a session starts its slot again, so Clawd comes first.
-export const ATTN_CLAWD_MS = 7000;
-
-export function attnLimitsUp(spot, now) {
-  return now - spot.since >= ATTN_CLAWD_MS;
+// ‹ and › (dir -1 and 1) bring up the session before or after the one that's up, round the ends, at once and for a
+// whole slot, in the mode under way; the cycle carries on from there. With fewer than two sessions there is nowhere
+// to go.
+export function stepSlot(sessions, slot, dir, now) {
+  const n = sessions.length;
+  if (n < 2) return slot;
+  const i = sessions.findIndex(s => s.id === slot.id);
+  const at = (((i < 0 ? slot.at : i) + dir) % n + n) % n;
+  return { mode: slot.mode, id: sessions[at].id, at, since: now };
 }

@@ -1,4 +1,4 @@
-import { limitsView, sessionMeta, dotClass, nextSlot, tapSlot, attnLimitsUp } from './format.js';
+import { limitsView, sessionMeta, dotClass, nextSlot, stepSlot } from './format.js';
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
@@ -220,137 +220,104 @@ function drawBars(box, bars, compact = false) {
   }
 }
 
-// ---------- sessions ----------
-// Every session, in the order they started, in a list that scrolls. Its rows are kept and updated in place: a
-// snapshot comes with every hook event, and rebuilding the list would break a scroll or lose a tap on a row
-// replaced under the finger. With none, the list's :empty rule says so (style.css).
-const list = $('sessions');
+// ---------- the session card ----------
+// The session that's up, in a card along the bottom between ‹ and › (index.html .deck). It is one row that stays
+// and is updated in place: a snapshot comes with every hook event, and a row replaced under the finger would lose a
+// tap on its ✕. When another session comes up the card turns (turnCard). With no session it says so, and with fewer
+// than two ‹ and › are greyed out.
+const card = $('card');
+let cardId = null; // the session the card shows
 const put = (el, text) => { if (el.textContent !== text) el.textContent = text; };
-function makeRow(id) {
-  const row = document.createElement('div');
-  row.className = 'row';
-  row.dataset.id = id;
-  row.innerHTML = '<span class="dot"></span><div><div class="name"></div><div class="meta"></div></div>'
-    + '<div><div class="ctx"><i></i></div><div class="ctxl"></div></div><button class="untrack" aria-label="Stop tracking">✕</button>';
-  return row;
-}
-function fillRow(row, s) {
-  row.classList.toggle('focus', s.id === spot.id);
-  const dot = row.querySelector('.dot');
+function fillCard(s, fresh) {
+  const dot = card.querySelector('.dot');
   if (dot.className !== `dot ${dotClass(s)}`) dot.className = `dot ${dotClass(s)}`;
-  put(row.querySelector('.name'), s.name || 'session');
-  const meta = row.querySelector('.meta');
+  put(card.querySelector('.name'), s.name || 'session');
+  const meta = card.querySelector('.meta');
   put(meta, sessionMeta(s));
   meta.classList.toggle('need', !!s.needsYou);
-  row.querySelector('.ctx i').style.width = `${s.contextPct ?? 0}%`;
-  put(row.querySelector('.ctxl'), s.contextPct == null ? 'ctx —' : `ctx ${s.contextPct}%`);
+  const ctx = card.querySelector('.ctx i');
+  if (fresh) ctx.style.transition = 'none'; // another session's bar: it does not grow out of the last one's
+  ctx.style.width = `${s.contextPct ?? 0}%`;
+  if (fresh) { void ctx.offsetWidth; ctx.style.transition = ''; }
+  put(card.querySelector('.ctxl'), s.contextPct == null ? 'ctx —' : `ctx ${s.contextPct}%`);
 }
-// Focus mode's bar under Clawd: the session's own row, as in the list, twice the size (style.css .attn-card).
-const attnRow = makeRow('');
-$('attnCard').appendChild(attnRow);
-function renderSessions() {
-  const old = new Map([...list.children].map(row => [row.dataset.id, row]));
-  let at = list.firstElementChild;
-  for (const s of snap ? snap.sessions : []) {
-    const row = old.get(s.id) || makeRow(s.id);
-    old.delete(s.id);
-    fillRow(row, s);
-    if (row === at) at = at.nextElementSibling; else list.insertBefore(row, at);
+// The card turns like a carousel: a copy of the row as it was slides out one way and fades, while the row itself,
+// already showing the next session, slides in from the other (dir 1: in from the right, as › and the cycle go;
+// -1: from the left, as ‹ goes). A second tap mid-turn carries on from where the row has got to. With reduced
+// motion it is a cross-fade.
+const TURN_MS = 550;
+const CALM = window.matchMedia('(prefers-reduced-motion: reduce)');
+function turnCard(dir) {
+  if (!card.animate) return;
+  const view = card.parentElement;
+  for (const old of view.querySelectorAll('.ghost')) old.remove();
+  const cs = getComputedStyle(card);
+  const from = { transform: cs.transform === 'none' ? 'translateX(0)' : cs.transform, opacity: cs.opacity };
+  for (const a of card.getAnimations()) a.cancel();
+  const ghost = card.cloneNode(true);
+  ghost.removeAttribute('id');
+  ghost.classList.add('ghost');
+  view.appendChild(ghost);
+  const by = CALM.matches ? 0 : 100;
+  const timing = { duration: TURN_MS, easing: 'cubic-bezier(.4, 0, .2, 1)' };
+  ghost.animate([from, { transform: `translateX(${-dir * by}%)`, opacity: 0 }], { ...timing, fill: 'forwards' }).onfinish = () => ghost.remove();
+  card.animate([{ transform: `translateX(${dir * by}%)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }], timing);
+}
+function renderCard(dir = 1) {
+  const sessions = snap ? snap.sessions : [];
+  const s = sessions.find(x => x.id === spot.id) || null;
+  const fresh = (s ? s.id : null) !== cardId;
+  if (fresh && s && cardId !== null) turnCard(dir); // before the row changes, so the copy shows the session that leaves
+  if (s) fillCard(s, fresh);
+  if (fresh) {
+    cardId = s ? s.id : null;
+    card.classList.remove('closing');
+    card.hidden = !s;
+    $('deckNone').hidden = !!s;
   }
-  for (const row of old.values()) row.remove();
-  edges();
+  $('btnPrev').disabled = $('btnNext').disabled = sessions.length < 2;
 }
 
-// The list follows the slot's session, unless you touched it in the last 15 s. Focus mode lays the list out
-// elsewhere, which loses its scroll, so the dashboard's is kept and put back. Faded edges say there is more.
-const LEAVE_BE_MS = 15000;
-let listTouchedAt = 0;
-let listScroll = 0;
-const attnOn = () => $('app').classList.contains('attn');
-function edges() {
-  list.classList.toggle('more-above', list.scrollTop > 1);
-  list.classList.toggle('more-below', list.scrollTop + list.clientHeight < list.scrollHeight - 1);
-}
-list.addEventListener('scroll', () => { if (!attnOn()) listScroll = list.scrollTop; edges(); }, { passive: true });
-for (const type of ['touchstart', 'wheel', 'pointerdown']) list.addEventListener(type, () => { listTouchedAt = Date.now(); }, { passive: true });
-function followSpot(now = Date.now()) {
-  if (attnOn() || now - listTouchedAt < LEAVE_BE_MS) return;
-  const row = [...list.children].find(r => r.dataset.id === spot.id);
-  if (!row) return;
-  const top = row.offsetTop, bottom = top + row.offsetHeight;
-  if (top < list.scrollTop) list.scrollTo({ top, behavior: 'smooth' });
-  else if (bottom > list.scrollTop + list.clientHeight) list.scrollTo({ top: bottom - list.clientHeight, behavior: 'smooth' });
-}
-
-// ✕ on a row, in the list or in focus mode: the server stops tracking the session until you prompt it again, it
-// restarts or it needs you, and its next snapshot takes the session away. The control dims meanwhile, and
-// comes back if the server says no (a server started before this version has no /api/untrack).
+// ✕ on the card: the server stops tracking the session until you prompt it again, it restarts or it needs you, and
+// its next snapshot takes the session away. The card dims meanwhile, and comes back if the server says no (a server
+// started before 0.8.4 has no /api/untrack).
 function untrack(id, el) {
   el.classList.add('closing');
   fetch(`/api/untrack${location.search}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) })
     .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
     .catch(() => el.classList.remove('closing'));
 }
+card.addEventListener('click', e => { // its own listener, so iOS turns the tap into a click
+  if (e.target.closest('.untrack') && cardId) untrack(cardId, card);
+});
 
 // ---------- the cycle ----------
-// The dashboard goes round (format.js nextSlot), 10 s a slot: every session in turn in standard mode (Clawd on
-// the left acting it out, the limit bars and the list on the right, its row lit); then every session in turn in
-// focus mode (#app.attn): Clawd in the top 75% with his caption, the session's row twice the size under him, and 7 s
-// in the limit bars in his place for the last 3 (#app.limits-up, format.js attnLimitsUp). Tap a session to bring
-// it up at once; the cycle carries on from there. Clawd shows the slot's session (mood.setFocus).
+// The dashboard goes round (format.js nextSlot), 30 s a slot: every session in turn in standard mode (Clawd on the
+// left acting it out, the limit bars on the right; upright, Clawd above the bars), then every session in turn in
+// focus mode (#app.attn): Clawd alone, in the middle. The session's card stays along the bottom all the while, and
+// turns with every slot. Between the modes Clawd glides across and the bars fade (style.css). ‹ and › bring up the
+// session before or after at once (format.js stepSlot); the cycle carries on from there. Clawd shows the slot's
+// session (mood.setFocus).
 let spot = { mode: 'standard', id: null, at: 0, since: 0 };
-let modeKey = null;
-function updateSpot(now = Date.now(), tapped = null) {
+function updateSpot(now = Date.now(), step = 0) {
   const sessions = snap ? snap.sessions : [];
-  const next = tapped ? tapSlot(sessions, spot, tapped, now) : nextSlot(sessions, spot, now);
-  const moved = next.id !== spot.id || next.mode !== spot.mode;
+  const next = step ? stepSlot(sessions, spot, step, now) : nextSlot(sessions, spot, now);
+  const moved = next.id !== spot.id;
   spot = next;
-  if (moved) {
-    renderSessions();
-    apply(mood.setFocus(spot.id, now));
-  }
-  renderMode(now);
-  if (moved) followSpot(now);
+  if (moved) apply(mood.setFocus(spot.id, now));
+  renderCard(step || 1);
+  $('app').classList.toggle('attn', spot.mode === 'focus' && spot.id !== null);
 }
-// In focus mode the session's row under Clawd follows it as its row in the list does.
-function renderMode(now) {
-  const s = spot.mode === 'focus' && snap ? snap.sessions.find(x => x.id === spot.id) : null;
-  const up = !!s && attnLimitsUp(spot, now);
-  if (s) {
-    if (attnRow.dataset.id !== s.id) { attnRow.dataset.id = s.id; attnRow.classList.remove('closing'); }
-    fillRow(attnRow, s);
-  }
-  const key = `${spot.mode}|${spot.id}|${!!s}|${up}`;
-  if (key === modeKey) return;
-  modeKey = key;
-  const was = attnOn();
-  $('app').classList.toggle('attn', !!s);
-  $('app').classList.toggle('limits-up', up);
-  if (!s) {
-    if (was) list.scrollTop = listScroll;
-    edges();
-  }
+for (const [id, dir] of [['btnPrev', -1], ['btnNext', 1]]) {
+  $(id).addEventListener('touchstart', () => {}, { passive: true }); // iOS only shows :active with a touch listener
+  $(id).addEventListener('click', () => updateSpot(Date.now(), dir));
 }
-list.addEventListener('click', e => { // its own listener, so iOS turns the tap into a click
-  const row = e.target.closest('.row');
-  if (!row || !row.dataset.id) return;
-  if (e.target.closest('.untrack')) untrack(row.dataset.id, row);
-  else updateSpot(Date.now(), row.dataset.id);
-});
-$('attnCard').addEventListener('click', e => { // its own listener, so iOS turns the tap into a click
-  if (e.target.closest('.untrack') && attnRow.dataset.id) untrack(attnRow.dataset.id, attnRow);
-});
 
 // ---------- bubble ----------
 function setBubble(text, tone) {
   const b = $('bubble');
   b.textContent = text || '';
   b.className = 'bubble' + (text ? ' show' : '') + (tone ? ' ' + tone : '');
-}
-
-function render() {
-  renderLimits();
-  renderSessions();
 }
 
 function onEvent(ev) { apply(mood.onEvent(ev, Date.now())); }
@@ -376,7 +343,7 @@ function connect() {
     skew = snap.serverTime - Date.now();
     noteHooks(snap);
     seen();
-    render();
+    renderLimits();
     apply(mood.onSnapshot(snap, Date.now()));
     updateSpot();
     // ?settle (screenshots from headless browsers, which barely run animation frames): skip the entry
@@ -424,6 +391,9 @@ const standalone = window.matchMedia('(display-mode: fullscreen), (display-mode:
 function applyLayout() {
   const { w, h, layout } = rotationFor(settings.rotation, window.innerWidth, window.innerHeight);
   const app = $('app');
+  // Clawd glides between the modes (style.css --glide); when the layout itself turns, he is just there.
+  app.classList.add('snap');
+  requestAnimationFrame(() => requestAnimationFrame(() => app.classList.remove('snap')));
   app.style.setProperty('--w', `${w}px`);
   app.style.setProperty('--h', `${h}px`);
   app.style.setProperty('--rot', `${settings.rotation}deg`);
@@ -432,7 +402,7 @@ function applyLayout() {
   $('bright').setAttribute('aria-orientation', layout === 'portrait' ? 'horizontal' : 'vertical');
   for (const r of [0, 90, 180, 270]) app.classList.toggle(`rot${r}`, r === settings.rotation); // safe-area mapping in style.css
 }
-window.addEventListener('resize', () => { applyLayout(); saverBox = null; edges(); });
+window.addEventListener('resize', () => { applyLayout(); saverBox = null; });
 applyLayout();
 
 // Full screen and keep-awake need a tap. The controls stop propagation, so they call this themselves.
@@ -510,5 +480,5 @@ applyDrift();
 setInterval(applyDrift, 2000);
 if (forceSaver) setSaver(true);
 
-render();
+renderLimits();
 connect();

@@ -239,7 +239,7 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
       return out(now);
     },
 
-    // The page's spotlight (app.js moves it every 10 s, or to a session you tap): Clawd shows that session. The
+    // The page's spotlight (app.js moves it every 30 s, or at once with ‹ and ›): Clawd shows that session. The
     // switch is not news, so it skips the startle and the sideways dwell.
     setFocus(id, now) {
       init(now);

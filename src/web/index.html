@@ -21,9 +21,20 @@
     <section class="data">
       <div id="limits" class="limits"></div>
       <div id="limitsNote" class="note"></div>
-      <div id="sessions" class="sessions"></div>
     </section>
-    <section id="attnCard" class="attn-card"></section>
+    <section class="deck">
+      <button id="btnPrev" class="deck-btn" aria-label="Previous session" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4 7 12l8 8"/></svg></button>
+      <div class="deck-view">
+        <div id="card" class="row" hidden>
+          <span class="dot"></span>
+          <div class="who"><div class="name"></div><div class="meta"></div></div>
+          <div class="ctxbox"><div class="ctx"><i></i></div><div class="ctxl"></div></div>
+          <button class="untrack" aria-label="Stop tracking">✕</button>
+        </div>
+        <div id="deckNone" class="deck-none">No Claude Code sessions yet</div>
+      </div>
+      <button id="btnNext" class="deck-btn" aria-label="Next session" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 4 8 8-8 8"/></svg></button>
+    </section>
     <aside id="rail" class="rail">
       <button id="btnRotate" class="rail-btn" aria-label="Rotate">⟲</button>
       <div id="bright" class="bright" role="slider" tabindex="0" aria-label="Brightness" aria-valuemin="10" aria-valuemax="100" aria-valuenow="100"><i class="bright-fill"></i><b class="bright-knob"></b></div>

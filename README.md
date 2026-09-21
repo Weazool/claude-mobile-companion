@@ -13,8 +13,8 @@ Clawd isn't a looping GIF. He's a live SVG rig with 26 hand-timed animations tha
 Everything runs on your own machine. The plugin starts a small web server on your PC, and any phone or tablet browser on the same Wi-Fi opens the dashboard. There's no app to install, no account and no cloud.
 
 <p align="center">
-  <img src="docs/images/dashboard-landscape-awake.png" width="68%" alt="The dashboard in standard mode on a phone held sideways: Clawd lifting a dumbbell above &quot;Running npm test&quot;, the 5-hour, weekly and Fable limit bars with their hour and day legends, three sessions, each with its ✕, the one that's up highlighted, and on the right the blue rotate button above the brightness slider at 100%, lit up by a touch">
-  <img src="docs/images/dashboard-portrait-awake.png" width="25%" alt="The same dashboard upright, with the rotate button and the brightness slider along the bottom">
+  <img src="docs/images/dashboard-landscape-card.png" width="68%" alt="The dashboard in standard mode on a phone held sideways: Clawd on the left lifting a dumbbell above &quot;Running npm test&quot;, on the right the 5-hour, weekly and Fable limit bars with their hour and day legends, along the bottom the session that's up in a card between the blue ‹ and › buttons (a blue dot, my_claude_companion, Opus 5 · high · Running npm test, its context bar at 34% and its ✕), and on the far right the blue rotate button above the brightness slider at 100%, lit up by a touch">
+  <img src="docs/images/dashboard-portrait-card.png" width="25%" alt="The same dashboard upright: Clawd above the limit bars, the session's card under them, and the rotate button and the brightness slider along the bottom">
 </p>
 
 <p align="center"><img src="docs/images/clawd/working.png" height="64" alt="working"> <img src="docs/images/clawd/thinking.png" height="64" alt="thinking"> <img src="docs/images/clawd/reading.png" height="64" alt="reading"> <img src="docs/images/clawd/compiling.png" height="64" alt="compiling"> <img src="docs/images/clawd/surprised.png" height="64" alt="surprised"> <img src="docs/images/clawd/cool.png" height="64" alt="cool"> <img src="docs/images/clawd/overloaded.png" height="64" alt="overloaded"> <img src="docs/images/clawd/celebration.png" height="64" alt="celebration"> <img src="docs/images/clawd/love.png" height="64" alt="love"> <img src="docs/images/clawd/sleeping.png" height="64" alt="sleeping"></p>
@@ -55,14 +55,14 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
 ## <img src="docs/images/clawd/cool.png" height="40" alt="" align="absmiddle"> On the phone
 
-- **Two modes, in turn, 10 seconds a step.** Then it starts over. Tap a session to bring it up at once; the cycle carries on from there.
-  - **Standard mode**, every session in turn: its row lights up, and Clawd, on the left, acts out what it's doing next to your limit bars and the list of sessions.
-  - **Focus mode**, every session in turn: Clawd takes the top three quarters of the screen, with his caption under him as in standard mode, and acts the session out with the animations you picked (see Customise Clawd below). Under him is the session's own row from the list, twice the size; its ✕ stops tracking the session, as in the list. After 7 seconds your limit bars take his place for the last 3.
-- **All your sessions.** The list shows every session and scrolls. Left alone, it follows the session that's up. Tap a session's **✕** to stop tracking it: it leaves the list and the cycle until you next prompt it or restart it, or until it needs your permission or has a question.
+- **One session at a time, along the bottom.** The session that's up sits in a card between **‹** and **›**: its name, its model · effort · current step, its context bar and a **✕**. Every 30 seconds the card turns to the next session, sliding across like a carousel. ‹ and › turn it at once, and the cycle carries on from there; with a single session they're greyed out. Tap **✕** to stop tracking the session: it leaves the cycle until you next prompt it or restart it, or until it needs your permission or has a question.
+- **Two modes, in turn.** Above the card, Clawd acts out the session that's up with the animations you picked (see Customise Clawd below), his caption under him. Every session gets a turn in one mode, then every session in the other, and round again.
+  - **Standard mode:** Clawd on the left, your limit bars on the right (upright: Clawd above the bars).
+  - **Focus mode:** Clawd alone, in the middle. He glides across as the bars fade out, and back again for the next round.
 
 <p align="center">
-  <img src="docs/images/focus-needs-you-rest.png" width="49%" alt="Focus mode's first 7 seconds: Clawd tilting his head under a question mark, his caption &quot;Needs permission&quot; under him, and below that the session's row twice the size: a yellow dot, my_claude_companion, Opus 5 · high · Needs permission, its context bar and ✕; the controls on the right rest at 10%">
-  <img src="docs/images/focus-limits-rest.png" width="49%" alt="Its last 3 seconds: the 5-hour, weekly and Fable limit bars in Clawd's place, above the same row">
+  <img src="docs/images/card-turning-rest.png" width="49%" alt="The card turning after a tap on ›: my_claude_companion's row slides out to the left and fades while clauled (Fable 5.1 · xhigh · Your turn) slides in from the right, and Clawd already waves the checkered flag above &quot;Your turn&quot;; the controls on the right rest at 10%">
+  <img src="docs/images/focus-needs-you-card.png" width="49%" alt="Focus mode: Clawd alone in the middle under a yellow &quot;!&quot;, his caption &quot;Needs permission&quot; under him, and along the bottom the session's card: a yellow dot, my_claude_companion, Opus 5 · high · Needs permission, its context bar and ✕, between ‹ and ›">
 </p>
 
 - **The rail on the right** (along the bottom when the layout is upright) holds two controls, one under the other:
