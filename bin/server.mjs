@@ -134,7 +134,7 @@ async function start() {
     log,
     getSnapshot: snapshot,
     onHook(evt) {
-      const tail = evt.transcript_path ? readTail(evt.transcript_path) : null;
+      const tail = evt.transcript_path && !evt.subagent ? readTail(evt.transcript_path) : null;
       const r = store.apply(evt, Date.now(), tail);
       if (!r) return;
       app.broadcast('snapshot', snapshot());

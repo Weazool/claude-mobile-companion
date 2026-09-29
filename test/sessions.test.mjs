@@ -201,3 +201,71 @@ test('untrack: the session leaves the list and the focus until you prompt it, it
   st.apply({ ...ev('SessionEnd'), session_id: 'B' }, 74000);
   assert.equal(st.sessions.has('B'), false);
 });
+
+// Background agents (a workflow, an agent sent off in the background) fire tool hooks under their parent's session
+// id, marked subagent, often long after the parent's turn has ended.
+test("a background agent's tools leave Your turn alone", () => {
+  const st = new SessionStore();
+  const sub = (name, extra = {}) => ev(name, { subagent: true, ...extra });
+  st.apply(ev('UserPromptSubmit'), 1000);
+  st.apply(ev('Stop'), 2000);
+  assert.equal(st.apply(sub('PreToolUse', { tool_name: 'Bash', target: 'python3' }), 3000), null);
+  assert.equal(st.apply(sub('PostToolUse', { tool_name: 'Bash' }), 4000), null);
+  const [s] = st.list();
+  assert.equal(s.activity, 'done');
+  assert.equal(s.detail, 'Your turn');
+  assert.equal(s.lastEventAt, 2000, 'nothing happened as far as the phone goes');
+});
+
+test("a background agent's tools leave the parent's question alone", () => {
+  const st = new SessionStore();
+  const sub = (name, extra = {}) => ev(name, { subagent: true, ...extra });
+  st.apply(ev('UserPromptSubmit'), 1000);
+  st.apply(ev('PreToolUse', { tool_name: 'AskUserQuestion' }), 2000);
+  assert.equal(st.apply(sub('PostToolUse', { tool_name: 'Grep' }), 3000), null);
+  assert.equal(st.list()[0].needsYou, true);
+  assert.equal(st.list()[0].detail, 'Has a question');
+  st.apply(ev('PostToolUse', { tool_name: 'AskUserQuestion' }), 4000);
+  assert.equal(st.list()[0].needsYou, false, 'answered');
+});
+
+test("while the turn runs, a subagent's tools show; its own prompts it can clear", () => {
+  const st = new SessionStore();
+  const sub = (name, extra = {}) => ev(name, { subagent: true, ...extra });
+  st.apply(ev('UserPromptSubmit'), 1000);
+  st.apply(ev('PreToolUse', { tool_name: 'Agent' }), 2000);
+  st.apply(sub('PreToolUse', { tool_name: 'Read', target: 'a.md' }), 3000);
+  assert.equal(st.list()[0].detail, 'Reading a.md');
+  st.apply(sub('Notification', { notification_type: 'permission_prompt' }), 4000);
+  assert.equal(st.list()[0].needsYou, true);
+  st.apply(sub('PostToolUse', { tool_name: 'Bash' }), 5000);
+  assert.equal(st.list()[0].needsYou, false, 'the subagent went on: the prompt was answered');
+  assert.equal(st.list()[0].activity, 'thinking');
+});
+
+test("a subagent's own start, prompt, stop or end is not the session's", () => {
+  const st = new SessionStore();
+  const sub = (name, extra = {}) => ev(name, { subagent: true, ...extra });
+  assert.equal(st.apply(sub('PreToolUse', { tool_name: 'Read' }), 500), null, 'an unknown session is not made up from a subagent');
+  assert.equal(st.list().length, 0);
+  st.apply(ev('UserPromptSubmit'), 1000);
+  for (const name of ['SessionStart', 'UserPromptSubmit', 'Stop', 'StopFailure', 'SessionEnd']) assert.equal(st.apply(sub(name), 2000), null, name);
+  assert.equal(st.list()[0].activity, 'thinking');
+});
+
+test("after Your turn, a background agent's permission prompt shows until it goes on", () => {
+  const st = new SessionStore();
+  const sub = (name, extra = {}) => ev(name, { subagent: true, ...extra });
+  st.apply(ev('UserPromptSubmit'), 1000);
+  st.apply(ev('Stop'), 2000);
+  assert.deepEqual(st.apply(sub('Notification', { notification_type: 'permission_prompt' }), 3000), { discrete: 'needsYou' });
+  assert.equal(st.focusId(), 's1');
+  let [s] = st.list();
+  assert.equal(s.needsYou, true);
+  assert.equal(s.detail, 'Needs permission');
+  assert.deepEqual(st.apply(sub('PostToolUse', { tool_name: 'Bash' }), 4000), { discrete: null });
+  [s] = st.list();
+  assert.equal(s.needsYou, false);
+  assert.equal(s.activity, 'done');
+  assert.equal(s.detail, 'Your turn');
+});

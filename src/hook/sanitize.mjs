@@ -58,6 +58,8 @@ export function sanitize(raw, env = {}, now = Date.now()) {
   if (typeof effort === 'string' && effort) out.effort = effort;
   if (typeof env.CLAUDE_EFFORT === 'string' && env.CLAUDE_EFFORT) out.envEffort = env.CLAUDE_EFFORT;
   for (const k of PASS) if (typeof r[k] === 'string') out[k] = r[k];
+  // A subagent's hooks (an Agent call, a workflow's agents) carry its parent's session id and its own agent_id.
+  if (typeof r.agent_id === 'string' && r.agent_id) out.subagent = true;
   const err = typeof r.error === 'string' ? r.error : (r.error && typeof r.error.type === 'string' ? r.error.type : '');
   if (err) out.error = err;
   if (out.tool_name) {

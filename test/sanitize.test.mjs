@@ -101,3 +101,10 @@ test('garbage input yields empty required fields', () => {
   const e = sanitize(null, {}, 5);
   assert.deepEqual(e, { hook_event_name: '', session_id: '', cwd: '', transcript_path: '', receivedAt: 5 });
 });
+
+test("a subagent's event is flagged, without its id", () => {
+  const e = sanitize({ hook_event_name: 'PostToolUse', session_id: 's1', tool_name: 'Read', agent_id: 'a1b2', agent_type: 'workflow-subagent' });
+  assert.equal(e.subagent, true);
+  assert.doesNotMatch(JSON.stringify(e), /a1b2|workflow-subagent/);
+  assert.equal('subagent' in sanitize({ hook_event_name: 'PostToolUse', session_id: 's1', tool_name: 'Read' }), false);
+});

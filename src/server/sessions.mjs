@@ -67,6 +67,10 @@ export function classify(evt) {
   }
 }
 
+// Whether the session's own turn runs after this event: from your prompt, through its tools, to its stop.
+const TURN = { UserPromptSubmit: true, PreToolUse: true, PostToolUse: true, SessionStart: false, Stop: false, StopFailure: false };
+const needs = s => s.needsYou || !!s.subNeeds;
+
 export class SessionStore {
   constructor({ contextWindow = {} } = {}) {
     this.sessions = new Map();
@@ -78,16 +82,19 @@ export class SessionStore {
     if (!id) return null;
     const c = classify(evt);
     if (!c) return null;
+    let s = this.sessions.get(id);
+    if (evt.subagent) return s ? this.applySubagent(s, evt, c, now) : null;
     if (c.remove) {
       this.sessions.delete(id);
       return { discrete: null };
     }
-    let s = this.sessions.get(id);
     if (!s) {
       s = { id, name: '', folder: '', title: null, model: null, modelLabel: null, effort: null, contextPct: null,
-            activity: 'idle', detail: '', needsYou: false, startedAt: now, lastEventAt: now };
+            activity: 'idle', detail: '', needsYou: false, subNeeds: null, turn: false, startedAt: now, lastEventAt: now };
       this.sessions.set(id, s);
     }
+    if (evt.hook_event_name in TURN) s.turn = TURN[evt.hook_event_name];
+    if (c.discrete === 'prompt' || c.discrete === 'sessionStart') s.subNeeds = null;
     if (evt.cwd) s.folder = path.posix.basename(evt.cwd.replace(/\\/g, '/').replace(/\/+$/, '')) || s.folder;
     // Its name: the one the Claude app shows (the transcript's title, kept once seen), else the project folder.
     if (tail && tail.title) s.title = tail.title;
@@ -105,6 +112,32 @@ export class SessionStore {
     if (c.needsYou !== undefined) s.needsYou = c.needsYou;
     s.lastEventAt = now;
     if (s.untracked && (c.discrete === 'prompt' || c.discrete === 'sessionStart' || c.needsYou === true)) s.untracked = false;
+    return { discrete: c.discrete || null, ...(s.untracked ? { hidden: true } : {}) };
+  }
+
+  // A subagent's hooks carry its parent's session id, and a background one's (a workflow, an agent sent off in the
+  // background) go on after the parent's turn has ended. Its tools only show while that turn runs and nothing of
+  // the parent's waits on you; otherwise they would bury Your turn or a question under "Thinking…" until the next
+  // stop. A prompt of its own (a question, a permission) needs you until it goes on. Its start, prompt, stop and
+  // end are not the session's, nor is its transcript.
+  applySubagent(s, evt, c, now) {
+    const tool = evt.hook_event_name === 'PreToolUse' || evt.hook_event_name === 'PostToolUse';
+    if (c.needsYou) {
+      s.subNeeds = c.detail;
+    } else if (tool) {
+      const answered = !!s.subNeeds;
+      s.subNeeds = null;
+      if (s.turn && !s.needsYou) {
+        s.activity = c.activity;
+        s.detail = c.detail;
+      } else if (!answered) {
+        return null;
+      }
+    } else {
+      return null;
+    }
+    s.lastEventAt = now;
+    if (s.untracked && c.needsYou) s.untracked = false;
     return { discrete: c.discrete || null, ...(s.untracked ? { hidden: true } : {}) };
   }
 
@@ -134,13 +167,14 @@ export class SessionStore {
       .filter(s => !s.untracked)
       .sort((a, b) => a.startedAt - b.startedAt)
       .map(s => ({ id: s.id, name: s.name, modelLabel: s.modelLabel, effort: s.effort, contextPct: s.contextPct,
-                   activity: s.activity, detail: s.detail, needsYou: s.needsYou, lastEventAt: s.lastEventAt }));
+                   activity: s.activity, detail: !s.needsYou && s.subNeeds ? s.subNeeds : s.detail, needsYou: needs(s),
+                   lastEventAt: s.lastEventAt }));
   }
 
   // Spec §3 focus rule: newest needsYou, else newest active, else newest overall.
   focusId() {
     const all = [...this.sessions.values()].filter(s => !s.untracked).sort((a, b) => b.lastEventAt - a.lastEventAt);
-    const pick = all.find(s => s.needsYou) || all.find(s => ACTIVE.has(s.activity)) || all[0];
+    const pick = all.find(needs) || all.find(s => ACTIVE.has(s.activity)) || all[0];
     return pick ? pick.id : null;
   }
 }
