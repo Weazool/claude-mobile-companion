@@ -89,6 +89,7 @@ export function dotClass(s) {
   if (s.needsYou) return 'need';
   if (ACTIVE.includes(s.activity)) return 'work';
   if (s.activity === 'error' || s.activity === 'rateLimited') return 'bad';
+  if (s.background > 0) return 'work'; // its turn is over, its background tasks run on
   return 'idle';
 }
 

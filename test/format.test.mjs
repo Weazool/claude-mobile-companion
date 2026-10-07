@@ -43,6 +43,13 @@ test('resetLine: in under a day, weekday and time beyond, now', () => {
   assert.equal(resetLine(null, 0), '');
 });
 
+test('dotClass: background tasks in flight are work; needs you and errors still win', () => {
+  assert.equal(dotClass({ needsYou: false, activity: 'done', background: 2 }), 'work');
+  assert.equal(dotClass({ needsYou: false, activity: 'done', background: 0 }), 'idle');
+  assert.equal(dotClass({ needsYou: true, activity: 'done', background: 2 }), 'need');
+  assert.equal(dotClass({ needsYou: false, activity: 'error', background: 2 }), 'bad');
+});
+
 test('sessionMeta and dotClass', () => {
   assert.equal(sessionMeta({ modelLabel: 'Opus 5', effort: 'high', detail: 'Editing a.js' }), 'Opus 5 · high · Editing a.js');
   assert.equal(sessionMeta({ modelLabel: null, effort: null, detail: '' }), '— · —');

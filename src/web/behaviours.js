@@ -34,6 +34,7 @@ const ROWS = [
   ['work', 'reading', 'Reading', 'base', 'reading', 'Claude reads or searches files', 'Reading app.js'],
   ['work', 'working', 'Working', 'base', 'working', 'Claude edits files or runs commands', 'Editing server.mjs'],
   ['work', 'compiling', 'Building / testing', 'base', 'compiling', 'A build or test command runs', 'Running npm test'],
+  ['work', 'backgroundTasks', 'Background tasks', 'alt', ['working', 'reading'], 'The turn is over, but agents, shells or workflows run on in the background', '2 background tasks'],
   ['work', 'startle', 'Starts working', 'play', 'surprised', 'Clawd was idle and Claude starts a turn'],
   ['work', 'stillThinking', 'Still thinking', 'play', 'curious', 'Thinking for more than 8 s'],
   ['work', 'stillCompiling', 'Still building', 'play', 'look_left', 'A build runs for more than 8 s'],

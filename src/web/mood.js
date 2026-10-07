@@ -15,6 +15,10 @@ const IDLEISH = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver
 const QUIET = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'overloaded', 'done', 'error']);
 const DWELL_MS = 1500;
 const pctOf = w => (w && Number.isFinite(w.pct) ? w.pct : null);
+// How many background tasks a session has in flight (agents, shells, monitors, workflows): the server has it from
+// the session's last stop.
+const tasksOf = s => (s && Number.isInteger(s.background) && s.background > 0 ? s.background : 0);
+const tasksText = n => `${n} background task${n === 1 ? '' : 's'}`;
 const dayOf = t => new Date(t).toDateString();
 
 // The defaults, with every behaviour the map sets. The server validates maps against the rig (validateMap);
@@ -49,8 +53,8 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
     const id = S.pinnedId && snap.sessions.some(s => s.id === S.pinnedId) ? S.pinnedId : snap.focusId;
     return snap.sessions.find(s => s.id === id) || null;
   }
-  const busy = f => !!f && (ACTIVE.has(f.activity) || f.needsYou);
-  // Any session at work or waiting on you: the page's spotlight may show an idle one meanwhile, and he must not
+  const busy = f => !!f && (ACTIVE.has(f.activity) || f.needsYou || tasksOf(f) > 0);
+  // Any session at work, at work in the background or waiting on you: the page's spotlight may show an idle one meanwhile, and he must not
   // doze off while another works.
   const anyBusy = () => !!snap && snap.sessions.some(busy);
 
@@ -87,8 +91,12 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
     // A session that waits on you keeps its animation for as long as he shows it (the page's slot, in standard or
     // focus mode). Needing you is handled above; a turn that has ended or failed keeps it all along too, not only
     // for the moment it happened (the transients above), until he falls asleep.
-    if (f && f.activity === 'done') return { mode: 'done', base: base('yourTurn'), bubble: { text: 'Your turn', tone: 'good' } };
     if (f && f.activity === 'error') return { mode: 'error', base: base(st.errors >= 3 ? 'errorRepeated' : 'error'), bubble: { text: 'Error', tone: 'bad' } };
+    // A turn that is over while its background tasks run on: he keeps working with them instead of waiting for you,
+    // for as long as they run, and stays awake meanwhile (busy). A failed turn still shows first.
+    const n = tasksOf(f);
+    if (n > 0) return { mode: 'background', base: base('backgroundTasks'), bubble: { text: tasksText(n), tone: '' } };
+    if (f && f.activity === 'done') return { mode: 'done', base: base('yourTurn'), bubble: { text: 'Your turn', tone: 'good' } };
     const wOver = pw !== null && pw >= 100;
     const fOver = pf !== null && pf >= 100;
     if (wOver || fOver) return { mode: 'weekOver', base: base('weeklyLimitReached'), bubble: { text: `${wOver ? 'Week' : 'Fable'} limit reached`, tone: 'bad' } };
@@ -179,6 +187,8 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
         case 'stop':
           touch(now);
           st.errors = 0;
+          // A turn that ends with background tasks in flight is not your turn yet as far as he goes: no moment.
+          if (tasksOf(snap && snap.sessions.find(x => x.id === ev.sessionId)) > 0) break;
           if (!f || f.id === ev.sessionId || !busy(f)) {
             // The Stop snapshot, sent just before this event, may have started a celebration: run it after "Your turn".
             const tr = st.transient;

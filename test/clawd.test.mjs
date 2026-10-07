@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   RIG, PALETTE, LEG_OVERLAP, VIEW, SPEC, NAMES, INTERNAL, ANIMS, GLYPHS, MISSING, BLEND_MS, BLEND_MAX_MS, PROP_BLEND_MS,
   rest, shapesAt, corners, shapesDiff, evalAnim, register, defineGlyph, pixels, mixPose, loopTime,
-  idlePlan, Player, ease, keys, hopY, ramped, hash01, mountClawd, POOL_RECTS,
+  idlePlan, Player, ALT_MS, ease, keys, hopY, ramped, hash01, mountClawd, POOL_RECTS,
 } from '../src/web/clawd/index.js';
 import { createImage, drawShapes } from '../tools/lib/rast.mjs';
 
@@ -476,6 +476,31 @@ test('a two-item base cycles surprised and curious', () => {
   assert.equal(pl.cur.name, 'curious');
   run(pl, A.curious.dur);
   assert.equal(pl.cur.name, 'surprised');
+});
+
+test('an alternating base of loops plays each for whole cycles, about ALT_MS, then the next (background tasks)', () => {
+  const A = playerAnims();
+  const pl = new Player({ anims: A, rand: () => 0.99 });
+  const span = n => Math.ceil(ALT_MS / A[n].dur) * A[n].dur;
+  pl.setBase(['working', 'reading']);
+  assert.equal(pl.cur.name, 'working');
+  run(pl, span('working') - 100);
+  assert.equal(pl.cur.name, 'working', 'still at the laptop');
+  run(pl, 200);
+  assert.equal(pl.cur.name, 'reading');
+  run(pl, span('reading'));
+  assert.equal(pl.cur.name, 'working', 'and round again');
+  assert.ok(span('working') >= ALT_MS && span('reading') >= ALT_MS);
+  // A list that ends on a loop goes round too (it used to stay on the loop for good).
+  pl.setBase(['surprised', 'happy_eyes']);
+  run(pl, A.surprised.dur + 16);
+  assert.equal(pl.cur.name, 'happy_eyes');
+  run(pl, span('happy_eyes'));
+  assert.equal(pl.cur.name, 'surprised');
+  // One looping base still loops for good.
+  pl.setBase('working');
+  run(pl, A.working.dur * 5);
+  assert.equal(pl.cur.name, 'working');
 });
 
 test('queued one-shots play in order, then the base', () => {

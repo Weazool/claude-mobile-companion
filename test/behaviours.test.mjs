@@ -10,6 +10,7 @@ const TABLE = [
   ['work', 'reading', 'Reading', 'base', 'reading'],
   ['work', 'working', 'Working', 'base', 'working'],
   ['work', 'compiling', 'Building / testing', 'base', 'compiling'],
+  ['work', 'backgroundTasks', 'Background tasks', 'alt', ['working', 'reading']],
   ['work', 'startle', 'Starts working', 'play', 'surprised'],
   ['work', 'stillThinking', 'Still thinking', 'play', 'curious'],
   ['work', 'stillCompiling', 'Still building', 'play', 'look_left'],
@@ -46,6 +47,7 @@ const TABLE = [
 // The bubble each behaviour shows on the phone, as an example.
 const BUBBLES = {
   thinking: 'Thinking…', reading: 'Reading app.js', working: 'Editing server.mjs', compiling: 'Running npm test',
+  backgroundTasks: '2 background tasks',
   needsYou: 'Needs permission', yourTurn: 'Your turn',
   fiveHourWarn: '5-hour at 55%', fiveHourLow: '5-hour at 84%', fiveHourCritical: '5-hour at 96%', weeklyNearlyUsed: 'Week at 96%',
   limitReached: 'Limit reached · resets in 3h 00m', weeklyLimitReached: 'Week limit reached', rateLimited: 'Rate limited',

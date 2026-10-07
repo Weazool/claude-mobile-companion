@@ -419,6 +419,50 @@ test('setBehaviours: the next tick shows the current state with the new map; oth
   assert.deepEqual(m.setOffline(true, T0 + 400), { base: 'cool', play: [], bubble: null, dim: false });
 });
 
+test('background tasks: working and reading in turn, "2 background tasks" under him, instead of Your turn', () => {
+  const m = createMood({}, { rand: mid });
+  m.onSnapshot(snap([sess('working', { detail: 'x' })]), T0);
+  assert.deepEqual(m.onSnapshot(snap([sess('done', { detail: 'Your turn', background: 2 })]), T0 + 1000),
+    { base: ['working', 'reading'], play: [], bubble: { text: '2 background tasks', tone: '' }, dim: false });
+  assert.equal(m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 1001), null, 'no Your turn moment while they run');
+  assert.equal(m.tick(T0 + 10 * MIN), null, 'he stays at it: no yawn, no sleep');
+  assert.deepEqual(m.onSnapshot(snap([sess('done', { detail: 'Waiting for you', background: 1 })]), T0 + 10 * MIN + 1).bubble,
+    { text: '1 background task', tone: '' });
+  // The last one ends: Claude wakes up for it, and the stop of that turn says none are left.
+  assert.equal(m.onSnapshot(snap([sess('thinking', { detail: 'Thinking…', background: 1 })]), T0 + 11 * MIN).base, 'thinking');
+  m.onSnapshot(snap([sess('done', { detail: 'Your turn', background: 0 })]), T0 + 11 * MIN + 5000);
+  assert.deepEqual(m.onEvent({ type: 'stop', sessionId: 's1' }, T0 + 11 * MIN + 5001),
+    { base: 'happy_eyes', play: ['surprised'], bubble: { text: 'Your turn', tone: 'good' }, dim: false });
+});
+
+test('background tasks: needs you, the turn at work and a failed turn come first; a sleeping Clawd wakes for them', () => {
+  const m = createMood({}, { rand: mid });
+  m.onSnapshot(snap([sess('done', { background: 1 })]), T0);
+  assert.equal(m.onSnapshot(snap([sess('done', { background: 1, needsYou: true, detail: 'Needs permission' })]), T0 + 10).bubble.tone, 'need');
+  assert.equal(m.onSnapshot(snap([sess('reading', { background: 1, detail: 'Reading a.md' })]), T0 + 2000).base, 'reading');
+  assert.equal(m.onSnapshot(snap([sess('error', { background: 1, detail: 'Error' })]), T0 + 4000).base, 'error');
+  m.onEvent({ type: 'error', sessionId: 's1' }, T0 + 4001);
+  assert.equal(m.tick(T0 + 10000), null, 'the failed turn stays up after its moment');
+
+  const z = createMood({}, { rand: mid });
+  z.onSnapshot(snap([sess('done')]), T0);
+  z.tick(T0 + 2 * MIN);
+  z.tick(T0 + 2 * MIN + 2500);
+  assert.equal(z.tick(T0 + 2 * MIN + 2600), null, 'asleep');
+  const w = z.onSnapshot(snap([sess('done', { background: 3 })]), T0 + 3 * MIN);
+  assert.deepEqual(w.play, ['yawning', 'surprised', 'love']);
+  assert.deepEqual(z.tick(T0 + 3 * MIN + 3000), { base: ['working', 'reading'], play: [], bubble: { text: '3 background tasks', tone: '' }, dim: false });
+});
+
+test('background tasks of another session keep him awake but stay with that session', () => {
+  const m = createMood({}, { rand: mid });
+  const two = bg => snap([sess('done', { id: 'A' }), sess('done', { id: 'B', background: bg })], {}, 'A');
+  m.onSnapshot(two(2), T0);
+  m.setFocus('A', T0);
+  assert.equal(m.tick(T0 + 10 * MIN), null, 'no yawn while B works in the background');
+  assert.equal(m.setFocus('B', T0 + 10 * MIN + 1).bubble.text, '2 background tasks');
+});
+
 test('every state and moment reads its animation from the map (no animation name is left in mood.js)', () => {
   // Map every behaviour to its own made-up name, run through every state, and collect what the commands ask for.
   const X = Object.fromEntries(BEHAVIOURS.map(b => [b.key, Array.isArray(b.default) ? [`x_${b.key}`] : `x_${b.key}`]));
@@ -468,6 +512,8 @@ test('every state and moment reads its animation from the map (no animation name
   d.tick(T0 + 5 * MIN + 2500);                                                    // asleep
   d.onTap(T0 + 6 * MIN);                                                          // wakes up
   d.setOffline(true, T0 + 7 * MIN);                                               // PC offline
+
+  mood().onSnapshot(snap([sess('done', { background: 2 })]), T0);                 // background tasks
 
   assert.deepEqual([...seen].filter(n => !n.startsWith('x_')), [], 'animation names that bypass the map');
   const PLAYER = ['idleBlink', 'idleGlance', 'idleLife']; // calm idle's clips: app.js hands these to the Player

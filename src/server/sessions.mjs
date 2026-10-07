@@ -2,6 +2,9 @@ import path from 'node:path';
 import { contextPct } from './transcript.mjs';
 
 export const EXPIRE_MS = 60 * 60 * 1000;
+// A session whose background tasks run on can be silent for hours (a long build sends no hooks); one that crashed
+// with some in flight still goes, after this.
+export const BACKGROUND_EXPIRE_MS = 12 * EXPIRE_MS;
 export const ACTIVE = new Set(['thinking', 'reading', 'working', 'compiling']);
 
 const READ = new Set(['Read', 'NotebookRead']);
@@ -90,7 +93,8 @@ export class SessionStore {
     }
     if (!s) {
       s = { id, name: '', folder: '', title: null, model: null, modelLabel: null, effort: null, contextPct: null,
-            activity: 'idle', detail: '', needsYou: false, subNeeds: null, turn: false, startedAt: now, lastEventAt: now };
+            activity: 'idle', detail: '', needsYou: false, subNeeds: null, turn: false, background: 0, startedAt: now,
+            lastEventAt: now };
       this.sessions.set(id, s);
     }
     if (evt.hook_event_name in TURN) s.turn = TURN[evt.hook_event_name];
@@ -110,6 +114,8 @@ export class SessionStore {
     if (c.activity) s.activity = c.activity;
     if ('detail' in c) s.detail = c.detail;
     if (c.needsYou !== undefined) s.needsYou = c.needsYou;
+    // How many background tasks are in flight: each Stop says (an older Claude Code says nothing, and it stays).
+    if (Number.isInteger(evt.background) && evt.background >= 0) s.background = evt.background;
     s.lastEventAt = now;
     if (s.untracked && (c.discrete === 'prompt' || c.discrete === 'sessionStart' || c.needsYou === true)) s.untracked = false;
     return { discrete: c.discrete || null, ...(s.untracked ? { hidden: true } : {}) };
@@ -154,7 +160,7 @@ export class SessionStore {
   expire(now) {
     let changed = false;
     for (const [id, s] of this.sessions) {
-      if (now - s.lastEventAt > EXPIRE_MS) {
+      if (now - s.lastEventAt > (s.background > 0 ? BACKGROUND_EXPIRE_MS : EXPIRE_MS)) {
         this.sessions.delete(id);
         changed = true;
       }
@@ -168,13 +174,13 @@ export class SessionStore {
       .sort((a, b) => a.startedAt - b.startedAt)
       .map(s => ({ id: s.id, name: s.name, modelLabel: s.modelLabel, effort: s.effort, contextPct: s.contextPct,
                    activity: s.activity, detail: !s.needsYou && s.subNeeds ? s.subNeeds : s.detail, needsYou: needs(s),
-                   lastEventAt: s.lastEventAt }));
+                   background: s.background, lastEventAt: s.lastEventAt }));
   }
 
-  // Spec §3 focus rule: newest needsYou, else newest active, else newest overall.
+  // Spec §3 focus rule: newest needsYou, else newest active (its turn, or its background tasks), else newest overall.
   focusId() {
     const all = [...this.sessions.values()].filter(s => !s.untracked).sort((a, b) => b.lastEventAt - a.lastEventAt);
-    const pick = all.find(needs) || all.find(s => ACTIVE.has(s.activity)) || all[0];
+    const pick = all.find(needs) || all.find(s => ACTIVE.has(s.activity) || s.background > 0) || all[0];
     return pick ? pick.id : null;
   }
 }

@@ -108,3 +108,20 @@ test("a subagent's event is flagged, without its id", () => {
   assert.doesNotMatch(JSON.stringify(e), /a1b2|workflow-subagent/);
   assert.equal('subagent' in sanitize({ hook_event_name: 'PostToolUse', session_id: 's1', tool_name: 'Read' }), false);
 });
+
+test('Stop: only how many background tasks are in flight leaves the PC', () => {
+  const stop = extra => sanitize({ hook_event_name: 'Stop', session_id: 's1', last_assistant_message: 'SECRET-REPLY', ...extra });
+  const e = stop({
+    background_tasks: [
+      { id: 'b1x', type: 'shell', status: 'running', description: 'SECRET-DESC', command: 'deploy --token SECRET-TOKEN' },
+      { id: 'a2x', type: 'subagent', status: 'running', description: 'SECRET-TASK', agent_type: 'general-purpose' },
+      { id: 'w3x', type: 'workflow', status: 'pending', description: 'SECRET-FLOW', name: 'nightly-review' },
+    ],
+    session_crons: [{ id: 'c1x', schedule: '0 9 * * *', recurring: true, prompt: 'SECRET-PROMPT' }],
+  });
+  assert.equal(e.background, 3);
+  assert.doesNotMatch(JSON.stringify(e), /SECRET|deploy|b1x|general-purpose|nightly|0 9/);
+  assert.equal(stop({ background_tasks: [] }).background, 0);
+  assert.equal(stop({ background_tasks: [{ status: 'completed' }, { status: 'running' }, 'junk', null] }).background, 1, 'only work in flight');
+  assert.equal('background' in stop({}), false, 'an older Claude Code sends no list: unknown, not none');
+});

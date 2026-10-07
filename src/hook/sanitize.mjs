@@ -14,6 +14,7 @@ const PREFIX = /^(?:cd\s+(?:"[^"]*"|'[^']*'|[^\s"';&|])+\s*(?:&&|;)|[A-Za-z_]\w*
 // The first shell word, with its quotes kept, so a quoted path stays one word.
 const WORD = /^(?:"[^"]*"?|'[^']*'?|[^\s"'])+/;
 const PASS = ['tool_name', 'notification_type', 'source', 'permission_mode'];
+const ENDED = new Set(['completed', 'failed', 'killed', 'stopped']);
 const str = v => (typeof v === 'string' ? v : '');
 
 // The command without its leading `cd <dir> &&` / `cd <dir>;` segments and NAME=value assignments.
@@ -60,6 +61,9 @@ export function sanitize(raw, env = {}, now = Date.now()) {
   for (const k of PASS) if (typeof r[k] === 'string') out[k] = r[k];
   // A subagent's hooks (an Agent call, a workflow's agents) carry its parent's session id and its own agent_id.
   if (typeof r.agent_id === 'string' && r.agent_id) out.subagent = true;
+  // Stop lists the session's background work in flight: shells, subagents, monitors, workflows. Only how many leaves
+  // the PC; their descriptions and commands stay behind.
+  if (Array.isArray(r.background_tasks)) out.background = r.background_tasks.filter(t => t && typeof t === 'object' && !ENDED.has(t.status)).length;
   const err = typeof r.error === 'string' ? r.error : (r.error && typeof r.error.type === 'string' ? r.error.type : '');
   if (err) out.error = err;
   if (out.tool_name) {

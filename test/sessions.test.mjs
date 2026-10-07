@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SessionStore, classify, modelLabel, EXPIRE_MS } from '../src/server/sessions.mjs';
+import { SessionStore, classify, modelLabel, EXPIRE_MS, BACKGROUND_EXPIRE_MS } from '../src/server/sessions.mjs';
 
 const ev = (hook_event_name, extra = {}) => ({ hook_event_name, session_id: 's1', cwd: 'C:\\Users\\weazo\\GitHub\\my_claude_companion', ...extra });
 
@@ -155,7 +155,7 @@ test('SessionEnd removes, expire drops silent sessions, list is ordered by start
   st.apply({ ...ev('UserPromptSubmit'), session_id: 'A' }, 3000);
   assert.deepEqual(st.list().map(s => s.id), ['A', 'B']);
   assert.deepEqual(Object.keys(st.list()[0]).sort(),
-    ['activity', 'contextPct', 'detail', 'effort', 'id', 'lastEventAt', 'modelLabel', 'name', 'needsYou']);
+    ['activity', 'background', 'contextPct', 'detail', 'effort', 'id', 'lastEventAt', 'modelLabel', 'name', 'needsYou']);
   st.apply({ ...ev('SessionEnd'), session_id: 'A' }, 4000);
   assert.deepEqual(st.list().map(s => s.id), ['B']);
   assert.equal(st.expire(2000 + EXPIRE_MS), false);
@@ -268,4 +268,35 @@ test("after Your turn, a background agent's permission prompt shows until it goe
   assert.equal(s.needsYou, false);
   assert.equal(s.activity, 'done');
   assert.equal(s.detail, 'Your turn');
+});
+
+test('background tasks: each Stop says how many are in flight; a subagent or a prompt does not change it', () => {
+  const st = new SessionStore();
+  st.apply(ev('UserPromptSubmit'), 1000);
+  assert.equal(st.list()[0].background, 0);
+  st.apply(ev('Stop', { background: 2 }), 2000);
+  let [s] = st.list();
+  assert.equal(s.background, 2);
+  assert.equal(s.activity, 'done');
+  st.apply(ev('PostToolUse', { subagent: true, tool_name: 'Read' }), 3000);
+  assert.equal(st.list()[0].background, 2);
+  st.apply(ev('UserPromptSubmit'), 4000); // the turn Claude takes when one of them ends
+  assert.equal(st.list()[0].background, 2, 'not known again until that turn stops');
+  st.apply(ev('Stop', { background: 0 }), 5000);
+  [s] = st.list();
+  assert.equal(s.background, 0);
+  st.apply(ev('Stop', { background: 1 }), 6000);
+  st.apply(ev('Stop'), 7000); // an older Claude Code sends no list
+  assert.equal(st.list()[0].background, 1);
+});
+
+test('background tasks: such a session counts as at work for the focus, and outlasts the hour of silence', () => {
+  const st = new SessionStore();
+  st.apply(ev('Stop', { session_id: 'bg', background: 1 }), 1000);
+  st.apply(ev('Stop', { session_id: 'quiet' }), 2000);
+  assert.equal(st.focusId(), 'bg', 'background work beats a newer session that waits');
+  st.expire(2000 + EXPIRE_MS + 1);
+  assert.deepEqual(st.list().map(s => s.id), ['bg']);
+  st.expire(1000 + BACKGROUND_EXPIRE_MS + 1);
+  assert.equal(st.list().length, 0, 'but not for ever: a crashed session goes after 12 hours');
 });

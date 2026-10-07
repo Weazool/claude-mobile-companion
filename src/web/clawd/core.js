@@ -699,6 +699,7 @@ export const BLEND_MS = 130;         // the blend between clips, when the poses 
 export const BLEND_MS_PER_UNIT = 60; // plus this per unit the body, arms or legs must travel (an arm raised
 export const BLEND_MAX_MS = 450;     // to the flag, a walk interrupted far out), so a big change never snaps
 export const PROP_BLEND_MS = 300;    // at least this when a prop arrives or leaves (the desk, the flag, a page)
+export const ALT_MS = 9000;          // a looping clip in an alternating base plays whole cycles for at least this
 const TRAVEL_PARTS = new Set(['leg', 'body', 'armL', 'armR']);
 
 // The largest distance any corner of the body, the arms or the legs moves between two shape lists.
@@ -886,7 +887,10 @@ export class Player {
     if (n === 'idle') return this._set(this._hold());
     // A single one-shot base that has played holds calm idle until the base changes.
     if (this.baseDone && this.base.length === 1 && !this.anims[n].loop) return this._set(this._hold(false));
-    this._set(this._clip(n), carry);
+    const c = this._clip(n);
+    // In an alternating base a loop would never end, so it plays whole cycles for about ALT_MS, then the next name.
+    if (c.loop && this.base.length > 1) c.turns = Math.max(1, Math.ceil(ALT_MS / c.dur));
+    this._set(c, carry);
   }
 
   setBase(names) {
@@ -969,7 +973,7 @@ export class Player {
     c.t += dt;
     if (c.t >= c.dur) {
       const over = c.t - c.dur;
-      if (c.loop) c.t = loopTime(c.def, c.t);
+      if (c.loop && !(c.turns && --c.turns === 0)) c.t = loopTime(c.def, c.t);
       // Calm idle's clips do not chain: a celebration picked as idle life would stay in its happy loop.
       else if (c.next && !c.idle && this.anims[c.next]) { this._set(this._clip(c.next), over); return true; }
       else if (this.queue.length) { this._set(this._clip(this.queue.shift(), true), over); return true; }

@@ -7,6 +7,7 @@ desk-companion is a Claude Code plugin. Prop your phone up next to your keyboard
 Clawd isn't a looping GIF. He's a live SVG rig with 26 hand-timed animations that follow your sessions as they happen:
 - **Your sessions at work:** he taps at a tiny laptop while Claude edits, lifts a dumbbell while it builds and runs tests, and ponders with thought dots while it thinks.
 - **When Claude needs you:** he hops with a "!" when there's a permission prompt, and waves the checkered flag when it's your turn.
+- **Background tasks:** when a turn ends with agents, shells or workflows still running in the background, he keeps at it, typing at the laptop and reading a page in turn, with "2 background tasks" under him, until the last one finishes.
 - **Your limits:** he gets tired and then worried as they run down, turns red and steams when one is used up, and throws confetti when they reset.
 - **When nothing's happening:** he blinks, glances around, strolls across the desk, and after a quiet spell yawns and curls up to sleep. Tap him to say hi.
 
@@ -92,7 +93,8 @@ The phone sees:
 - session names as the Claude app shows them (or the project folder name for a session without one), model, effort and context %;
 - for Bash, only the program name, plus one subcommand for common dev tools (`git status`, `npm test`); a leading `cd …` is skipped;
 - for file tools, only the file name;
-- for MCP tools, only the tool's own name.
+- for MCP tools, only the tool's own name;
+- how many background tasks a session has running, never what they are.
 
 Prompts, file contents and command arguments are never sent. The plugin never reads your Claude credentials; limits come from Claude Code's own `get_usage`. The page is plain HTTP on your LAN, protected by a random token in the link.
 
