@@ -14,8 +14,8 @@ Clawd isn't a looping GIF. He's a live SVG rig with 26 hand-timed animations tha
 Everything runs on your own machine. The plugin starts a small web server on your PC, and any phone or tablet browser on the same Wi-Fi opens the dashboard. There's no app to install, no account and no cloud.
 
 <p align="center">
-  <img src="docs/images/dashboard-landscape-card.png" width="68%" alt="The dashboard in standard mode on a phone held sideways: Clawd on the left lifting a dumbbell above &quot;Running npm test&quot;, on the right the 5-hour, weekly and Fable limit bars with their hour and day legends, along the bottom the session that's up in a card between the blue ‹ and › buttons (a blue dot, my_claude_companion, Opus 5 · high · Running npm test, its context bar at 34% and its ✕), and on the far right the blue rotate button above the brightness slider at 100%, lit up by a touch">
-  <img src="docs/images/dashboard-portrait-card.png" width="25%" alt="The same dashboard upright: Clawd above the limit bars, the session's card under them, and the rotate button and the brightness slider along the bottom">
+  <img src="docs/images/dashboard-landscape-limits.png" width="68%" alt="The dashboard in limits mode on a phone held sideways: on the left the 5-hour, weekly and Fable limit bars at 43%, 42% and 11% with their hour and day legends, on the right Clawd lifting a dumbbell above &quot;Running npm test&quot;, along the bottom the session that's up in a card between the blue ‹ and › buttons (a blue dot, Companion screenshots, Opus 5.5 · high · Running npm test, its context bar at 34% and its ✕), and on the far right the blue rotate button above the brightness slider at 100%, lit up by a touch">
+  <img src="docs/images/dashboard-portrait-limits.png" width="25%" alt="The same dashboard upright: Clawd above the limit bars, the session's card under them, and the rotate button and the brightness slider along the bottom">
 </p>
 
 <p align="center"><img src="docs/images/clawd/working.png" height="64" alt="working"> <img src="docs/images/clawd/thinking.png" height="64" alt="thinking"> <img src="docs/images/clawd/reading.png" height="64" alt="reading"> <img src="docs/images/clawd/compiling.png" height="64" alt="compiling"> <img src="docs/images/clawd/surprised.png" height="64" alt="surprised"> <img src="docs/images/clawd/cool.png" height="64" alt="cool"> <img src="docs/images/clawd/overloaded.png" height="64" alt="overloaded"> <img src="docs/images/clawd/celebration.png" height="64" alt="celebration"> <img src="docs/images/clawd/love.png" height="64" alt="love"> <img src="docs/images/clawd/sleeping.png" height="64" alt="sleeping"></p>
@@ -62,8 +62,8 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
   - **Tasks mode:** Clawd on the left, and on the right a card listing the session's background tasks: each one's kind (workflow, agent, shell or monitor), what it is, and how long it has been running, or "queued". As many as fit, then "+2 more"; with none, the card says so (upright: the card under Clawd). He glides across as the bars fade out and the card fades in, and back again for the next round.
 
 <p align="center">
-  <img src="docs/images/card-turning-rest.png" width="49%" alt="The card turning after a tap on ›: my_claude_companion's row slides out to the left and fades while clauled (Fable 5.1 · xhigh · Your turn) slides in from the right, and Clawd already waves the checkered flag above &quot;Your turn&quot;; the controls on the right rest at 10%">
-  <img src="docs/images/focus-needs-you-card.png" width="49%" alt="Focus mode: Clawd alone in the middle under a yellow &quot;!&quot;, his caption &quot;Needs permission&quot; under him, and along the bottom the session's card: a yellow dot, my_claude_companion, Opus 5 · high · Needs permission, its context bar and ✕, between ‹ and ›">
+  <img src="docs/images/card-turning-limits.png" width="49%" alt="The card turning after a tap on ›: Companion screenshots' row slides out to the left and fades while The Planner bugs (Opus 5.5 · xhigh · Your turn) slides in from the right, and Clawd on the right already types at his laptop above &quot;4 background tasks&quot;; the controls on the right rest at 10%">
+  <img src="docs/images/tasks-mode-landscape.png" width="49%" alt="Tasks mode: Clawd on the left typing at his laptop above &quot;4 background tasks&quot;, and on the right the Background tasks card with a count of 4: review-changes (Workflow · Review changed files across dimensions, 12m), Hook events for background tasks (Agent · claude-code-guide, 3m), npm test (Shell · Run the test suite, 1m) and Watch CI on PR 482 (Monitor · watch_checks, 25m), each with a blue dot; along the bottom The Planner bugs' card between ‹ and ›">
 </p>
 
 - **The rail on the right** (along the bottom when the layout is upright) holds two controls, one under the other:
@@ -85,7 +85,7 @@ You choose which animation Clawd plays for each thing he reacts to: Claude think
 
 Every behaviour has a live preview, and a gallery at the bottom plays all 26 animations. Pick animations per behaviour and click **Save**: the phone switches over at once, with no reload. **Reset to defaults** puts everything back. The map is stored in `~/.desk-companion/behaviours.json` (Windows: `%USERPROFILE%\.desk-companion\behaviours.json`).
 
-<p align="center"><img src="docs/images/behaviours.png" width="90%" alt="The behaviours editor: every behaviour with its animation, a dropdown and a live preview"></p>
+<p align="center"><img src="docs/images/behaviours-tasks.png" width="90%" alt="The behaviours editor: every behaviour with its animation, a dropdown and a live preview; under When Claude works, Thinking and Starts working are changed, and Background tasks has working and reading taking turns"></p>
 
 ## <img src="docs/images/clawd/reading.png" height="40" alt="" align="absmiddle"> Privacy
 
