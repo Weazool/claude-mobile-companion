@@ -47,17 +47,20 @@ html, body {
 #app.rot180 { --sa-t: env(safe-area-inset-bottom, 0px); --sa-r: env(safe-area-inset-left, 0px); --sa-b: env(safe-area-inset-top, 0px); --sa-l: env(safe-area-inset-right, 0px); }
 #app.rot270 { --sa-t: env(safe-area-inset-left, 0px); --sa-r: env(safe-area-inset-top, 0px); --sa-b: env(safe-area-inset-right, 0px); --sa-l: env(safe-area-inset-bottom, 0px); }
 /* The layout. Along the bottom, the session that's up, in a card between ‹ and › (.deck, --deck high). The rest is
-   Clawd's and the limit bars': in standard mode Clawd on the left and the bars on the right (upright: Clawd above the
-   bars, which get a strip --lim high); in focus mode (app.js #app.attn) Clawd alone, in the middle, the bars faded
-   out. --deck and --lim are only used inside #app, never on it: a cq length on the container itself would not
-   measure it. */
+   Clawd's, the limit bars' and the tasks card's: in limits mode Clawd on the right and the bars on the left 60%; in
+   tasks mode (app.js #app.attn) Clawd on the left and the session's background tasks in a card on the right 60%.
+   Sideways the columns are 40% 20% 40%, so the bars (1-2) and the card (2-3) each have 60% and Clawd's side 40%,
+   and nothing but Clawd moves between the modes. Upright Clawd stays above a strip --lim high that holds the bars
+   or the card. --deck and --lim are only used inside #app, never on it: a cq length on the container itself would
+   not measure it. */
 #app { --deck: 23cqmin; --glide: .8s cubic-bezier(.4, 0, .2, 1); }
-#app.landscape { grid-template: minmax(0, 1fr) auto / 40% 60%; }
+#app.landscape { grid-template: minmax(0, 1fr) auto / 40% 20% 40%; }
 #app.portrait { grid-template: minmax(0, 1fr) auto auto / 100%; --deck: 37cqmin; --lim: 48cqmin; --rail-at: max(var(--sa-b), 2.5vmax); --pad-r: var(--sa-r); --pad-b: calc(var(--rail-at) + var(--rail)); }
 
 /* Clawd's stage: everything above the card, in both modes, with the bars laid over their part of it, so going from
    one mode to the other is a glide. Clawd has a box in it: --bw by --bh from the top left (standard mode: the left
-   40% sideways, what the bars leave upright; focus mode: all of it). Only the box changes between the modes, and
+   40% sideways, on the right in limits mode and on the left in tasks mode; upright, what the strip leaves). Only
+   the box changes between the modes, and
    #mascot, his caption and his glow ease to their new place and size (--glide; not when the layout itself turns,
    app.js .snap).
    His SVG viewBox (-16 -28 32 32) keeps the top of the square free for the flag, the Zzz and the confetti: his body
@@ -74,9 +77,9 @@ html, body {
   --top: calc(100cqh - var(--deck)); --bw: 100cqw; --bh: var(--top); --mw: 92cqw; --cx: 50%;
   --mascot: min(var(--mw), 0.92 * var(--bh)); --cy: calc(var(--bh) / 2 + 0.06 * var(--mascot));
 }
-#app.landscape .stage { grid-area: 1 / 1 / 2 / 3; --bw: 40cqw; --mw: 40cqw; --cx: 20%; }
+#app.landscape .stage { grid-area: 1 / 1 / 2 / 4; --bw: 40cqw; --mw: 40cqw; --cx: 80%; }
+#app.landscape.attn .stage { --cx: 20%; }
 #app.portrait .stage { grid-area: 1 / 1 / 3 / 2; --bh: calc(var(--top) - var(--lim)); }
-#app.attn .stage { --bw: 100cqw; --bh: var(--top); --mw: 92cqw; --cx: 50%; }
 /* His glow, behind everything: a circle that ends in nothing, so it never stops in a line at the card or the bars. */
 .stage::before {
   content: ''; position: absolute; z-index: -1; left: var(--cx); top: var(--cy); transform: translate(-50%, -50%);
@@ -103,12 +106,42 @@ html, body {
 #app.snap .stage::before, #app.snap #mascot, #app.snap .bubble { transition: none; }
 
 /* The limit bars' part: they fade in once Clawd is on his way back to his side, and out as he sets off for the
-   middle (hidden, not display:none, which would restart the bars' flow). */
+   other (hidden, not display:none, which would restart the bars' flow). */
 .data { min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 3cqmin; transition: opacity .5s ease .3s; }
-#app.landscape .data { grid-area: 1 / 2; padding: 4cqmin 5cqmin 3cqmin 2cqmin; }
+#app.landscape .data { grid-area: 1 / 1 / 2 / 3; padding: 4cqmin 2cqmin 3cqmin 5cqmin; }
 #app.portrait .data { grid-area: 2 / 1; height: var(--lim); padding: 0 5cqmin; }
 #app.attn .data { opacity: 0; visibility: hidden; transition: opacity .4s ease, visibility 0s .4s; }
 #app.snap .data { transition: none; }
+/* The tasks card: tasks mode's other half (upright: the strip under Clawd). The background tasks of the session that's
+   up, one row each (app.js renderTasks): the kind's icon, the label, a line with the kind and the detail, how long it
+   has run and a dot, lit while it runs and a ring while it waits. As many rows as fit, then "+N more"; with none it
+   says so. It is centred in its part and keeps well clear of the card along the bottom (the larger bottom padding),
+   and it fades like the bars. */
+.tasks { min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; opacity: 0; visibility: hidden; transition: opacity .4s ease, visibility 0s .4s; }
+#app.attn .tasks { opacity: 1; visibility: visible; transition: opacity .5s ease .3s; }
+#app.snap .tasks { transition: none; }
+#app.landscape .tasks { grid-area: 1 / 2 / 2 / 4; padding: 3cqmin 4cqmin 11cqmin 2cqmin; }
+#app.portrait .tasks { grid-area: 2 / 1; height: var(--lim); padding: 0 5cqmin 7cqmin; }
+/* Upright the card gets a taller strip than the bars where the screen is tall enough, room for four rows: Clawd keeps
+   88cqmin above it (the deck is 37), so he glides up and is a little smaller than in limits mode. On a squarer
+   screen the strip stays the bars' 48. */
+#app.portrait.attn { --lim: clamp(48cqmin, calc(100cqh - 125cqmin), 76cqmin); }
+.tcard { display: flex; flex-direction: column; min-height: 0; max-height: 100%; background: #14141c; border-radius: 2.6cqmin; padding: 2.2cqmin 3cqmin 1.4cqmin; }
+.thead { display: flex; align-items: center; justify-content: space-between; gap: 2cqmin; padding-bottom: 1.2cqmin; font-size: 4.2cqmin; font-weight: 600; }
+.tcount { font-size: 3.4cqmin; line-height: 1.5; padding: 0 2cqmin; border: 1px solid var(--ctl); border-radius: 2cqmin; }
+.tlist { min-height: 0; overflow: hidden; }
+.trow { display: grid; grid-template-columns: 7.4cqmin minmax(0, 1fr) auto 2.2cqmin; gap: 2.6cqmin; align-items: center; padding: 1.1cqmin 0; border-top: 1px solid #1f1f29; }
+.trow[hidden], .tmore[hidden] { display: none; }
+.tico { display: grid; place-items: center; width: 7.4cqmin; height: 7.4cqmin; border-radius: 1.8cqmin; background: #1b1b24; border: 1px solid #2c2c38; }
+.tico svg { width: 4.6cqmin; height: 4.6cqmin; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.twho { min-width: 0; }
+.tlabel { font-size: 4.2cqmin; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tmeta, .ttime { font-size: 3.3cqmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tstat { width: 2.2cqmin; height: 2.2cqmin; border-radius: 50%; background: var(--work); box-shadow: 0 0 1.6cqmin var(--work); animation: pulse 1.6s ease-in-out infinite; }
+.tstat.wait { background: none; box-shadow: none; border: .4cqmin solid var(--work); animation: none; }
+.tmore, .tnone { font-size: 3.4cqmin; text-align: center; border-top: 1px solid #1f1f29; }
+.tmore { padding: 1.4cqmin 0 .4cqmin; }
+.tnone { padding: 6cqmin 0 5cqmin; }
 /* The limits: one bar each, stacked. The name and reset sit above the bar, the percentage at its end, and the
    legend under the bar only (same column, so its slots line up with the ticks cut into the fill). */
 .limits { display: flex; flex-direction: column; gap: 2.4cqmin; }
@@ -163,7 +196,7 @@ html, body {
    next session like a carousel (app.js turnCard): .deck-view clips the rows as they slide, and .ghost is the copy
    on its way out. ‹ and › are the rail's buttons again (Bootstrap's outline-primary), greyed out with fewer than
    two sessions. */
-.deck { grid-area: 2 / 1 / 3 / 3; height: var(--deck); min-width: 0; display: grid; grid-template-columns: 13cqmin minmax(0, 1fr) 13cqmin; gap: 3cqmin; align-items: center; padding: 0 3cqmin 2cqmin; }
+.deck { grid-area: 2 / 1 / 3 / -1; height: var(--deck); min-width: 0; display: grid; grid-template-columns: 13cqmin minmax(0, 1fr) 13cqmin; gap: 3cqmin; align-items: center; padding: 0 3cqmin 2cqmin; }
 #app.portrait .deck { grid-area: 3 / 1; }
 .deck-view { position: relative; min-width: 0; overflow: hidden; border-radius: 2.2cqmin; }
 .deck-none { padding: 2cqmin; font-size: 3.6cqmin; text-align: center; }

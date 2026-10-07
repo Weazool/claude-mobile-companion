@@ -86,6 +86,8 @@ export class SessionStore {
     const c = classify(evt);
     if (!c) return null;
     let s = this.sessions.get(id);
+    // When a background task was sent off, its own agents' launches included, so the tasks card can time it.
+    if (s && evt.launched) s.launched.set(evt.launched, now);
     if (evt.subagent) return s ? this.applySubagent(s, evt, c, now) : null;
     if (c.remove) {
       this.sessions.delete(id);
@@ -93,8 +95,9 @@ export class SessionStore {
     }
     if (!s) {
       s = { id, name: '', folder: '', title: null, model: null, modelLabel: null, effort: null, contextPct: null,
-            activity: 'idle', detail: '', needsYou: false, subNeeds: null, turn: false, background: 0, startedAt: now,
-            lastEventAt: now };
+            activity: 'idle', detail: '', needsYou: false, subNeeds: null, turn: false, background: 0, tasks: [],
+            launched: new Map(), startedAt: now, lastEventAt: now };
+      if (evt.launched) s.launched.set(evt.launched, now);
       this.sessions.set(id, s);
     }
     if (evt.hook_event_name in TURN) s.turn = TURN[evt.hook_event_name];
@@ -114,8 +117,14 @@ export class SessionStore {
     if (c.activity) s.activity = c.activity;
     if ('detail' in c) s.detail = c.detail;
     if (c.needsYou !== undefined) s.needsYou = c.needsYou;
-    // How many background tasks are in flight: each Stop says (an older Claude Code says nothing, and it stays).
+    // How many background tasks are in flight, and which: each Stop says (an older Claude Code says nothing, and they
+    // stay). A task keeps the start it had; a new one starts at its launch if that was seen, else now.
     if (Number.isInteger(evt.background) && evt.background >= 0) s.background = evt.background;
+    if (Array.isArray(evt.tasks)) {
+      const had = new Map(s.tasks.map(t => [t.id, t.since]));
+      s.tasks = evt.tasks.map(t => ({ ...t, since: had.get(t.id) ?? s.launched.get(t.id) ?? now }));
+      for (const [k, at] of s.launched) if (now - at > BACKGROUND_EXPIRE_MS) s.launched.delete(k);
+    }
     s.lastEventAt = now;
     if (s.untracked && (c.discrete === 'prompt' || c.discrete === 'sessionStart' || c.needsYou === true)) s.untracked = false;
     return { discrete: c.discrete || null, ...(s.untracked ? { hidden: true } : {}) };
@@ -174,7 +183,8 @@ export class SessionStore {
       .sort((a, b) => a.startedAt - b.startedAt)
       .map(s => ({ id: s.id, name: s.name, modelLabel: s.modelLabel, effort: s.effort, contextPct: s.contextPct,
                    activity: s.activity, detail: !s.needsYou && s.subNeeds ? s.subNeeds : s.detail, needsYou: needs(s),
-                   background: s.background, lastEventAt: s.lastEventAt }));
+                   background: s.background, lastEventAt: s.lastEventAt,
+                   tasks: s.tasks.map(t => ({ kind: t.kind, label: t.label, detail: t.detail, status: t.status, since: t.since })) }));
   }
 
   // Spec §3 focus rule: newest needsYou, else newest active (its turn, or its background tasks), else newest overall.

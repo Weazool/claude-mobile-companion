@@ -109,19 +109,56 @@ test("a subagent's event is flagged, without its id", () => {
   assert.equal('subagent' in sanitize({ hook_event_name: 'PostToolUse', session_id: 's1', tool_name: 'Read' }), false);
 });
 
-test('Stop: only how many background tasks are in flight leaves the PC', () => {
+test('Stop: how many background tasks are in flight; never a command\'s arguments, a cron, the last reply or an MCP server', () => {
   const stop = extra => sanitize({ hook_event_name: 'Stop', session_id: 's1', last_assistant_message: 'SECRET-REPLY', ...extra });
   const e = stop({
     background_tasks: [
-      { id: 'b1x', type: 'shell', status: 'running', description: 'SECRET-DESC', command: 'deploy --token SECRET-TOKEN' },
-      { id: 'a2x', type: 'subagent', status: 'running', description: 'SECRET-TASK', agent_type: 'general-purpose' },
-      { id: 'w3x', type: 'workflow', status: 'pending', description: 'SECRET-FLOW', name: 'nightly-review' },
+      { id: 'b1x', type: 'shell', status: 'running', description: 'Ship it', command: 'deploy --token SECRET-TOKEN' },
+      { id: 'a2x', type: 'subagent', status: 'running', description: 'Review the plan', agent_type: 'general-purpose' },
+      { id: 'w3x', type: 'monitor', status: 'pending', description: 'Watch CI', server: 'SECRET-SERVER', tool: 'watch' },
     ],
     session_crons: [{ id: 'c1x', schedule: '0 9 * * *', recurring: true, prompt: 'SECRET-PROMPT' }],
   });
   assert.equal(e.background, 3);
-  assert.doesNotMatch(JSON.stringify(e), /SECRET|deploy|b1x|general-purpose|nightly|0 9/);
+  assert.doesNotMatch(JSON.stringify(e), /SECRET|0 9/);
   assert.equal(stop({ background_tasks: [] }).background, 0);
   assert.equal(stop({ background_tasks: [{ status: 'completed' }, { status: 'running' }, 'junk', null] }).background, 1, 'only work in flight');
   assert.equal('background' in stop({}), false, 'an older Claude Code sends no list: unknown, not none');
+});
+
+test("Stop: each background task as the tasks card shows it, never a command's arguments", () => {
+  const e = sanitize({ hook_event_name: 'Stop', session_id: 's1', background_tasks: [
+    { id: 'bx1', type: 'shell', status: 'running', description: 'Run the test suite', command: 'npm test -- --token SECRET' },
+    { id: 'bx2', type: 'shell', status: 'running', description: 'deploy --token SECRET', command: 'deploy --token SECRET' },
+    { id: 'ax3', type: 'subagent', status: 'running', description: 'Hook events for background tasks', agent_type: 'claude-code-guide' },
+    { id: 'wx4', type: 'workflow', status: 'pending', description: 'Review changed files', name: 'review-changes' },
+    { id: 'mx5', type: 'monitor', status: 'running', description: 'Watch CI on PR 482', server: 'srv-SECRET', tool: 'watch_checks' },
+    { id: 'tx6', type: 'mcp_task', status: 'paused', description: 'Line\none\u0007 two' },
+    { id: 'gone', type: 'shell', status: 'completed', description: 'old', command: 'ls' },
+  ] });
+  assert.deepEqual(e.tasks, [
+    { id: 'bx1', kind: 'shell', label: 'npm test', detail: 'Run the test suite', status: 'running' },
+    { id: 'bx2', kind: 'shell', label: 'deploy', detail: '', status: 'running' },
+    { id: 'ax3', kind: 'subagent', label: 'Hook events for background tasks', detail: 'claude-code-guide', status: 'running' },
+    { id: 'wx4', kind: 'workflow', label: 'review-changes', detail: 'Review changed files', status: 'pending' },
+    { id: 'mx5', kind: 'monitor', label: 'Watch CI on PR 482', detail: 'watch_checks', status: 'running' },
+    { id: 'tx6', kind: 'task', label: 'Line one two', detail: '', status: 'paused' },
+  ]);
+  assert.equal(e.background, 6);
+  assert.doesNotMatch(JSON.stringify(e), /SECRET/);
+  const long = sanitize({ hook_event_name: 'Stop', session_id: 's1', background_tasks: [{ id: 'x', type: 'subagent', status: 'running', description: 'word '.repeat(60) }] });
+  assert.ok(long.tasks[0].label.length <= 80 && long.tasks[0].label.endsWith('…'), 'one short line');
+  const many = sanitize({ hook_event_name: 'Stop', session_id: 's1', background_tasks: Array.from({ length: 30 }, (_, i) => ({ id: `t${i}`, type: 'shell', status: 'running', command: 'make' })) });
+  assert.deepEqual([many.background, many.tasks.length], [30, 20], 'all are counted, 20 are listed');
+});
+
+test("PostToolUse: a background launch passes on the task's id, nothing else of the result", () => {
+  const post = (tool_name, tool_response) => sanitize({ hook_event_name: 'PostToolUse', session_id: 's1', tool_name, tool_input: {}, tool_response });
+  assert.equal(post('Bash', { stdout: 'SECRET', backgroundTaskId: 'bx1' }).launched, 'bx1');
+  assert.equal(post('Agent', { status: 'async_launched', agentId: 'ax3', description: 'SECRET' }).launched, 'ax3');
+  assert.equal(post('Workflow', { status: 'async_launched', taskId: 'wx4' }).launched, 'wx4');
+  assert.equal('launched' in post('Bash', { stdout: 'x' }), false);
+  assert.equal('launched' in post('Agent', { status: 'completed', agentId: 'ax9' }), false, 'a foreground agent that has finished');
+  assert.doesNotMatch(JSON.stringify(post('Bash', { stdout: 'SECRET', backgroundTaskId: 'bx1' })), /SECRET/);
+  assert.equal('launched' in sanitize({ hook_event_name: 'PreToolUse', session_id: 's1', tool_name: 'Bash', tool_response: { backgroundTaskId: 'bx1' } }), false);
 });

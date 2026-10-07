@@ -1,4 +1,4 @@
-import { limitsView, sessionMeta, dotClass, nextSlot, stepSlot } from './format.js';
+import { limitsView, sessionMeta, dotClass, nextSlot, stepSlot, taskRow } from './format.js';
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
@@ -291,11 +291,59 @@ card.addEventListener('click', e => { // its own listener, so iOS turns the tap 
   if (e.target.closest('.untrack') && cardId) untrack(cardId, card);
 });
 
+// ---------- the tasks card ----------
+// Tasks mode's other half (index.html .tasks): the background tasks of the session that's up, as its last stop listed
+// them, one row each (format.js taskRow) with its kind's icon. As many rows as fit, then "+N more" (fitTasks); with
+// none, "No background tasks". updateSpot redraws it twice a second, and the rows only change when their text does
+// (a minute more on a clock, a task started or finished, another session up).
+const TASK_ICONS = {
+  shell: '<path d="M5 7l5 5-5 5M12 17h7"/>',
+  subagent: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9.5 13h.01M14.5 13h.01"/>',
+  workflow: '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.2 8.2l3.6 7.4M16.8 8.2l-3.6 7.4"/>',
+  monitor: '<path d="M3 12h4l2-6 4 12 2-6h6"/>',
+  task: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/>',
+};
+let tasksKey = '';
+function renderTasks() {
+  const s = snap ? snap.sessions.find(x => x.id === spot.id) : null;
+  const tasks = (s && s.tasks) || [];
+  const count = s ? Math.max(s.background || 0, tasks.length) : 0;
+  const rows = tasks.map(t => taskRow(t, Date.now() + skew));
+  const key = JSON.stringify([count, rows]);
+  if (key === tasksKey) return;
+  tasksKey = key;
+  put($('tasksCount'), String(count));
+  $('tasksList').innerHTML = rows.length
+    ? rows.map(r => `<div class="trow"><span class="tico"><svg viewBox="0 0 24 24" aria-hidden="true">${TASK_ICONS[r.kind]}</svg></span>`
+      + `<div class="twho"><div class="tlabel">${esc(r.label)}</div><div class="tmeta">${esc(r.meta)}</div></div>`
+      + `<span class="ttime">${esc(r.time)}</span><span class="tstat${r.wait ? ' wait' : ''}"></span></div>`).join('')
+      + '<div class="tmore" hidden></div>'
+    : '<div class="tnone">No background tasks</div>';
+  fitTasks();
+}
+// Hides the rows that do not fit, from the end, and says how many there are besides (the snapshot lists 20 at most).
+function fitTasks() {
+  const list = $('tasksList');
+  const rows = [...list.querySelectorAll('.trow')];
+  if (!rows.length) return;
+  const count = Number($('tasksCount').textContent) || rows.length;
+  const more = list.querySelector('.tmore');
+  for (const r of rows) r.hidden = false;
+  let shown = rows.length;
+  const say = () => { more.hidden = count <= shown; more.textContent = `+${count - shown} more`; };
+  say();
+  while (shown > 1 && list.scrollHeight > list.clientHeight + 1) {
+    rows[--shown].hidden = true;
+    say();
+  }
+}
+
 // ---------- the cycle ----------
-// The dashboard goes round (format.js nextSlot), 30 s a slot: every session in turn in standard mode (Clawd on the
-// left acting it out, the limit bars on the right; upright, Clawd above the bars), then every session in turn in
-// focus mode (#app.attn): Clawd alone, in the middle. The session's card stays along the bottom all the while, and
-// turns with every slot. Between the modes Clawd glides across and the bars fade (style.css). ‹ and › bring up the
+// The dashboard goes round (format.js nextSlot), 30 s a slot: every session in turn in limits mode (format.js
+// 'standard': Clawd on the right acting it out, the limit bars on the left; upright, Clawd above the bars), then every
+// session in turn in tasks mode ('focus', #app.attn: Clawd on the left, the session's background tasks in a card on
+// the right; upright, the card under him). The session's card stays along the bottom all the while, and turns with
+// every slot. Between the modes Clawd glides across while the bars and the tasks card fade (style.css). ‹ and › bring up the
 // session before or after at once (format.js stepSlot); the cycle carries on from there. Clawd shows the slot's
 // session (mood.setFocus).
 let spot = { mode: 'standard', id: null, at: 0, since: 0 };
@@ -306,6 +354,7 @@ function updateSpot(now = Date.now(), step = 0) {
   spot = next;
   if (moved) apply(mood.setFocus(spot.id, now));
   renderCard(step || 1);
+  renderTasks();
   $('app').classList.toggle('attn', spot.mode === 'focus' && spot.id !== null);
 }
 for (const [id, dir] of [['btnPrev', -1], ['btnNext', 1]]) {
@@ -401,6 +450,7 @@ function applyLayout() {
   app.classList.toggle('portrait', layout === 'portrait');
   $('bright').setAttribute('aria-orientation', layout === 'portrait' ? 'horizontal' : 'vertical');
   for (const r of [0, 90, 180, 270]) app.classList.toggle(`rot${r}`, r === settings.rotation); // safe-area mapping in style.css
+  fitTasks(); // the tasks card's part changed size
 }
 window.addEventListener('resize', () => { applyLayout(); saverBox = null; });
 applyLayout();

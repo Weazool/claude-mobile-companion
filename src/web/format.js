@@ -85,6 +85,26 @@ export function sessionMeta(s) {
   return [s.modelLabel || '—', s.effort || '—', s.detail].filter(Boolean).join(' · ');
 }
 
+// How long a background task has run, for its row on the tasks card: <1m, 12m, 1h 05m.
+export function formatElapsed(ms) {
+  if (!Number.isFinite(ms)) return '';
+  const m = Math.floor(Math.max(0, ms) / 60000);
+  if (m < 1) return '<1m';
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+// One row of the tasks card (app.js renderTasks) from a task in the snapshot: its kind (the icon), its label, a
+// line with the kind's name and the detail, and how long it has run, or that it waits (queued, paused).
+const KIND = { shell: 'Shell', subagent: 'Agent', monitor: 'Monitor', workflow: 'Workflow', task: 'Task' };
+export function taskRow(t, now) {
+  const kind = Object.prototype.hasOwnProperty.call(KIND, t.kind) ? t.kind : 'task';
+  const wait = t.status === 'pending' || t.status === 'paused';
+  return {
+    kind, label: t.label || 'Background task', meta: [KIND[kind], t.detail].filter(Boolean).join(' · '),
+    time: wait ? (t.status === 'paused' ? 'paused' : 'queued') : formatElapsed(now - t.since), wait,
+  };
+}
+
 export function dotClass(s) {
   if (s.needsYou) return 'need';
   if (ACTIVE.includes(s.activity)) return 'work';

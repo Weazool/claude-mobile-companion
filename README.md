@@ -58,8 +58,8 @@ In Claude Code, run `/claude-companion-pair`. A page opens in your PC's browser 
 
 - **One session at a time, along the bottom.** The session that's up sits in a card between **‹** and **›**: its name, its model · effort · current step, its context bar and a **✕**. Every 30 seconds the card turns to the next session, sliding across like a carousel. ‹ and › turn it at once, and the cycle carries on from there; with a single session they're greyed out. Tap **✕** to stop tracking the session: it leaves the cycle until you next prompt it or restart it, or until it needs your permission or has a question.
 - **Two modes, in turn.** Above the card, Clawd acts out the session that's up with the animations you picked (see Customise Clawd below), his caption under him. Every session gets a turn in one mode, then every session in the other, and round again.
-  - **Standard mode:** Clawd on the left, your limit bars on the right (upright: Clawd above the bars).
-  - **Focus mode:** Clawd alone, in the middle. He glides across as the bars fade out, and back again for the next round.
+  - **Limits mode:** Clawd on the right, your limit bars on the left (upright: Clawd above the bars).
+  - **Tasks mode:** Clawd on the left, and on the right a card listing the session's background tasks: each one's kind (workflow, agent, shell or monitor), what it is, and how long it has been running, or "queued". As many as fit, then "+2 more"; with none, the card says so (upright: the card under Clawd). He glides across as the bars fade out and the card fades in, and back again for the next round.
 
 <p align="center">
   <img src="docs/images/card-turning-rest.png" width="49%" alt="The card turning after a tap on ›: my_claude_companion's row slides out to the left and fades while clauled (Fable 5.1 · xhigh · Your turn) slides in from the right, and Clawd already waves the checkered flag above &quot;Your turn&quot;; the controls on the right rest at 10%">
@@ -94,7 +94,7 @@ The phone sees:
 - for Bash, only the program name, plus one subcommand for common dev tools (`git status`, `npm test`); a leading `cd …` is skipped;
 - for file tools, only the file name;
 - for MCP tools, only the tool's own name;
-- how many background tasks a session has running, never what they are.
+- for background tasks: the short description Claude gives each one, a workflow's name or an agent's type, a monitor's MCP tool name, a shell's program name plus one subcommand for common dev tools (never its arguments), and when each one started.
 
 Prompts, file contents and command arguments are never sent. The plugin never reads your Claude credentials; limits come from Claude Code's own `get_usage`. The page is plain HTTP on your LAN, protected by a random token in the link.
 

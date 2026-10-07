@@ -155,7 +155,7 @@ test('SessionEnd removes, expire drops silent sessions, list is ordered by start
   st.apply({ ...ev('UserPromptSubmit'), session_id: 'A' }, 3000);
   assert.deepEqual(st.list().map(s => s.id), ['A', 'B']);
   assert.deepEqual(Object.keys(st.list()[0]).sort(),
-    ['activity', 'background', 'contextPct', 'detail', 'effort', 'id', 'lastEventAt', 'modelLabel', 'name', 'needsYou']);
+    ['activity', 'background', 'contextPct', 'detail', 'effort', 'id', 'lastEventAt', 'modelLabel', 'name', 'needsYou', 'tasks']);
   st.apply({ ...ev('SessionEnd'), session_id: 'A' }, 4000);
   assert.deepEqual(st.list().map(s => s.id), ['B']);
   assert.equal(st.expire(2000 + EXPIRE_MS), false);
@@ -299,4 +299,26 @@ test('background tasks: such a session counts as at work for the focus, and outl
   assert.deepEqual(st.list().map(s => s.id), ['bg']);
   st.expire(1000 + BACKGROUND_EXPIRE_MS + 1);
   assert.equal(st.list().length, 0, 'but not for ever: a crashed session goes after 12 hours');
+});
+
+test('background tasks: the list from each Stop, each with when it started (its launch, else when first seen)', () => {
+  const st = new SessionStore();
+  const T = (id, extra = {}) => ({ id, kind: 'shell', label: id, detail: '', status: 'running', ...extra });
+  st.apply(ev('UserPromptSubmit'), 1000);
+  assert.deepEqual(st.list()[0].tasks, []);
+  st.apply(ev('PostToolUse', { tool_name: 'Bash', launched: 'bx1' }), 2000);
+  st.apply(ev('Stop', { background: 2, tasks: [T('bx1'), T('ax2', { kind: 'subagent' })] }), 5000);
+  assert.deepEqual(st.list()[0].tasks, [
+    { kind: 'shell', label: 'bx1', detail: '', status: 'running', since: 2000 },
+    { kind: 'subagent', label: 'ax2', detail: '', status: 'running', since: 5000 },
+  ]);
+  st.apply(ev('UserPromptSubmit'), 6000);
+  st.apply(ev('Stop', { background: 1, tasks: [T('ax2')] }), 9000);
+  assert.deepEqual(st.list()[0].tasks.map(t => [t.label, t.since]), [['ax2', 5000]], 'one keeps its start, the finished one is gone');
+  st.apply(ev('PostToolUse', { subagent: true, tool_name: 'Bash', launched: 'bx3' }), 9500); // a background agent starts one
+  st.apply(ev('Stop', { background: 2, tasks: [T('ax2'), T('bx3')] }), 12000);
+  assert.deepEqual(st.list()[0].tasks.map(t => t.since), [5000, 9500]);
+  assert.equal('id' in st.list()[0].tasks[0], false, 'task ids stay on the PC');
+  st.apply(ev('Stop'), 13000); // an older Claude Code sends no list
+  assert.equal(st.list()[0].tasks.length, 2);
 });

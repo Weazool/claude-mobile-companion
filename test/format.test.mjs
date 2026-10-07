@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatReset, resetLine, limitsView, sessionMeta, dotClass, STALE_MS, nextSlot, stepSlot, SLOT_MS } from '../src/web/format.js';
+import { formatReset, resetLine, limitsView, sessionMeta, dotClass, STALE_MS, nextSlot, stepSlot, SLOT_MS, formatElapsed, taskRow } from '../src/web/format.js';
 
 const MIN = 60000;
 
@@ -48,6 +48,21 @@ test('dotClass: background tasks in flight are work; needs you and errors still 
   assert.equal(dotClass({ needsYou: false, activity: 'done', background: 0 }), 'idle');
   assert.equal(dotClass({ needsYou: true, activity: 'done', background: 2 }), 'need');
   assert.equal(dotClass({ needsYou: false, activity: 'error', background: 2 }), 'bad');
+});
+
+test('formatElapsed and taskRow: what a row of the tasks card says', () => {
+  assert.equal(formatElapsed(20e3), '<1m');
+  assert.equal(formatElapsed(-5e3), '<1m');
+  assert.equal(formatElapsed(12 * 60e3 + 5e3), '12m');
+  assert.equal(formatElapsed(65 * 60e3), '1h 05m');
+  assert.equal(formatElapsed(NaN), '');
+  assert.deepEqual(taskRow({ kind: 'shell', label: 'npm test', detail: 'Run the test suite', status: 'running', since: 0 }, 3 * 60e3),
+    { kind: 'shell', label: 'npm test', meta: 'Shell · Run the test suite', time: '3m', wait: false });
+  assert.deepEqual(taskRow({ kind: 'subagent', label: 'Review', detail: '', status: 'pending', since: 0 }, 1),
+    { kind: 'subagent', label: 'Review', meta: 'Agent', time: 'queued', wait: true });
+  assert.equal(taskRow({ kind: 'workflow', label: 'x', status: 'paused', since: 0 }, 1).time, 'paused');
+  const odd = taskRow({ kind: 'mcp_task', label: '', status: 'running', since: 0 }, 1);
+  assert.deepEqual([odd.kind, odd.label, odd.meta], ['task', 'Background task', 'Task']);
 });
 
 test('sessionMeta and dotClass', () => {

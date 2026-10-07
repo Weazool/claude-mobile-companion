@@ -139,8 +139,27 @@ function lengthPx(expr, W, H) {
     assert.ok(terms.length, `no length in "${s}"`);
     return terms.reduce((t, [, sign, n, u]) => t + (sign === '-' ? -1 : 1) * Number(n) * unit[u], 0);
   };
-  const m = /^min\((.*)\)$/.exec(expr.trim());
-  return m ? Math.min(...m[1].split(',').map(a => sum(a.replace(/calc\(|\)/g, '')))) : sum(expr);
+  // min(), max() and clamp() of sums (calc() or bare), nested.
+  const args = s => {
+    const out = [];
+    let depth = 0, from = 0;
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '(') depth++;
+      else if (s[i] === ')') depth--;
+      else if (s[i] === ',' && depth === 0) { out.push(s.slice(from, i)); from = i + 1; }
+    }
+    return [...out, s.slice(from)];
+  };
+  const value = s => {
+    const f = /^(min|max|clamp|calc)\((.*)\)$/.exec(s.trim());
+    if (!f) return sum(s);
+    const v = args(f[2]).map(value);
+    if (f[1] === 'min') return Math.min(...v);
+    if (f[1] === 'max') return Math.max(...v);
+    if (f[1] === 'clamp') return Math.min(Math.max(v[1], v[0]), v[2]);
+    return v[0];
+  };
+  return value(expr);
 }
 
 test('style: Clawd stands in the middle of his box, as large as it allows, with the bubble as a caption under his feet', () => {
@@ -159,11 +178,13 @@ test('style: Clawd stands in the middle of his box, as large as it allows, with 
   assert.equal(stage['--top'], 'calc(100cqh - var(--deck))');
   assert.equal(stage['--mascot'], 'min(var(--mw), 0.92 * var(--bh))');
   assert.equal(stage['--cy'], 'calc(var(--bh) / 2 + 0.06 * var(--mascot))', 'the middle of the box, a little lower: room above him for the flag and the "!"');
-  assert.equal(r.get('#app.landscape')['grid-template'], 'minmax(0, 1fr) auto / 40% 60%');
-  assert.deepEqual([r.get('#app.landscape .stage')['--bw'], r.get('#app.landscape .stage')['--mw'], r.get('#app.landscape .stage')['--cx']], ['40cqw', '40cqw', '20%'], 'sideways: the left 40%');
-  assert.equal(r.get('#app.portrait .stage')['--bh'], 'calc(var(--top) - var(--lim))', 'upright: what the bars leave');
-  const attn = r.get('#app.attn .stage');
-  assert.deepEqual([attn['--bw'], attn['--bh'], attn['--mw'], attn['--cx']], ['100cqw', 'var(--top)', '92cqw', '50%'], 'focus mode: all of it, Clawd in the middle');
+  assert.equal(r.get('#app.landscape')['grid-template'], 'minmax(0, 1fr) auto / 40% 20% 40%', 'the bars take columns 1-2, the tasks card 2-3');
+  assert.deepEqual([r.get('#app.landscape .stage')['--bw'], r.get('#app.landscape .stage')['--mw'], r.get('#app.landscape .stage')['--cx']], ['40cqw', '40cqw', '80%'], 'sideways, limits mode: the right 40%');
+  assert.deepEqual(r.get('#app.landscape.attn .stage'), { '--cx': '20%' }, 'sideways, tasks mode: the left 40%, the same size, so he only glides across');
+  assert.equal(r.get('#app.portrait .stage')['--bh'], 'calc(var(--top) - var(--lim))', 'upright: what the strip leaves, in both modes');
+  assert.equal(r.get('#app.attn .stage'), undefined, 'no mode puts him in the middle any more');
+  assert.equal(r.get('#app.landscape .data')['grid-area'], '1 / 1 / 2 / 3', 'the bars on the left 60%');
+  assert.equal(r.get('#app.landscape .tasks')['grid-area'], '1 / 2 / 2 / 4', 'the tasks card on the right 60%');
   for (const [k, v] of Object.entries({ ...r.get('#app'), ...r.get('#app.landscape'), ...r.get('#app.portrait') })) {
     if (!k.startsWith('--')) assert.doesNotMatch(v, /\dcq|var\(--(deck|lim)\)/, `#app { ${k} }: a cq length on the container itself would not measure it`);
   }
@@ -182,12 +203,11 @@ test('style: Clawd stands in the middle of his box, as large as it allows, with 
   for (const [W, H] of [[844, 390], [667, 375], [757, 430], [932, 430], [1024, 768]]) {
     const top = H - lengthPx(r.get('#app')['--deck'], W, H);
     check(`${W}x${H} standard`, 0.4 * W, top, 0.4 * W, W, H);
-    check(`${W}x${H} focus`, W, top, 0.92 * W, W, H);
   }
   for (const [W, H] of [[390, 844], [375, 667], [360, 800], [430, 757], [430, 932], [768, 1024], [800, 969]]) {
     const top = H - lengthPx(r.get('#app.portrait')['--deck'], W, H);
     check(`${W}x${H} standard`, W, top - lengthPx(r.get('#app.portrait')['--lim'], W, H), 0.92 * W, W, H);
-    check(`${W}x${H} focus`, W, top, 0.92 * W, W, H);
+    check(`${W}x${H} tasks`, W, top - lengthPx(r.get('#app.portrait.attn')['--lim'], W, H), 0.92 * W, W, H);
   }
 });
 
