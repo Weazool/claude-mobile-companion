@@ -238,3 +238,19 @@ test('childEnv drops the launching Claude session env but keeps the rest', () =>
   const e = childEnv({ PATH: 'p', USERPROFILE: 'u', ANTHROPIC_BASE_URL: 'x', CLAUDE_CODE_OAUTH_SCOPES: 'x', CLAUDECODE: '1', CLAUDE_PID: '1', CLAUDE_AGENT_SDK_VERSION: '1' });
   assert.deepEqual(e, { PATH: 'p', USERPROFILE: 'u', DESK_COMPANION_INTERNAL: '1', NoDefaultCurrentDirectoryInExePath: '1' });
 });
+
+test('poller: every 90 s while the usage moves, back to every 5 minutes once it has been still for 10', async () => {
+  const at = pct => ({ status: 'ok', fiveHour: { pct, resetsAt: null }, week: { pct: 50, resetsAt: null }, fable: null });
+  const { c, calls, p } = poller([at(10), at(11), at(11), at(12), ...Array.from({ length: 8 }, () => at(12)), at(0)]);
+  p.start();
+  await c.advance(0);
+  await c.advance(5 * MIN);                                 // 11: it moved
+  await c.advance(90e3);                                    // still 11, but it moved 1.5 minutes ago
+  await c.advance(90e3);                                    // 12: moved again
+  for (let i = 0; i < 7; i++) await c.advance(90e3);        // still, up to 10 minutes after the last move
+  await c.advance(5 * MIN);                                 // a reset (12 to 0) is not a move
+  await c.advance(90e3);
+  assert.deepEqual(calls.map(t => t / MIN), [0, 5, 6.5, 8, 9.5, 11, 12.5, 14, 15.5, 17, 18.5, 23.5]);
+  await c.advance(5 * MIN - 90e3);
+  assert.equal(calls.at(-1) / MIN, 28.5);
+});

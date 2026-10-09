@@ -33,14 +33,12 @@ const TABLE = [
   ['moments', 'sessionStart', 'New session', 'play', 'curious'],
   ['moments', 'firstPromptOfDay', 'First prompt of the day', 'seq', ['love', 'surprised']],
   ['moments', 'tap', 'Tapped', 'pick', ['love', 'surprised', 'curious']],
-  ['moments', 'wakeUp', 'Wakes up', 'seq', ['yawning', 'surprised', 'love']],
+  ['moments', 'wakeUp', 'Comes back', 'seq', ['surprised', 'love']],
   ['idle', 'idle', 'Idle', 'base', 'idle'],
   ['idle', 'coolMoment', 'Cool moment', 'base', 'cool'],
   ['idle', 'idleBlink', 'Blink', 'play', 'blink'],
   ['idle', 'idleGlance', 'Glance', 'pick', ['look_left', 'look_right']],
   ['idle', 'idleLife', 'Idle life', 'pick', ['walk', 'hop']],
-  ['idle', 'yawn', 'Yawn', 'base', 'yawning'],
-  ['idle', 'asleep', 'Asleep', 'base', 'sleeping'],
   ['idle', 'offline', 'PC offline', 'base', 'sleeping'],
 ];
 
@@ -51,7 +49,7 @@ const BUBBLES = {
   needsYou: 'Needs permission', yourTurn: 'Your turn',
   fiveHourWarn: '5-hour at 55%', fiveHourLow: '5-hour at 84%', fiveHourCritical: '5-hour at 96%', weeklyNearlyUsed: 'Week at 96%',
   limitReached: 'Limit reached · resets in 3h 00m', weeklyLimitReached: 'Week limit reached', rateLimited: 'Rate limited',
-  freshLimitsAfter: 'Fresh limits!', error: 'Error', errorRepeated: 'Error', wakeUp: 'Good morning! / Hi!', asleep: 'Zzz…',
+  freshLimitsAfter: 'Fresh limits!', error: 'Error', errorRepeated: 'Error', wakeUp: 'Good morning! / Hi!',
 };
 
 const CLIPS = clipsFrom(SPEC);
@@ -68,7 +66,7 @@ test('the table: every behaviour in the brief, in order, with its group, label, 
     { key: 'limits', label: 'Your limits' },
     { key: 'errors', label: 'Errors' },
     { key: 'moments', label: 'Moments' },
-    { key: 'idle', label: 'Idle and sleep' },
+    { key: 'idle', label: 'Idle and offline' },
   ]);
   assert.deepEqual(Object.keys(DEFAULT_MAP), TABLE.map(r => r[1]));
   for (const b of BEHAVIOURS) assert.deepEqual(DEFAULT_MAP[b.key], b.default, b.key);

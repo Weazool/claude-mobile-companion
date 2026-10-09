@@ -7,14 +7,13 @@
   --edge: color-mix(in srgb, var(--bg) var(--lvl, 100%), #000); /* #dimmer: app.js sets --lvl to the brightness */
 }
 html.offline { --edge: color-mix(in srgb, var(--bg) var(--lvl-off, 18%), #000); } /* and #offline, black at .82 */
-html.saving { --edge: #000; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   height: 100%; background: var(--edge); color: var(--text); overflow: hidden;
   /* In an iPhone Home Screen app iOS leaves a strip the page cannot draw into (the status bar's height, at the
      far end of the screen) and fills it with this root background; the drift also bares a strip of it along
      two edges. --edge is the colour the dashboard shows at the moment, so the edges always blend in: the
-     layers that darken the dashboard (#dimmer, #offline, the screensaver) cover #app only, so --edge
+     layers that darken the dashboard (#dimmer, #offline) cover #app only, so --edge
      is the same darkening of --bg (a black layer at opacity a leaves 1 - a of it). */
   font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
@@ -54,7 +53,9 @@ html, body {
    or the card. --deck and --lim are only used inside #app, never on it: a cq length on the container itself would
    not measure it. */
 #app { --deck: 23cqmin; --glide: .8s cubic-bezier(.4, 0, .2, 1); }
-#app.landscape { grid-template: minmax(0, 1fr) auto / 40% 20% 40%; }
+/* Sideways the left keeps as far from the edge as the rail does from the right (past the safe area and the drift), and
+   a little more, so the drift never carries ‹ or Clawd against it. vmin, not cqmin: #app is the container. */
+#app.landscape { grid-template: minmax(0, 1fr) auto / 40% 20% 40%; --pad-l: calc(max(var(--sa-l), 2.5vmax) + 2vmin); padding-left: var(--pad-l); }
 #app.portrait { grid-template: minmax(0, 1fr) auto auto / 100%; --deck: 37cqmin; --lim: 48cqmin; --rail-at: max(var(--sa-b), 2.5vmax); --pad-r: var(--sa-r); --pad-b: calc(var(--rail-at) + var(--rail)); }
 
 /* Clawd's stage: everything above the card, in both modes, with the bars laid over their part of it, so going from
@@ -180,8 +181,8 @@ html, body {
 .bar-legend span.now { color: var(--text); font-weight: 600; border-radius: .7cqmin; box-shadow: inset 0 0 0 1px var(--c); }
 .note { font-size: 2.7cqmin; color: var(--text); }
 .note:empty { display: none; }
-/* Sideways the bars have the right of the screen to themselves, and are a third bigger. The rules name .limits so
-   the screensaver's compact bars stay as they are. The legend grows less: a short first day still fits its name. */
+/* Sideways the bars have their side of the screen to themselves, and are a third bigger. The legend grows less: a
+   short first day still fits its name. */
 #app.landscape .limits { gap: 3.4cqmin; }
 #app.landscape .limits .bar { grid-template-columns: minmax(0, 1fr) 12cqmin; column-gap: 2.6cqmin; }
 #app.landscape .limits .bar-head { font-size: 3.8cqmin; margin-bottom: 1.2cqmin; }
@@ -282,22 +283,13 @@ html, body {
 #app.portrait .bright-knob { top: 1.6vmin; bottom: 1.6vmin; left: calc(var(--p) * (100% - var(--knob))); right: auto; width: var(--knob); height: auto; }
 #app.portrait .bright-pct { min-width: 10vmin; text-align: right; }
 
-/* Screensaver (while Clawd sleeps): pure black, so the OLED pixels are off, and a small dim card with Clawd and
-   the limit bars that glides around the screen (app.js moves it inside .saver-field, which keeps clear of the notch).
-   Above the dashboard and the rail, below the offline overlay. */
-html.saving #app { background: #000; } /* html and body go black through --edge */
-#saver { position: absolute; inset: 0; z-index: 40; background: #000; overflow: hidden; }
-#saver[hidden] { display: none; }
-.saver-field { position: absolute; top: var(--sa-t); right: var(--sa-r); bottom: var(--sa-b); left: var(--sa-l); }
-.saver-card { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 1.5cqmin; opacity: .6; will-change: transform; }
-.saver-card #mascot { position: static; transform: none; width: 30cqmin; height: 30cqmin; }
-.saver-limits { width: 36cqmin; display: flex; flex-direction: column; gap: 1.2cqmin; }
-.saver-limits .bar { grid-template-columns: 7cqmin minmax(0, 1fr) 6.5cqmin; column-gap: 1.2cqmin; }
-.saver-limits .bar-head { grid-column: auto; margin: 0; font-size: 2.2cqmin; }
-.saver-limits .bar-track { height: 1.6cqmin; }
-.saver-limits .bar-track i::before { animation: none; } /* the whole card glides already */
-.saver-limits .bar-num { font-size: 2.4cqmin; }
-#app.saver .rail { visibility: hidden; }
+/* Away (app.js setAway, after the quiet spell that used to send Clawd to sleep): Clawd, his caption, the tasks card
+   and the session card make way for the limit bars, over the whole screen and larger, in either mode. The drift keeps
+   moving everything; any Claude activity or a tap brings the dashboard back. */
+#app.away .stage, #app.away .deck, #app.away .tasks { opacity: 0; visibility: hidden; transition: opacity .4s ease, visibility 0s .4s; }
+#app.away .data { grid-area: 1 / 1 / -1 / -1; height: auto; opacity: 1; visibility: visible; padding: 6cqmin 7cqmin; transition: opacity .5s ease .3s; }
+#app.away .limits { zoom: 1.45; }
+#app.portrait.away .limits { zoom: 1.2; }
 
 /* Brightness (app.js, the slider in the rail): a black layer at 1 - brightness over the whole dashboard, the rail
    and the offline note included. Taps go through it. */

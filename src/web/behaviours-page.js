@@ -186,7 +186,6 @@ const TONE = Object.freeze({
   fiveHourLow: 'bad', fiveHourCritical: 'bad', weeklyNearlyUsed: 'bad', limitReached: 'bad',
   weeklyLimitReached: 'bad', rateLimited: 'bad', error: 'bad', errorRepeated: 'bad',
 });
-const DIMMED = new Set(['asleep']); // the dashboard dims the screen while he sleeps
 const CHIP_SEP = Object.freeze({ alt: '↔', seq: '→', pick: 'or' });
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const copy = v => (Array.isArray(v) ? [...v] : v);
@@ -338,7 +337,7 @@ function boot() {
   function buildRow(b) {
     const row = el('div', 'row');
     row.id = `b-${b.key}`;
-    const stage = el('div', DIMMED.has(b.key) ? 'stage dim' : 'stage');
+    const stage = el('div', 'stage');
     const info = el('div', 'info');
     const head = el('div', 'head');
     const changed = el('span', 'pill', 'Changed');

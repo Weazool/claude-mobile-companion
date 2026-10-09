@@ -24,7 +24,7 @@ export const GROUPS = Object.freeze([
   { key: 'limits', label: 'Your limits' },
   { key: 'errors', label: 'Errors' },
   { key: 'moments', label: 'Moments' },
-  { key: 'idle', label: 'Idle and sleep' },
+  { key: 'idle', label: 'Idle and offline' },
 ].map(Object.freeze));
 
 // [group, key, label, slot, default, when, bubble?]. when: the moment, in the user's words. bubble: an example
@@ -57,14 +57,12 @@ const ROWS = [
   ['moments', 'sessionStart', 'New session', 'play', 'curious', 'A Claude Code session starts while Clawd is idle'],
   ['moments', 'firstPromptOfDay', 'First prompt of the day', 'seq', ['love', 'surprised'], 'Your first prompt each day'],
   ['moments', 'tap', 'Tapped', 'pick', ['love', 'surprised', 'curious'], 'You tap Clawd'],
-  ['moments', 'wakeUp', 'Wakes up', 'seq', ['yawning', 'surprised', 'love'], 'Activity wakes him from sleep', 'Good morning! / Hi!'],
+  ['moments', 'wakeUp', 'Comes back', 'seq', ['surprised', 'love'], 'Activity or a tap brings him back after the limits took the screen', 'Good morning! / Hi!'],
   ['idle', 'idle', 'Idle', 'base', 'idle', 'Nothing to do: he holds still, with the blinks and glances below'],
   ['idle', 'coolMoment', 'Cool moment', 'base', 'cool', 'Now and then, when the 5-hour limit is at 5% or less'],
   ['idle', 'idleBlink', 'Blink', 'play', 'blink', 'About 26 times a minute while idle'],
   ['idle', 'idleGlance', 'Glance', 'pick', ['look_left', 'look_right'], 'About twice a minute while idle'],
   ['idle', 'idleLife', 'Idle life', 'pick', ['walk', 'hop'], 'Now and then while idle, a stroll or a hop'],
-  ['idle', 'yawn', 'Yawn', 'base', 'yawning', 'Before he falls asleep'],
-  ['idle', 'asleep', 'Asleep', 'base', 'sleeping', 'After 2 quiet minutes (the screensaver starts)', 'Zzz…'],
   ['idle', 'offline', 'PC offline', 'base', 'sleeping', 'The phone lost its connection to the PC'],
 ];
 

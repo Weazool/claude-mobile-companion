@@ -8,10 +8,10 @@ export const DEFAULT_MOOD = { warn: 50, low: 80, crit: 95, sleepAfterMin: 2, pin
 
 // The active modes are named after their behaviour keys: B[mode] is the mode's animation.
 const ACTIVE = new Set(['thinking', 'reading', 'working', 'compiling']);
-const IDLEISH = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'done', 'cool', 'celebrate', 'sleep', 'yawn', 'wake', 'error']);
-// Quiet modes fall asleep after sleepAfterMin without activity; that includes a used-up 5-hour limit or a rate
-// limit: nothing is going to happen until it resets, so the screensaver takes over. So do a turn that has ended
-// or failed: they wait on you, and the screen must not stay lit for hours meanwhile.
+const IDLEISH = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'done', 'cool', 'celebrate', 'away', 'wake', 'error']);
+// After sleepAfterMin without activity in a quiet mode he goes away and the limit bars take the whole screen (the
+// command's away; app.js #app.away); that includes a used-up 5-hour limit or a rate limit: nothing is going to happen
+// until it resets. So do a turn that has ended or failed: they wait on you. Activity or a tap brings him back.
 const QUIET = new Set(['idle', 'low', 'sad', 'ending', 'weekEnding', 'weekOver', 'overloaded', 'done', 'error']);
 const DWELL_MS = 1500;
 const pctOf = w => (w && Number.isFinite(w.pct) ? w.pct : null);
@@ -40,7 +40,7 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
   let lastKey = null;
   let offline = false;
   const st = {
-    mode: null, since: 0, escalated: false, lastActiveAt: null, asleep: false,
+    mode: null, since: 0, escalated: false, lastActiveAt: null, away: false,
     transient: null, plays: [], errors: 0, loveDay: null, pendingCelebrate: false,
   };
 
@@ -59,14 +59,14 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
   const anyBusy = () => !!snap && snap.sessions.some(busy);
 
   function target(now) {
-    if (offline) return { mode: 'offline', base: base('offline'), bubble: null, dim: false };
+    if (offline) return { mode: 'offline', base: base('offline'), bubble: null, away: false };
     const f = focus();
     const L = (snap && snap.limits) || {};
     const p5 = pctOf(L.fiveHour);
     const pw = pctOf(L.week);
     const pf = pctOf(L.fable);
     let tr = live(now);
-    const resting = st.asleep || (tr && tr.kind === 'yawn'); // quiet at the limit, he still falls asleep
+    const resting = st.away; // quiet at the limit, the limits still take the screen
     if (!resting && ((p5 !== null && p5 >= 100) || (f && f.activity === 'rateLimited'))) {
       const reached = p5 !== null && p5 >= 100;
       const text = reached ? `Limit reached · resets in ${formatReset(L.fiveHour.resetsAt, now) || 'soon'}` : 'Rate limited';
@@ -86,11 +86,10 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
         : { mode: 'cool', base: base('afterglow'), bubble: null };
     }
     if (tr && tr.kind === 'cool') return { mode: 'cool', base: base('coolMoment'), bubble: null };
-    if (tr && tr.kind === 'yawn') return { mode: 'yawn', base: base('yawn'), bubble: null };
-    if (st.asleep) return { mode: 'sleep', base: base('asleep'), bubble: { text: 'Zzz…', tone: '' }, dim: true };
+    if (st.away) return { mode: 'away', base: base('idle'), bubble: null, away: true };
     // A session that waits on you keeps its animation for as long as he shows it (the page's slot, in standard or
     // focus mode). Needing you is handled above; a turn that has ended or failed keeps it all along too, not only
-    // for the moment it happened (the transients above), until he falls asleep.
+    // for the moment it happened (the transients above), until he goes away.
     if (f && f.activity === 'error') return { mode: 'error', base: base(st.errors >= 3 ? 'errorRepeated' : 'error'), bubble: { text: 'Error', tone: 'bad' } };
     // A turn that is over while its background tasks run on: he keeps working with them instead of waiting for you,
     // for as long as they run, and stays awake meanwhile (busy). A failed turn still shows first.
@@ -130,17 +129,17 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
       st.since = now;
       st.escalated = false;
     }
-    const dim = !!t.dim;
-    const key = JSON.stringify([t.base, t.bubble, dim]);
+    const away = !!t.away;
+    const key = JSON.stringify([t.base, t.bubble, away]);
     if (key === lastKey && !play.length) return null;
     lastKey = key;
-    return { base: t.base, play, bubble: t.bubble, dim };
+    return { base: t.base, play, bubble: t.bubble, away };
   }
 
   function wake(now) {
-    if (!st.asleep && !(st.transient && st.transient.kind === 'yawn')) return false;
+    if (!st.away) return false;
     const newDay = st.loveDay !== dayOf(now);
-    st.asleep = false;
+    st.away = false;
     st.loveDay = dayOf(now);
     st.transient = { kind: 'wake', since: now, until: now + 2900, greet: newDay ? 'Good morning!' : 'Hi!' };
     st.plays = list(B.wakeUp);
@@ -151,7 +150,7 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
     const tr = live(now);
     if (!st.pendingCelebrate || busy(focus()) || (tr && tr.kind === 'done')) return; // a live "Your turn" plays out first
     st.pendingCelebrate = false;
-    st.asleep = false;
+    st.away = false;
     st.transient = { kind: 'celebrate', since: now, until: now + 13640 };
     st.plays = list(B.freshLimits);
   }
@@ -230,9 +229,7 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
     tick(now) {
       init(now);
       if (st.transient && st.transient.until <= now) {
-        const kind = st.transient.kind;
         st.transient = null;
-        if (kind === 'yawn') st.asleep = true;
       }
       maybeCelebrate(now);
       if (!st.escalated && now - st.since >= 8000 && (st.mode === 'thinking' || st.mode === 'compiling')) {
@@ -243,9 +240,7 @@ export function createMood(settings = {}, { rand = Math.random, behaviours } = {
         const p5 = pctOf(snap && snap.limits && snap.limits.fiveHour);
         if (p5 !== null && p5 <= 5 && rand() < 1 / 1200) st.transient = { kind: 'cool', since: now, until: now + 8000 };
       }
-      if (QUIET.has(st.mode) && !anyBusy() && !st.asleep && !st.transient && now - st.lastActiveAt >= S.sleepAfterMin * 60000) {
-        st.transient = { kind: 'yawn', since: now, until: now + 2500 };
-      }
+      if (QUIET.has(st.mode) && !anyBusy() && !st.away && !st.transient && now - st.lastActiveAt >= S.sleepAfterMin * 60000) st.away = true;
       return out(now);
     },
 

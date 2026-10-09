@@ -3,7 +3,7 @@ import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { loadSettings, saveSettings, validate, rotationFor, nextRotation, brightFrom, sliderFrom, sliderAt } from './settings.js';
-import { drift, bounce, startState, keepAwakeWanted } from './saver.js';
+import { drift, keepAwakeWanted } from './saver.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -23,45 +23,27 @@ const mood = createMood(settings.mood);
 const player = new Player({ idle: settings.idle });
 const view = mountClawd($('mascot'), { view: VIEW }); // Clawd's rects, drawn into the inline <svg>
 let drawPending = true;
-let dimmed = false;
 
 function apply(cmd) {
   if (!cmd) return;
   player.setBase(cmd.base);
   if (cmd.play.length) player.play(cmd.play);
   setBubble(cmd.bubble && cmd.bubble.text, cmd.bubble && cmd.bubble.tone);
-  dimmed = !!cmd.dim;
-  setSaver(dimmed || forceSaver);
+  setAway(!!cmd.away || forceAway);
 }
 
-// ---------- screensaver (burn-in protection while Clawd sleeps) ----------
-// The mood's dim is exactly "asleep": the screen goes black and a small card with Clawd and the limit bars glides
-// around it (saver.js). The live mascot SVG moves into the card and back, so the one renderer keeps drawing.
-// ?saver forces it on (checks and screenshots); a tap on the screensaver wakes Clawd and brings the dashboard back.
-let forceSaver = new URLSearchParams(location.search).has('saver');
-let saverOn = false;
-let saverState = null;
-let saverBox = null;
-function setSaver(on) {
-  if (on === saverOn) return;
-  saverOn = on;
-  const svg = $('mascot');
-  if (on) document.querySelector('.saver-card').prepend(svg);
-  else document.querySelector('.stage').appendChild(svg);
-  $('saver').hidden = !on;
-  $('app').classList.toggle('saver', on);
-  document.documentElement.classList.toggle('saving', on);
-  saverState = null;
-  saverBox = null;
-  if (on) renderLimits();
+// ---------- away: the limit bars, full screen ----------
+// The mood's away comes after the quiet spell that used to send Clawd to sleep (mood.js sleepAfterMin, with nothing at
+// work, in the background or waiting on you): Clawd and the session card make way for the limit bars, full screen
+// (style.css #app.away). Any Claude activity or a tap brings the dashboard back. ?away forces it on (checks and
+// screenshots).
+let forceAway = new URLSearchParams(location.search).has('away');
+let awayOn = false;
+function setAway(on) {
+  if (on === awayOn) return;
+  awayOn = on;
+  $('app').classList.toggle('away', on);
   drawPending = true;
-}
-function moveSaver(dt) {
-  const card = document.querySelector('.saver-card');
-  if (!saverBox) { const s = card.parentElement; saverBox = { W: s.clientWidth, H: s.clientHeight, w: card.offsetWidth, h: card.offsetHeight }; }
-  const { W, H, w, h } = saverBox;
-  saverState = saverState ? bounce(saverState, dt, W, H, w, h) : startState(W, H, w, h);
-  card.style.transform = `translate(${saverState.x.toFixed(1)}px, ${saverState.y.toFixed(1)}px)`;
 }
 
 // Every tap counts towards keeping the screen on (saver.js keepAwakeWanted), even one a control stops.
@@ -160,20 +142,15 @@ function setBehaviours(map) {
   apply(mood.tick(Date.now()));
 }
 
-// Asleep (dimmed), Clawd's slow breathing needs no more than 20 redraws a second: spare the phone overnight.
-const DIM_FRAME_MS = 50;
+// Away, Clawd is hidden: nothing to draw until he is back (setAway asks for a frame then).
 let lastFrameAt = performance.now();
-let lastDrawAt = 0;
-let saverDt = 0;
 function loop(now) {
   const dt = Math.min(100, now - lastFrameAt);
   lastFrameAt = now;
   const moving = player.update(dt);
-  if (saverOn) { saverDt += dt; if (saverDt >= DIM_FRAME_MS) { moveSaver(saverDt); saverDt = 0; } }
-  if (drawPending || (moving && (!dimmed || now - lastDrawAt >= DIM_FRAME_MS))) {
+  if (!awayOn && (drawPending || moving)) {
     view.render(player.shapes());
     drawPending = false;
-    lastDrawAt = now;
   }
   requestAnimationFrame(loop);
 }
@@ -183,22 +160,21 @@ setInterval(() => {
   updateSpot();
   holdAwake();
 }, 500);
-$('mascot').addEventListener('click', () => { if (!saverOn) apply(mood.onTap(Date.now())); }); // in the screensaver, #saver handles the tap
+$('mascot').addEventListener('click', () => { if (!awayOn) apply(mood.onTap(Date.now())); }); // away, #app handles the tap
 
 // ---------- limits ----------
 function renderLimits() {
   const { bars, note } = limitsView(snap && snap.limits, Date.now(), skew);
   drawBars($('limits'), bars);
-  if (saverOn) drawBars($('saverLimits'), bars, true);
   $('limitsNote').textContent = note;
 }
-// A bar per limit: its name and reset, the fill, the percentage, and (not in the screensaver's compact card)
-// ticks at the cell edges and the legend naming each hour or day, with the current one outlined.
-function drawBars(box, bars, compact = false) {
+// A bar per limit: its name and reset, the fill, the percentage, ticks at the cell edges and the legend naming each
+// hour or day, with the current one outlined.
+function drawBars(box, bars) {
   if (!box.children.length) {
     box.innerHTML = bars.map(b => `<div class="bar" data-k="${b.key}" style="--c:${b.color}">
-      <div class="bar-head"></div><div class="bar-track"><i></i>${compact ? '' : '<span class="ticks"></span>'}</div><div class="bar-num"></div>
-      ${compact ? '' : '<div class="bar-legend"></div>'}</div>`).join('');
+      <div class="bar-head"></div><div class="bar-track"><i></i><span class="ticks"></span></div><div class="bar-num"></div>
+      <div class="bar-legend"></div></div>`).join('');
   }
   for (const b of bars) {
     const el = box.querySelector(`[data-k="${b.key}"]`);
@@ -208,7 +184,6 @@ function drawBars(box, bars, compact = false) {
     num.textContent = b.text;
     num.classList.toggle('hot', b.hot);
     const head = el.querySelector('.bar-head');
-    if (compact) { head.textContent = b.short; continue; }
     head.innerHTML = `<b>${esc(b.label)}</b>${b.reset ? ` · ${esc(b.reset)}` : ''}`;
     const pc = f => `${(f * 100).toFixed(3)}%`;
     const key = b.slotList.map(x => `${x.label}${x.current ? '*' : ''}@${pc(x.at)}`).join('|');
@@ -452,7 +427,7 @@ function applyLayout() {
   for (const r of [0, 90, 180, 270]) app.classList.toggle(`rot${r}`, r === settings.rotation); // safe-area mapping in style.css
   fitTasks(); // the tasks card's part changed size
 }
-window.addEventListener('resize', () => { applyLayout(); saverBox = null; });
+window.addEventListener('resize', applyLayout);
 applyLayout();
 
 // Full screen and keep-awake need a tap. The controls stop propagation, so they call this themselves.
@@ -510,12 +485,12 @@ $('btnRotate').addEventListener('click', e => {
   applyLayout();
 });
 
-$('saver').addEventListener('click', e => {
-  e.stopPropagation();
-  activate();
-  forceSaver = false;
-  setSaver(false);
-  apply(mood.onTap(Date.now())); // wakes him: the wake-up plays and the dashboard is back
+// Away, a tap anywhere but on the rail brings the dashboard back, and Clawd with his come-back moment.
+$('app').addEventListener('click', e => {
+  if (!awayOn || e.target.closest('#rail')) return;
+  forceAway = false;
+  setAway(false);
+  apply(mood.onTap(Date.now()));
 });
 
 // Burn-in protection while awake: the whole dashboard drifts slowly and continuously (saver.js drift, eased by
@@ -528,7 +503,7 @@ function applyDrift() {
 }
 applyDrift();
 setInterval(applyDrift, 2000);
-if (forceSaver) setSaver(true);
+if (forceAway) setAway(true);
 
 renderLimits();
 connect();

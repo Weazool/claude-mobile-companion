@@ -142,8 +142,8 @@ test('server: every page gets the map right after the snapshot, and again on eve
   assert.deepEqual(s.events[1].data, { map: LOADED });
 
   // A save replaces the whole map: what it leaves out, or gets wrong, is the default.
-  const next = { thinking: 'working', yawn: 'love', idleLife: ['walk'], firstPromptOfDay: ['love', 'happy'] };
-  const want = { ...DEFAULTS, thinking: 'working', yawn: 'love', idleLife: ['walk'], firstPromptOfDay: ['love', 'happy'] };
+  const next = { thinking: 'working', coolMoment: 'love', idleLife: ['walk'], firstPromptOfDay: ['love', 'happy'] };
+  const want = { ...DEFAULTS, thinking: 'working', coolMoment: 'love', idleLife: ['walk'], firstPromptOfDay: ['love', 'happy'] };
   const r = await post(next);
   assert.equal(r.status, 200);
   assert.deepEqual(JSON.parse(r.body), { map: want, pages: 1 });

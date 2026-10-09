@@ -19,6 +19,11 @@ export const MIN_GAP_MS = 2 * 60e3;
 export const AFTER_STOP_MS = 60e3;
 export const BACKOFF_MS = [10 * 60e3, 20 * 60e3, 30 * 60e3];
 export const STALE_MS = 15 * 60e3;
+// While the usage moves (a chat in the Claude app counts too), every FAST_MS, until it has been still for MOVING_MS.
+export const FAST_MS = 90e3;
+export const MOVING_MS = 10 * 60e3;
+const KEYS = ['fiveHour', 'week', 'fable'];
+const rose = (a, b) => KEYS.some(k => a[k] && b[k] && b[k].pct > a[k].pct);
 const EMPTY = Object.freeze({ status: 'unavailable', asOf: null, fiveHour: null, week: null, fable: null });
 
 // The server inherits the env of whichever Claude session launched it: its proxy URL, host/OAuth tokens and
@@ -116,6 +121,7 @@ export function createLimitsPoller({ fetch = fetchUsage, onUpdate, now = Date.no
   let failures = 0;
   let lastCallAt = -Infinity;
   let dueAt = Infinity;
+  let movedAt = -Infinity;
   let timer = null;
   let running = false;
 
@@ -138,6 +144,7 @@ export function createLimitsPoller({ fetch = fetchUsage, onUpdate, now = Date.no
     running = false;
     if (r.status === 'ok') {
       failures = 0;
+      if (current.status === 'ok' && rose(current, r)) movedAt = now();
       current = r;
     } else if (r.status === 'signin') {
       failures = 0;                      // keep polling every 5 min so limits appear soon after login
@@ -152,7 +159,8 @@ export function createLimitsPoller({ fetch = fetchUsage, onUpdate, now = Date.no
     } catch (e) {
       log(`limits update failed: ${e && e.message}`);
     } finally {
-      at(now() + (failures ? BACKOFF_MS[Math.min(failures, BACKOFF_MS.length) - 1] : POLL_MS));
+      const pace = now() - movedAt < MOVING_MS ? FAST_MS : POLL_MS;
+      at(now() + (failures ? BACKOFF_MS[Math.min(failures, BACKOFF_MS.length) - 1] : pace));
     }
   }
 

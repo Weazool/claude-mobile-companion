@@ -119,16 +119,19 @@ test('style: the rail above the offline overlay; no ✕, no night-mode blank, no
   assert.equal(r.get('body')['touch-action'], 'manipulation');
 });
 
-test('style: the screensaver is black, inside #app, above the dashboard and below the overlays; the old dim is gone', () => {
+test('style: away, the limit bars take the whole screen, larger; Clawd, the tasks and the session card make way; no screensaver', () => {
   const r = styleRules();
-  const saver = r.get('#saver');
-  assert.equal(saver.background, '#000');
-  assert.ok(Number(saver['z-index']) < 50, 'the offline overlay stays on top');
-  assert.equal(r.get('#app.dim'), undefined, 'asleep is the screensaver now, not a dimmed dashboard');
-  assert.match(r.get('#app').transition, /translate 2s/, 'the burn-in drift is eased');
+  for (const sel of ['#app.away .stage', '#app.away .deck', '#app.away .tasks']) {
+    assert.deepEqual([r.get(sel).opacity, r.get(sel).visibility], ['0', 'hidden'], sel);
+  }
+  const data = r.get('#app.away .data');
+  assert.deepEqual([data['grid-area'], data.opacity, data.visibility], ['1 / 1 / -1 / -1', '1', 'visible'], 'over the whole grid, in either mode');
+  assert.ok(Number(r.get('#app.away .limits').zoom) > 1, 'and larger');
+  assert.equal(r.get('#saver'), undefined, 'the screensaver is gone');
+  assert.equal(r.get('html.saving'), undefined);
+  assert.match(r.get('#app').transition, /translate 2s/, 'the burn-in drift still moves everything');
   const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
-  const app = html.slice(html.indexOf('<main id="app"'), html.indexOf('</main>'));
-  assert.match(app, /<div id="saver" hidden>.*class="saver-card".*id="saverLimits"/, '#saver rotates with #app');
+  assert.doesNotMatch(html, /id="saver"|saverLimits/);
 });
 
 // A length from style.css, in px, for a W x H #app: sums of cqw / cqh / cqmin / px, optionally inside min().
@@ -179,6 +182,8 @@ test('style: Clawd stands in the middle of his box, as large as it allows, with 
   assert.equal(stage['--mascot'], 'min(var(--mw), 0.92 * var(--bh))');
   assert.equal(stage['--cy'], 'calc(var(--bh) / 2 + 0.06 * var(--mascot))', 'the middle of the box, a little lower: room above him for the flag and the "!"');
   assert.equal(r.get('#app.landscape')['grid-template'], 'minmax(0, 1fr) auto / 40% 20% 40%', 'the bars take columns 1-2, the tasks card 2-3');
+  assert.equal(r.get('#app.landscape')['--pad-l'], 'calc(max(var(--sa-l), 2.5vmax) + 2vmin)', 'sideways the left keeps clear of the edge, past the drift');
+  assert.equal(r.get('#app.landscape')['padding-left'], 'var(--pad-l)');
   assert.deepEqual([r.get('#app.landscape .stage')['--bw'], r.get('#app.landscape .stage')['--mw'], r.get('#app.landscape .stage')['--cx']], ['40cqw', '40cqw', '80%'], 'sideways, limits mode: the right 40%');
   assert.deepEqual(r.get('#app.landscape.attn .stage'), { '--cx': '20%' }, 'sideways, tasks mode: the left 40%, the same size, so he only glides across');
   assert.equal(r.get('#app.portrait .stage')['--bh'], 'calc(var(--top) - var(--lim))', 'upright: what the strip leaves, in both modes');
@@ -260,12 +265,11 @@ test('the root background is the colour the dashboard shows, so the strip iOS wi
   assert.equal(r.get(':root')['--edge'], 'color-mix(in srgb, var(--bg) var(--lvl, 100%), #000)');
   assert.match(r.get('.overlay').background, /rgba\(0, 0, 0, \.82\)/);
   assert.equal(r.get('html.offline')['--edge'], 'color-mix(in srgb, var(--bg) var(--lvl-off, 18%), #000)');
-  assert.equal(r.get('html.saving')['--edge'], '#000');
   const app = fs.readFileSync(path.join(ROOT, 'src/web/app.js'), 'utf8');
   assert.match(app, /\$\('dimmer'\)\.style\.opacity = \(1 - b\)/);
   assert.match(app, /setProperty\('--lvl', `\$\{Math\.round\(b \* 100\)\}%`\)/);
   assert.match(app, /setProperty\('--lvl-off', `\$\{\(b \* 18\)/);
-  for (const cls of ['offline', 'saving']) assert.match(app, new RegExp(`documentElement\\.classList\\.(toggle|add)\\('${cls}'`), cls);
+  for (const cls of ['offline']) assert.match(app, new RegExp(`documentElement\\.classList\\.(toggle|add)\\('${cls}'`), cls);
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/web/manifest.webmanifest'), 'utf8'));
   assert.equal(manifest.background_color, /--bg: (#[0-9a-f]{6})/i.exec(css)[1]);
 });
@@ -348,7 +352,6 @@ test('style: the rail holds ⟲ and the brightness slider, one under the other, 
   const d = r.get('#dimmer');
   assert.equal(d['pointer-events'], 'none', 'taps go through it');
   assert.equal(Number(d['z-index']), 60);
-  assert.equal(r.get('#app.saver .rail').visibility, 'hidden');
   const html = fs.readFileSync(path.join(ROOT, 'src/web/index.html'), 'utf8');
   assert.match(html, /<aside id="rail" class="rail">\s*<button id="btnRotate"[^>]*>⟲<\/button>\s*<div id="bright" class="bright" role="slider"/);
   assert.doesNotMatch(html, /id="hush"|class="gauges"|id="rings"/, 'no automatic dimming, no overview');

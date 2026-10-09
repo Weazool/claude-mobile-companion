@@ -272,7 +272,7 @@ test('every behaviour previews every clip its slot allows, across two cycles, as
 test('usedBy lists the behaviours that play a clip, in table order', () => {
   assert.deepEqual(usedBy('surprised', DEFAULT_MAP),
     ['startle', 'needsYou', 'turnDone', 'lowWarning', 'firstPromptOfDay', 'tap', 'wakeUp']);
-  assert.deepEqual(usedBy('sleeping', DEFAULT_MAP), ['asleep', 'offline']);
+  assert.deepEqual(usedBy('sleeping', DEFAULT_MAP), ['offline']);
   assert.deepEqual(usedBy('celebration', DEFAULT_MAP), []);
   assert.deepEqual(usedBy('hop', { ...DEFAULT_MAP, tap: ['hop'] }), ['tap', 'idleLife']);
 });
