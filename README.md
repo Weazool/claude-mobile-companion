@@ -1,5 +1,7 @@
 # <img src="docs/images/clawd/happy_eyes.png" height="56" alt="" align="absmiddle"> desk-companion
 
+[![test](https://github.com/Weazool/claude-mobile-companion/actions/workflows/test.yml/badge.svg)](https://github.com/Weazool/claude-mobile-companion/actions/workflows/test.yml)
+
 **Turn the phone on your desk into a live window on Claude Code, with Clawd keeping you company.**
 
 desk-companion is a Claude Code plugin. Prop your phone up next to your keyboard and it becomes an always-on dashboard for everything Claude is doing: how much of your 5-hour, weekly and Fable limits you've used and when they reset, every active session with its model, effort, context and current step, and Clawd, Claude's little mascot, acting out each session in turn.
@@ -21,6 +23,14 @@ Everything runs on your own machine. The plugin starts a small web server on you
 <p align="center"><img src="docs/images/clawd/working.png" height="64" alt="working"> <img src="docs/images/clawd/thinking.png" height="64" alt="thinking"> <img src="docs/images/clawd/reading.png" height="64" alt="reading"> <img src="docs/images/clawd/compiling.png" height="64" alt="compiling"> <img src="docs/images/clawd/surprised.png" height="64" alt="surprised"> <img src="docs/images/clawd/cool.png" height="64" alt="cool"> <img src="docs/images/clawd/overloaded.png" height="64" alt="overloaded"> <img src="docs/images/clawd/celebration.png" height="64" alt="celebration"> <img src="docs/images/clawd/love.png" height="64" alt="love"> <img src="docs/images/clawd/sleeping.png" height="64" alt="sleeping"></p>
 
 Independent project, not affiliated with Anthropic.
+
+## <img src="docs/images/clawd/reading.png" height="40" alt="" align="absmiddle"> How this was built
+
+I built desk-companion with an AI coding agent, Claude Code, from a written spec and a task-by-task plan. [How it was built](docs/HOW-IT-WAS-BUILT.md) shows the specification, how I guided the agent and how I verified the result. It ends with a 5-minute tour.
+
+- [The design spec](docs/superpowers/specs/2026-09-14-desk-companion-design.md), restored from the git history, and [what changed after it](docs/superpowers/specs/CHANGES-SINCE-SPEC.md).
+- [The implementation plan](docs/superpowers/plans/2026-09-14-desk-companion.md): 17 tasks, each one test first.
+- 304 automated tests (`node --test`), which CI (continuous integration) runs on Linux and Windows with Node 18, 22 and 24.
 
 ## <img src="docs/images/clawd/working.png" height="40" alt="" align="absmiddle"> How it works
 
