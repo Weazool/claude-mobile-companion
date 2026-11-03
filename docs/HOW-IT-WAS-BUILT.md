@@ -17,7 +17,7 @@ Short on time? Jump to [the 5-minute tour](#a-5-minute-tour-for-a-reviewer).
 
 **What changed since:** [CHANGES-SINCE-SPEC.md](superpowers/specs/CHANGES-SINCE-SPEC.md).
 
-The spec was written on 14 Sep 2026 in a brainstorming session with the agent ([7a5cf7d]). Its table "Decisions made during brainstorming" records what was settled there. The brainstorm itself is not in git. Which parts I wrote and which the agent drafted is **not recorded**.
+The spec was written on 14 Sep 2026 in a brainstorming session with the agent ([7a5cf7d]). Its table "Decisions made during brainstorming" records what was settled there. The brainstorm itself is not in git. The agent wrote the spec.
 
 The spec was updated four times: after a planning spike ([321a94e]), with the on-device results ([7fc2502]), after the final review ([a6aa022]), and when the mascot was rebuilt ([e694fe6]). Commit [7a4776b] then deleted it, though its message does not say so; the message of [baa2169] says "remove the design spec", but that commit does not touch it. On this branch the e694fe6 version is restored, word for word.
 
@@ -60,7 +60,7 @@ A **spike** is a small experiment run to answer a question before building. Whil
 | 15 Sep, 02:18 – 02:47 | Final review fixes; spec and README brought up to date; version 0.2.0 | [428dd94], [97e7138], [a6aa022] |
 | 15 Sep – 9 Oct | Changes one at a time, from 0.3.0 to 0.13.0 | [CHANGES-SINCE-SPEC.md](superpowers/specs/CHANGES-SINCE-SPEC.md) |
 
-**The plan** is [docs/superpowers/plans/2026-09-14-desk-companion.md](superpowers/plans/2026-09-14-desk-companion.md). Its header tells the agent to carry it out task by task, with one of two skills: `superpowers:subagent-driven-development` (recommended), which hands each task to a fresh **sub-agent** (a separate agent with its own context), or `superpowers:executing-plans`. Which of the two ran, and whether sub-agents did the work, is **not recorded** in git. The commits show all 17 tasks landing one by one, between 22:39 and 01:11.
+**The plan** is [docs/superpowers/plans/2026-09-14-desk-companion.md](superpowers/plans/2026-09-14-desk-companion.md). Its header tells the agent to carry it out task by task, with one of two skills: `superpowers:subagent-driven-development` (recommended), which hands each task to a fresh **sub-agent** (a separate agent with its own context), or `superpowers:executing-plans`. It ran with `superpowers:subagent-driven-development`: sub-agents did the tasks. The commits show all 17 tasks landing one by one, between 22:39 and 01:11.
 
 Every task follows the same steps, as in **test-driven development** (TDD):
 1. Write the failing test.
@@ -136,11 +136,11 @@ Added later, for this write-up: a `day` scenario in `tools/fake-events.mjs`, and
 | [97e7138] | "page robustness from final review" | Its message lists: SSE reconnect, keep-awake arming, safe areas that follow the rotation, sleep at the weekly limit, error scoping, the celebration, a looping clip, overlay stacking and zoom on iOS. Tests added in the mood, player and settings files. |
 | [a6aa022] | "spec and README catch up with final-review fixes" | The spec and README updated to match, and the pair skill pre-approves its own command. Version 0.2.0. |
 
-Who did each review, a sub-agent or me, is **not recorded**.
+Sub-agents did the reviews.
 
 ### Where I changed direction
 
-- **Sprites to an SVG rig (0.3.0).** The plan built the mascot from clawdio's sprite sheets: images cut into frames (Tasks 11–13, and parts of 15 and 17). The day after, [050c045] built Clawd as a live **SVG rig** instead: he is drawn from a few rectangles in the page and posed by code, with 26 animations. [e694fe6] swapped the rig in and deleted the sprites, their build pipeline and their tests. It also rewrote spec §8–9 and added a note to the plan. The superseded tasks were kept in the plan as a record of how it was built. The reason for the switch is **not recorded**.
+- **Sprites to an SVG rig (0.3.0).** The plan built the mascot from clawdio's sprite sheets: images cut into frames (Tasks 11–13, and parts of 15 and 17). The day after, [050c045] built Clawd as a live **SVG rig** instead: he is drawn from a few rectangles in the page and posed by code, with 26 animations. [e694fe6] swapped the rig in and deleted the sprites, their build pipeline and their tests. It also rewrote spec §8–9 and added a note to the plan. The superseded tasks were kept in the plan as a record of how it was built. I switched because the sprites looked poor.
 - **The spec stopped being updated after 0.3.0** and was deleted at 0.3.2. After that, each change was one request, one commit with a detailed message, a version bump, and the README and screenshots brought up to date. The requests themselves are **not recorded**; the commit messages are the record. [CHANGES-SINCE-SPEC.md](superpowers/specs/CHANGES-SINCE-SPEC.md) lists them all.
 - **Other turns the history shows:**
   - The settings panel was removed (0.3.2).
@@ -197,7 +197,7 @@ These checks were in a desktop browser, not on a phone:
 - [d459752]: a README screenshot in headless Edge.
 - [0adfcdc]: README screenshots "against an isolated server".
 
-**Not recorded:** anything checked on Android; whether Home Screen full screen and keep-awake were confirmed later; and what was looked at on the phone for each version from 0.3.0 to 0.13.0. The look of the animations and the layouts on the phone was checked only by eye, if at all.
+Home Screen full screen and keep-awake were confirmed on the iPhone later. Nothing was checked on Android.
 
 ### Spec requirements and their tests
 
@@ -235,7 +235,7 @@ Sections are numbered as in the spec. Rows marked "changed" point to [CHANGES-SI
 | §6 | Reset countdowns | `format.test.mjs` |
 | §6 | Safe areas at every rotation; rotation geometry | `settings.test.mjs` |
 | §6 | Home Screen manifest and icon | `settings.test.mjs` |
-| §6 | Full screen on Android | No automated test |
+| §6 | Full screen on Android | No automated test; not checked on a device |
 | §6 | Keep the screen awake | No automated test of the lock itself; `saver.test.mjs` tests when the page lets go (added in 0.7.0) |
 | §6 | Offline overlay; SSE reconnect | No automated test of the reconnect; `mood.test.mjs` tests that Clawd rests while offline |
 | §6 | Burn-in shift (changed: a slow drift) | `saver.test.mjs` |
