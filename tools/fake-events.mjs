@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Replays demo scenarios into the running server, for checking the page without Claude.
-// Usage: node tools/fake-events.mjs <turn|limits|idle|wake|end>
+// Usage: node tools/fake-events.mjs <turn|limits|idle|wake|end|day>
 import http from 'node:http';
 import { homeDir, dataFile, readJson } from '../src/server/paths.mjs';
 
@@ -81,6 +81,56 @@ const SCENARIOS = {
   },
   async end() {
     for (const sid of ['demo-1', 'demo-2']) await hook(sid, 'SessionEnd', {});
+  },
+  // One session through a day, for the demo recording (tools/record-demo.mjs). Timed to the dashboard's 30 s slots
+  // (format.js SLOT_MS), which start when the page first sees the session, so nothing lands near a slot's edge.
+  // Limits mode (0-30 s): a turn with a permission prompt and a build that ends with three background tasks running.
+  // Tasks mode (30-60 s): the tasks card, then a short turn after which the tests have finished. Limits mode again
+  // (60 s on): the 5-hour limit climbs and runs out.
+  async day() {
+    const t0 = Date.now();
+    const at = s => sleep(t0 + s * 1000 - Date.now());
+    const step = async (s, name, extra = {}) => {
+      await at(s);
+      console.log(`${s}s`, name, extra.tool_name || extra.notification_type || extra.error || '');
+      await hook('demo-1', name, { effort: 'high', ...extra });
+    };
+    const usage = async (s, pct) => {
+      await at(s);
+      console.log(`${s}s`, '5-hour', pct);
+      await limits(pct);
+    };
+    // Stop's list as the hook forwards it (src/hook/sanitize.mjs taskOf): kind, label, detail, status and the id.
+    const agent = { id: 'demo-agent', kind: 'subagent', label: 'Review the limits poller', detail: 'code-reviewer', status: 'running' };
+    const tests = { id: 'demo-tests', kind: 'shell', label: 'npm test', detail: 'Tests in watch mode', status: 'running' };
+    const notes = { id: 'demo-notes', kind: 'workflow', label: 'release-notes', detail: 'Draft the notes for 0.13.0', status: 'running' };
+    const tasks = (...list) => ({ background: list.length, tasks: list });
+
+    await limits(38);
+    await hook('demo-1', 'SessionStart', { model: 'claude-opus-5', effort: 'high' });
+    await step(2.5, 'UserPromptSubmit');
+    await step(5, 'PreToolUse', { tool_name: 'Read', target: 'limits.mjs' });
+    await step(7.5, 'PostToolUse', { launched: 'demo-agent' });
+    await step(8.5, 'PreToolUse', { tool_name: 'Edit', target: 'server.mjs' });
+    await usage(10, 44);
+    await step(11.5, 'Notification', { notification_type: 'permission_prompt' });
+    await step(17, 'PreToolUse', { tool_name: 'Bash', target: 'npm test', build: true });
+    await usage(18, 52);
+    await step(20.5, 'PostToolUse', { launched: 'demo-tests' });
+    await step(23, 'Stop', tasks(agent, tests, notes));
+    await step(40, 'UserPromptSubmit');
+    await step(43, 'PreToolUse', { tool_name: 'Read', target: 'snapshot.mjs' });
+    await usage(46, 66);
+    await step(48, 'Stop', tasks(agent, notes));
+    await usage(55, 78);
+    await step(63, 'UserPromptSubmit');
+    await usage(64, 86);
+    await step(66, 'PreToolUse', { tool_name: 'Edit', target: 'limits.mjs' });
+    await usage(68, 93);
+    await usage(71, 97);
+    await usage(74, 100);
+    await step(75, 'StopFailure', { error: 'rate_limit' });
+    await at(80);
   },
 };
 
