@@ -124,6 +124,8 @@ The spec and plan asked for tools that let the agent check its own work without 
 | [`tools/clawd-apng.mjs`](../tools/clawd-apng.mjs) | Renders Clawd to animated PNGs, as in the README. | [8987e1b] |
 | `?settle`, `?away` page flags | `?settle` holds Clawd still, so a headless browser can screenshot him. `?away` forces the away view. | [8987e1b], [f2cdd0c] |
 
+Added later, for this write-up: a `day` scenario in `tools/fake-events.mjs`, and [`tools/record-demo.mjs`](../tools/record-demo.mjs), which runs a separate server, replays that day and records the dashboard in a phone-sized browser window to [`docs/images/demo.webm`](images/demo.webm).
+
 ### The review rounds
 
 | Commit | What the history says it is | What it changed |

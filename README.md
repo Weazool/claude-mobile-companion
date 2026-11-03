@@ -31,6 +31,7 @@ I built desk-companion with an AI coding agent, Claude Code, from a written spec
 - [The design spec](docs/superpowers/specs/2026-09-14-desk-companion-design.md), restored from the git history, and [what changed after it](docs/superpowers/specs/CHANGES-SINCE-SPEC.md).
 - [The implementation plan](docs/superpowers/plans/2026-09-14-desk-companion.md): 17 tasks, each one test first.
 - 304 automated tests (`node --test`), which CI (continuous integration) runs on Linux and Windows with Node 18, 22 and 24.
+- [A recording of the dashboard](docs/images/demo.webm) (1 min 23 s) replaying a scripted day: a session at work, a permission prompt, "Your turn" with background tasks, and the 5-hour limit running out. The events are made up, not from a real Claude session. `tools/record-demo.mjs` makes it.
 
 ## <img src="docs/images/clawd/working.png" height="40" alt="" align="absmiddle"> How it works
 
