@@ -1,0 +1,25 @@
+# Runs the test suite (node --test) on Linux and Windows, with Node 18 (the minimum the plugin supports),
+# 22 (the dev machine in the plan) and 24 (the dev machine today). No dependencies to install.
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [18, 22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node --test
