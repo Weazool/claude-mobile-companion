@@ -1,6 +1,6 @@
 # Changes since the spec
 
-The [spec](2026-09-14-desk-companion-design.md) describes version 0.3.0. These are the main changes up to 0.13.0.
+The [spec](2026-09-14-desk-companion-design.md) describes version 0.3.0. These are the main changes up to 0.14.0.
 
 ## Added
 
@@ -14,6 +14,7 @@ The [spec](2026-09-14-desk-companion-design.md) describes version 0.3.0. These a
 - **Away view (0.13).** When all is quiet, the limit bars fill the screen.
 - **Start with Windows (0.13).** An optional shortcut starts the server at login.
 - **Faster usage checks (0.13).** Every 90 s while usage is moving, every 5 minutes otherwise.
+- **Windows taskbar program (0.14).** An optional program puts Clawd in the taskbar's left corner. Rest the pointer on him and the dashboard opens above him. It is a separate download and never starts the server.
 
 ## Removed
 
