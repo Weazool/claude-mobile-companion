@@ -26,12 +26,15 @@ namespace DeskCompanionTaskbar
 
         protected override bool ShowWithoutActivation => true;
 
+        // A window that must take clicks and keys (Esc) once the user clicks into it turns this off.
+        protected virtual bool NeverActivate => true;
+
         protected override CreateParams CreateParams
         {
             get
             {
                 var cp = base.CreateParams;
-                cp.ExStyle |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+                cp.ExStyle |= WS_EX_TOOLWINDOW | (NeverActivate ? WS_EX_NOACTIVATE : 0);
                 return cp;
             }
         }

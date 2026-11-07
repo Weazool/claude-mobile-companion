@@ -13,14 +13,20 @@ namespace DeskCompanionTaskbar
         const uint SWP_NOSIZE = 1, SWP_NOMOVE = 2, SWP_NOACTIVATE = 0x10;
 
         readonly CornerForm corner = new CornerForm();
+        const int OpenAfterMs = 300, CloseAfterMs = 1000;
+        readonly HoverForm hover = new HoverForm();
+        bool pinned;
+        DateTime onCornerSince = DateTime.MaxValue, outsideSince = DateTime.MaxValue;
         readonly Timer timer = new Timer { Interval = 100 };
-        bool loaded, loading;
+        bool loaded, loading, hoverLoaded;
         DateTime nextTry = DateTime.MinValue;
 
         public Controller()
         {
-            corner.Message += _ => { }; // 'click' / 'menu' are consumed in later tasks
-            var _h = corner.Handle;     // create the window now so WebView2 can init while hidden
+            corner.Message += m => { if (m == "click") TogglePin(); }; // 'menu' comes in a later task
+            hover.Message += m => { if (m == "esc") { pinned = false; hover.Hide(); } };
+            var _h = corner.Handle;     // create the windows now so WebView2 can init while hidden
+            var _h2 = hover.Handle;
             timer.Tick += (_, __) => Tick();
             timer.Start();
         }
@@ -33,6 +39,7 @@ namespace DeskCompanionTaskbar
             if (tb == null || tb.AutoHide)
             {
                 if (corner.Visible) corner.Hide();
+                if (hover.Visible) hover.Hide();
                 return;
             }
 
@@ -41,6 +48,42 @@ namespace DeskCompanionTaskbar
             if (!corner.Visible) corner.Show();
             // A click on the taskbar raises it above us; take the top back without stealing focus.
             SetWindowPos(corner.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            Hover();
+        }
+
+        void TogglePin()
+        {
+            pinned = !pinned;
+            if (pinned) ShowHover(); else hover.Hide();
+        }
+
+        void ShowHover()
+        {
+            var want = Placement.Hover(corner.Bounds, Screen.PrimaryScreen.WorkingArea);
+            if (hover.Bounds != want) hover.Bounds = want;
+            if (!hover.Visible) hover.Show(); // ShowWithoutActivation: focus stays where it was
+            SetWindowPos(hover.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+
+        // Rest on Clawd 300 ms to open; stay off both windows 1000 ms (and unpinned) to close.
+        void Hover()
+        {
+            var p = Cursor.Position;
+            bool onCorner = corner.Bounds.Contains(p);
+            bool inside = onCorner || (hover.Visible && hover.Bounds.Contains(p));
+            var now = DateTime.Now;
+
+            if (onCorner) { if (onCornerSince == DateTime.MaxValue) onCornerSince = now; }
+            else onCornerSince = DateTime.MaxValue;
+            if (inside) outsideSince = DateTime.MaxValue;
+            else if (outsideSince == DateTime.MaxValue) outsideSince = now;
+
+            if (!hover.Visible && onCorner && (now - onCornerSince).TotalMilliseconds >= OpenAfterMs)
+                ShowHover();
+            else if (hover.Visible && !pinned && !inside && (now - outsideSince).TotalMilliseconds >= CloseAfterMs)
+                hover.Hide();
+            else if (hover.Visible)
+                ShowHover(); // keep placement and z-order current (taskbar/work-area changes)
         }
 
         async void Load()
@@ -49,14 +92,18 @@ namespace DeskCompanionTaskbar
             string? b = Dashboard.BaseUrl();
             if (b == null) { nextTry = DateTime.Now.AddSeconds(5); return; }
             loading = true;
-            try { await corner.InitAsync(b + "?corner"); loaded = true; }
+            try
+            {
+                if (!hoverLoaded) { await hover.InitAsync(b + "?pc"); hoverLoaded = true; }
+                await corner.InitAsync(b + "?corner"); loaded = true;
+            }
             catch (Exception) { nextTry = DateTime.Now.AddSeconds(5); }
             finally { loading = false; }
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { timer.Dispose(); corner.Dispose(); }
+            if (disposing) { timer.Dispose(); corner.Dispose(); hover.Dispose(); }
             base.Dispose(disposing);
         }
     }
