@@ -17,6 +17,7 @@ namespace DeskCompanionTaskbar
         readonly ClickCatcher catcher = new ClickCatcher();
         readonly HoverForm hover = new HoverForm();
         bool pinned;
+        bool holdClosed; // after an unpin or Esc: no hover-open until the pointer has left Clawd
         DateTime onCornerSince = DateTime.MaxValue, outsideSince = DateTime.MaxValue;
         readonly Timer timer = new Timer { Interval = 100 };
         bool loaded, loading, hoverLoaded;
@@ -26,7 +27,7 @@ namespace DeskCompanionTaskbar
         {
             corner.Message += OnCornerMessage;
             catcher.Message += OnCornerMessage; // real clicks arrive here; the corner itself is click-through
-            hover.Message += m => { if (m == "esc") { pinned = false; hover.Hide(); } };
+            hover.Message += m => { if (m == "esc") { Unpin(); } };
             var _h = corner.Handle;     // create the windows now so WebView2 can init while hidden
             var _h2 = hover.Handle;
             var _h3 = catcher.Handle;
@@ -63,10 +64,17 @@ namespace DeskCompanionTaskbar
             if (m == "click") TogglePin(); // 'menu' is handled in a later task
         }
 
+        void Unpin()
+        {
+            pinned = false;
+            holdClosed = true;
+            hover.Hide();
+        }
+
         void TogglePin()
         {
             pinned = !pinned;
-            if (pinned) ShowHover(); else hover.Hide();
+            if (pinned) ShowHover(); else Unpin();
         }
 
         void ShowHover()
@@ -84,13 +92,14 @@ namespace DeskCompanionTaskbar
             bool onCorner = corner.Bounds.Contains(p);
             bool inside = onCorner || (hover.Visible && hover.Bounds.Contains(p));
             var now = DateTime.Now;
+            if (!onCorner) holdClosed = false;
 
             if (onCorner) { if (onCornerSince == DateTime.MaxValue) onCornerSince = now; }
             else onCornerSince = DateTime.MaxValue;
             if (inside) outsideSince = DateTime.MaxValue;
             else if (outsideSince == DateTime.MaxValue) outsideSince = now;
 
-            if (!hover.Visible && onCorner && (now - onCornerSince).TotalMilliseconds >= OpenAfterMs)
+            if (!hover.Visible && onCorner && !holdClosed && (now - onCornerSince).TotalMilliseconds >= OpenAfterMs)
                 ShowHover();
             else if (hover.Visible && !pinned && !inside && (now - outsideSince).TotalMilliseconds >= CloseAfterMs)
                 hover.Hide();
