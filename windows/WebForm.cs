@@ -39,8 +39,11 @@ namespace DeskCompanionTaskbar
             }
         }
 
-        public async Task InitAsync(string url)
+        string url = "";
+
+        public async Task InitAsync(string first)
         {
+            url = first;
             string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "desk-companion", "taskbar", "WebView2");
             var env = await CoreWebView2Environment.CreateAsync(null, data);
@@ -60,7 +63,7 @@ namespace DeskCompanionTaskbar
             // Server not up yet (autostart) or stale port: retry the same URL. After a successful
             // load the page's own JS handles reconnecting.
             var retry = new Timer { Interval = 5000 };
-            retry.Tick += (_, __) => { retry.Stop(); web.CoreWebView2?.Navigate(url); };
+            retry.Tick += (_, __) => { retry.Stop(); web.CoreWebView2?.Navigate(this.url); };
             web.CoreWebView2.NavigationCompleted += (_, e) =>
             {
                 if (!e.IsSuccess && !retry.Enabled) retry.Start();
@@ -70,7 +73,8 @@ namespace DeskCompanionTaskbar
 
         protected virtual void OnWebReady() { }
 
-        public void Navigate(string url) => web.CoreWebView2?.Navigate(url);
+        // Also becomes the URL the retry timer uses.
+        public void Navigate(string next) { url = next; web.CoreWebView2?.Navigate(next); }
 
         public void PostJson(string json) => web.CoreWebView2?.PostWebMessageAsJson(json);
     }

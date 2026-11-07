@@ -28,8 +28,18 @@ namespace DeskCompanionTaskbar
         [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
         [DllImport("shell32.dll")] static extern UIntPtr SHAppBarMessage(uint msg, ref APPBARDATA d);
 
+        [DllImport("shell32.dll")] static extern int SHQueryUserNotificationState(out int state);
+
         const uint ABM_GETSTATE = 4;
         const int ABS_AUTOHIDE = 1;
+
+        // A full-screen game or video, a presentation, or any "busy" full-screen app: Clawd steps aside.
+        public static bool FullscreenBusy()
+        {
+            const int QUNS_BUSY = 2, QUNS_RUNNING_D3D_FULL_SCREEN = 3, QUNS_PRESENTATION_MODE = 4;
+            if (SHQueryUserNotificationState(out int s) != 0) return false;
+            return s == QUNS_BUSY || s == QUNS_RUNNING_D3D_FULL_SCREEN || s == QUNS_PRESENTATION_MODE;
+        }
 
         // Null while Explorer has no taskbar window (restarting).
         public static TaskbarInfo? Read()

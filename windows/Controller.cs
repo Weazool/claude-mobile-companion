@@ -21,7 +21,9 @@ namespace DeskCompanionTaskbar
         DateTime onCornerSince = DateTime.MaxValue, outsideSince = DateTime.MaxValue;
         readonly Timer timer = new Timer { Interval = 100 };
         bool loaded, loading, hoverLoaded;
-        DateTime nextTry = DateTime.MinValue;
+        DateTime nextTry = DateTime.MinValue, nextPortCheck = DateTime.MinValue;
+        string? loadedBase;
+        readonly ContextMenuStrip menu = new ContextMenuStrip();
 
         public Controller()
         {
@@ -38,13 +40,20 @@ namespace DeskCompanionTaskbar
         public void Tick()
         {
             Load();
+            CheckPort();
+
+            if (Taskbar.FullscreenBusy())
+            {
+                pinned = false;
+                HideAll();
+                return;
+            }
 
             var tb = Taskbar.Read();
             if (tb == null || tb.AutoHide)
             {
-                if (corner.Visible) corner.Hide();
-                if (hover.Visible) hover.Hide();
-                if (catcher.Visible) catcher.Hide();
+                pinned = false; // else the next hover-open would never auto-close
+                HideAll();
                 return;
             }
 
@@ -59,9 +68,56 @@ namespace DeskCompanionTaskbar
             Hover();
         }
 
+        void HideAll()
+        {
+            if (corner.Visible) corner.Hide();
+            if (hover.Visible) hover.Hide();
+            if (catcher.Visible) catcher.Hide();
+        }
+
         void OnCornerMessage(string m)
         {
-            if (m == "click") TogglePin(); // 'menu' is handled in a later task
+            if (m == "click") TogglePin();
+            else if (m == "menu") ShowMenu();
+        }
+
+        [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+        [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+
+        void ShowMenu()
+        {
+            menu.Items.Clear();
+            var pin = new ToolStripMenuItem("Pin") { Checked = pinned };
+            pin.Click += (_, __) => TogglePin();
+            var auto = new ToolStripMenuItem("Start with Windows") { Checked = Autostart.Status() != "Off" };
+            auto.Click += (_, __) => { if (auto.Checked) Autostart.Remove(); else Autostart.Install(); };
+            var quit = new ToolStripMenuItem("Quit");
+            quit.Click += (_, __) => ExitThread();
+            menu.Items.AddRange(new ToolStripItem[] { pin, auto, quit });
+
+            // A menu from a no-activate window only closes on an outside click if one of our windows is
+            // foreground; take it for the menu, then give it back to where it was.
+            IntPtr prev = GetForegroundWindow();
+            SetForegroundWindow(catcher.Handle);
+            void Restore(object? s, ToolStripDropDownClosedEventArgs e)
+            {
+                menu.Closed -= Restore;
+                if (prev != IntPtr.Zero && prev != catcher.Handle) SetForegroundWindow(prev);
+            }
+            menu.Closed += Restore;
+            menu.Show(Cursor.Position);
+        }
+
+        // The server may come back on another port: point both views at it.
+        void CheckPort()
+        {
+            if (!loaded || DateTime.Now < nextPortCheck) return;
+            nextPortCheck = DateTime.Now.AddSeconds(5);
+            string? b = Dashboard.BaseUrl();
+            if (b == null || b == loadedBase) return;
+            loadedBase = b;
+            corner.Navigate(b + "?corner");
+            hover.Navigate(b + "?pc");
         }
 
         void Unpin()
@@ -88,6 +144,7 @@ namespace DeskCompanionTaskbar
         // Rest on Clawd 300 ms to open; stay off both windows 1000 ms (and unpinned) to close.
         void Hover()
         {
+            if (menu.Visible) return; // re-raising the hover window would cover the menu
             var p = Cursor.Position;
             bool onCorner = corner.Bounds.Contains(p);
             bool inside = onCorner || (hover.Visible && hover.Bounds.Contains(p));
@@ -116,7 +173,7 @@ namespace DeskCompanionTaskbar
             try
             {
                 if (!hoverLoaded) { await hover.InitAsync(b + "?pc"); hoverLoaded = true; }
-                await corner.InitAsync(b + "?corner"); loaded = true;
+                await corner.InitAsync(b + "?corner"); loaded = true; loadedBase = b;
             }
             catch (Exception) { nextTry = DateTime.Now.AddSeconds(5); }
             finally { loading = false; }
@@ -124,7 +181,7 @@ namespace DeskCompanionTaskbar
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { timer.Dispose(); corner.Dispose(); catcher.Dispose(); hover.Dispose(); }
+            if (disposing) { timer.Dispose(); menu.Dispose(); corner.Dispose(); catcher.Dispose(); hover.Dispose(); }
             base.Dispose(disposing);
         }
     }
