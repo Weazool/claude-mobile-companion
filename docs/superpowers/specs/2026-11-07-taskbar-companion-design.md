@@ -65,7 +65,7 @@ The phone dashboard only helps when the phone is propped up next to the keyboard
   - It hides about 1 s after the pointer leaves both Clawd and the window.
   - Clicking Clawd pins it open. Clicking him again, or Esc, unpins it and closes it.
   - It never takes focus when it opens on hover.
-- **Size and place:** the hover window has the phone's sideways proportions (932:430) at about half the primary screen's width, anchored above the corner and kept on screen. It's DPI-aware per monitor.
+- **Size and place:** the hover window has the phone's sideways proportions (932:430) at about a quarter of the primary screen's width, anchored above the corner and kept on screen. It's DPI-aware per monitor.
 - **Stays out of the way:**
   - Both windows hide while a full-screen app, game or presentation is running (`SHQueryUserNotificationState`).
   - The corner hides when the taskbar auto-hides.
