@@ -14,6 +14,7 @@ namespace DeskCompanionTaskbar
 
         readonly CornerForm corner = new CornerForm();
         const int OpenAfterMs = 300, CloseAfterMs = 1000;
+        readonly ClickCatcher catcher = new ClickCatcher();
         readonly HoverForm hover = new HoverForm();
         bool pinned;
         DateTime onCornerSince = DateTime.MaxValue, outsideSince = DateTime.MaxValue;
@@ -23,10 +24,12 @@ namespace DeskCompanionTaskbar
 
         public Controller()
         {
-            corner.Message += m => { if (m == "click") TogglePin(); }; // 'menu' comes in a later task
+            corner.Message += OnCornerMessage;
+            catcher.Message += OnCornerMessage; // real clicks arrive here; the corner itself is click-through
             hover.Message += m => { if (m == "esc") { pinned = false; hover.Hide(); } };
             var _h = corner.Handle;     // create the windows now so WebView2 can init while hidden
             var _h2 = hover.Handle;
+            var _h3 = catcher.Handle;
             timer.Tick += (_, __) => Tick();
             timer.Start();
         }
@@ -40,6 +43,7 @@ namespace DeskCompanionTaskbar
             {
                 if (corner.Visible) corner.Hide();
                 if (hover.Visible) hover.Hide();
+                if (catcher.Visible) catcher.Hide();
                 return;
             }
 
@@ -48,7 +52,15 @@ namespace DeskCompanionTaskbar
             if (!corner.Visible) corner.Show();
             // A click on the taskbar raises it above us; take the top back without stealing focus.
             SetWindowPos(corner.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            if (catcher.Bounds != want) catcher.Bounds = want;
+            if (!catcher.Visible) catcher.Show();
+            SetWindowPos(catcher.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             Hover();
+        }
+
+        void OnCornerMessage(string m)
+        {
+            if (m == "click") TogglePin(); // 'menu' is handled in a later task
         }
 
         void TogglePin()
@@ -103,7 +115,7 @@ namespace DeskCompanionTaskbar
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { timer.Dispose(); corner.Dispose(); hover.Dispose(); }
+            if (disposing) { timer.Dispose(); corner.Dispose(); catcher.Dispose(); hover.Dispose(); }
             base.Dispose(disposing);
         }
     }
