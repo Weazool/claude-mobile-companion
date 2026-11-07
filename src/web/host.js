@@ -43,3 +43,8 @@ export function allTasks(sessions) {
   }
   return { count, tasks };
 }
+
+// The hover window leaves out a limit the account doesn't have right now (the usage data has no window for it, e.g.
+// no 5-hour window) rather than show an empty bar. While limits are missing altogether (signed out, unavailable)
+// every bar stays, empty, with the note saying why.
+export const pcBarShown = (limits, bar) => !(limits && limits.status === 'ok' && bar.pct === null);

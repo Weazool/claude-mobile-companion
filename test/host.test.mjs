@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hostFlags, cornerBase, hostIdOf, stripLayout, CHIP, allTasks } from '../src/web/host.js';
+import { hostFlags, cornerBase, hostIdOf, stripLayout, CHIP, allTasks, pcBarShown } from '../src/web/host.js';
 
 test('hostFlags: the phone (no flag) keeps everything', () => {
   const phone = { mode: null, keepAwake: true, fullscreen: true, away: true, drift: true, rail: true };
@@ -50,4 +50,11 @@ test("allTasks: every session's background tasks, each with its session, counted
   ]);
   assert.equal(r.count, 5, 'A says 3 though it lists 1; C lists 2');
   assert.deepEqual(r.tasks.map(t => [t.session, t.label]), [['A', 'npm test'], ['C', 'review'], ['C', 'wf']]);
+});
+
+test('pcBarShown: a limit the account has no window for is left out, unless limits are missing altogether', () => {
+  assert.equal(pcBarShown({ status: 'ok' }, { pct: null }), false, 'no 5-hour window right now');
+  assert.equal(pcBarShown({ status: 'ok' }, { pct: 0 }), true);
+  assert.equal(pcBarShown({ status: 'signin' }, { pct: null }), true, 'signed out: the bars stay with the note');
+  assert.equal(pcBarShown(null, { pct: null }), true);
 });

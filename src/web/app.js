@@ -4,7 +4,7 @@ import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { loadSettings, saveSettings, validate, rotationFor, nextRotation, brightFrom, sliderFrom, sliderAt } from './settings.js';
 import { drift, keepAwakeWanted } from './saver.js';
-import { hostFlags, cornerBase, allTasks } from './host.js';
+import { hostFlags, cornerBase, allTasks, pcBarShown } from './host.js';
 import { shapesBox, createFit, viewBoxOf } from './fit.js';
 
 const $ = id => document.getElementById(id);
@@ -201,6 +201,7 @@ $('mascot').addEventListener('click', () => { if (!awayOn) apply(mood.onTap(Date
 function renderLimits() {
   const { bars, note } = limitsView(snap && snap.limits, Date.now(), skew);
   drawBars($('limits'), bars);
+  if (host.mode === 'pc') for (const b of bars) $('limits').querySelector(`[data-k="${b.key}"]`).hidden = !pcBarShown(snap && snap.limits, b);
   $('limitsNote').textContent = note;
 }
 // A bar per limit: its name and reset, the fill, the percentage, ticks at the cell edges and the legend naming each

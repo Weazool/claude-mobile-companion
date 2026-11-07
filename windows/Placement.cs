@@ -27,11 +27,12 @@ namespace DeskCompanionTaskbar
             return new Rectangle(x, tb.Bounds.Top, w, tb.Bounds.Height);
         }
 
-        // A quarter of the work area wide, 932:430 like the dashboard page; sits on the corner's top-left.
+        // A quarter of the work area wide and 31% of that high (the limits and the tasks card, no more); sits on the
+        // corner's top-left.
         public static Rectangle Hover(Rectangle corner, Rectangle work)
         {
             int w = (int)Math.Round(work.Width / 4.0);
-            int h = (int)Math.Round(w * 430 / 932.0);
+            int h = (int)Math.Round(w * 0.31);
             int x = Math.Max(work.Left, Math.Min(corner.Left, work.Right - w));
             int y = Math.Max(work.Top, corner.Top - h);
             return new Rectangle(x, y, w, h);

@@ -314,3 +314,7 @@ html.host-pc .rail, html.host-pc .stage, html.host-pc .deck { display: none; }
 html.host-pc #app#app { --pad-r: 2vmin; --pad-l: 2vmin; grid-template: minmax(0, 1fr) / 66% 34%; }
 html.host-pc #app#app .data { grid-area: 1 / 1 / 2 / 2; opacity: 1; visibility: visible; padding: 4cqmin 3cqmin 4cqmin 4cqmin; }
 html.host-pc #app#app .tasks { grid-area: 1 / 2 / 2 / 3; opacity: 1; visibility: visible; padding: 4cqmin 2cqmin 4cqmin 0; }
+/* The window is low (Placement.cs Hover: 31% of its width) and every size here is in cqmin, its height: zoom brings the
+   type back to what it is at the phone's proportions. A limit the account has no window for is left out (host.js). */
+html.host-pc #app#app .data, html.host-pc #app#app .tasks { zoom: 1.45; }
+html.host-pc .bar[hidden] { display: none; }
