@@ -15,4 +15,7 @@ body {
 }
 .chip svg { flex: 0 0 auto; height: 50vh; width: 62.5vh; }
 .chip .name { flex: 1 1 auto; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A done session's ✕ (strip.js): solid grey, no opacity (the colour key). */
+.chip .x { flex: 0 0 auto; font-size: 12px; color: #b4b4c4; }
+.chip .x[hidden] { display: none; }
 .more { flex: 0 0 40px; height: 75%; display: flex; align-items: center; justify-content: center; background: #2a2a36; font-size: 12px; }

@@ -1,13 +1,14 @@
 // The taskbar program's strip (strip.html): one chip per session, each with its own Clawd acting that session out
 // (his own mood engine, focused on it) and the session's name. A click on a chip opens the session in the Claude
 // desktop app: the window is click-through, so the program catches the click and finds the chip from the layout
-// this page sends it ("strip:<want>|<x0>,<x1>,<desktop id>;...", device px).
+// this page sends it ("strip:<want>|<x0>,<x1>,<desktop id>,<✕ x0 or -1>,<session id>;...", device px). A click on a
+// done session's ✕ comes back as { untrack: <session id> }, and the page asks the server to stop tracking it.
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { validate } from './settings.js';
 import { shapesBox, createFit, viewBoxOf } from './fit.js';
-import { hostIdOf, stripLayout } from './host.js';
+import { hostIdOf, stripLayout, closable } from './host.js';
 
 const CLIPS = clipsFrom(ANIMS, NAMES);
 const DEFAULTS = validate({});
@@ -37,8 +38,9 @@ function makeChip(id, now) {
   const svg = document.createElementNS(NS, 'svg');
   const name = document.createElement('span');
   name.className = 'name';
-  el.append(svg, name);
-  const c = { id, el, svg, name, hostId: null, mood: createMood(DEFAULTS.mood), player: new Player({ idle: DEFAULTS.idle }),
+  const x = Object.assign(document.createElement('span'), { className: 'x', textContent: '✕', hidden: true });
+  el.append(svg, name, x);
+  const c = { id, el, svg, name, x, hostId: null, mood: createMood(DEFAULTS.mood), player: new Player({ idle: DEFAULTS.idle }),
               view: mountClawd(svg, { view: VIEW }), fit: createFit(), settled: true, dirty: true };
   if (behaviours) setBehaviours(c, behaviours);
   c.mood.setFocus(id, now);
@@ -54,12 +56,23 @@ function layout() {
   const dpr = window.devicePixelRatio || 1;
   const at = list.slice(0, shown).map(c => {
     const r = c.el.getBoundingClientRect();
-    return `${Math.round(r.left * dpr)},${Math.round(r.right * dpr)},${c.hostId || ''}`;
+    const x = c.x.hidden ? -1 : Math.round(c.x.getBoundingClientRect().left * dpr) - 6; // a little room for a miss
+    return `${Math.round(r.left * dpr)},${Math.round(r.right * dpr)},${c.hostId || ''},${x},${c.id}`;
   });
   const msg = `strip:${Math.round(want * dpr)}|${at.join(';')}`;
   if (msg !== sent) { sent = msg; toHost(msg); }
 }
 window.addEventListener('resize', layout);
+
+// The program's ✕ clicks: stop tracking that session (the server's /api/untrack, as the phone's card ✕).
+try {
+  window.chrome?.webview?.addEventListener('message', e => {
+    const id = e.data && e.data.untrack;
+    if (typeof id === 'string' && chips.has(id)) {
+      fetch('/api/untrack', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) }).catch(() => {});
+    }
+  });
+} catch {}
 
 function onSnapshot(s) {
   snap = s;
@@ -71,6 +84,7 @@ function onSnapshot(s) {
     if (!c) chips.set(x.id, c = makeChip(x.id, now));
     c.hostId = hostIdOf(x);
     c.name.textContent = x.name || ''; // strip.css ends a long one in an ellipsis
+    c.x.hidden = !closable(x);
     apply(c, c.mood.onSnapshot(s, now));
   }
   layout();

@@ -30,7 +30,8 @@ namespace DeskCompanionTaskbar
         readonly ClickCatcher stripCatcher = new ClickCatcher();
         bool cornerLoaded, stripLoaded;
         int stripWant;
-        (int x0, int x1, string? id)[] chipsAt = new (int, int, string?)[0];
+        (int x0, int x1, string? id, int closeX, string sid)[] chipsAt = new (int, int, string?, int, string)[0];
+        static readonly System.Text.RegularExpressions.Regex SessionId = new System.Text.RegularExpressions.Regex("^[A-Za-z0-9-]{1,80}$");
 
         public Controller()
         {
@@ -106,19 +107,20 @@ namespace DeskCompanionTaskbar
             }
         }
 
-        // "strip:<want>|<x0>,<x1>,<desktop id>;..." in the window's pixels; the id is empty for a terminal session.
+        // "strip:<want>|<x0>,<x1>,<desktop id>,<✕ x0 or -1>,<session id>;..." in the window's pixels; the desktop id is
+        // empty for a terminal session.
         void OnStripMessage(string m)
         {
             if (!m.StartsWith("strip:")) return;
             var parts = m.Substring(6).Split('|');
             stripWant = int.TryParse(parts[0], out var w) ? Math.Max(0, w) : 0;
-            var list = new System.Collections.Generic.List<(int, int, string?)>();
+            var list = new System.Collections.Generic.List<(int, int, string?, int, string)>();
             if (parts.Length > 1)
                 foreach (var c in parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
                 {
                     var f = c.Split(',');
-                    if (f.Length == 3 && int.TryParse(f[0], out var a) && int.TryParse(f[1], out var b))
-                        list.Add((a, b, HostId.IsMatch(f[2]) ? f[2] : null));
+                    if (f.Length == 5 && int.TryParse(f[0], out var a) && int.TryParse(f[1], out var b) && int.TryParse(f[3], out var x) && SessionId.IsMatch(f[4]))
+                        list.Add((a, b, HostId.IsMatch(f[2]) ? f[2] : null, x, f[4]));
                 }
             chipsAt = list.ToArray();
         }
@@ -126,7 +128,12 @@ namespace DeskCompanionTaskbar
         void OpenChip(int x)
         {
             foreach (var c in chipsAt)
-                if (x >= c.x0 && x < c.x1) { if (c.id != null) OpenSession(c.id); return; }
+                if (x >= c.x0 && x < c.x1)
+                {
+                    if (c.closeX >= 0 && x >= c.closeX) strip.PostJson("{\"untrack\":\"" + c.sid + "\"}"); // the ✕
+                    else if (c.id != null) OpenSession(c.id);
+                    return;
+                }
         }
 
         // The desktop app's own session ids (host.js HOST_ID); only these go into a claude:// link.

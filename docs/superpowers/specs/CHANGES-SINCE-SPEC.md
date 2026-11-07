@@ -1,6 +1,6 @@
 # Changes since the spec
 
-The [spec](2026-09-14-desk-companion-design.md) describes version 0.3.0. These are the main changes up to 0.14.0.
+The [spec](2026-09-14-desk-companion-design.md) describes version 0.3.0. These are the main changes up to 0.14.6.
 
 ## Added
 
@@ -14,7 +14,7 @@ The [spec](2026-09-14-desk-companion-design.md) describes version 0.3.0. These a
 - **Away view (0.13).** When all is quiet, the limit bars fill the screen.
 - **Start with Windows (0.13).** An optional shortcut starts the server at login.
 - **Faster usage checks (0.13).** Every 90 s while usage is moving, every 5 minutes otherwise.
-- **Windows taskbar program (0.14).** An optional program puts Clawd in the taskbar's left corner. Rest the pointer on him and the dashboard opens above him. It is a separate download and never starts the server.
+- **Windows taskbar program (0.14).** An optional program puts Clawd in the taskbar's left corner, at his laptop while any session works, with a chip per session next to him: each chip has its own Clawd, a click opens the session in the Claude desktop app, and a ✕ clears a finished one. Rest the pointer on Clawd and a popup shows the limits and every session's background tasks. It is a separate download and never starts the server.
 
 ## Removed
 

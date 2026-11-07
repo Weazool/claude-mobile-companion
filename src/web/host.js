@@ -48,3 +48,7 @@ export function allTasks(sessions) {
 // no 5-hour window) rather than show an empty bar. While limits are missing altogether (signed out, unavailable)
 // every bar stays, empty, with the note saying why.
 export const pcBarShown = (limits, bar) => !(limits && limits.status === 'ok' && bar.pct === null);
+
+// A chip gets a ✕ once its session is done or idle (not at work, not waiting on you): finished sessions linger on
+// the taskbar until they expire, and the ✕ stops tracking one (as the phone's card ✕ does) until its next prompt.
+export const closable = s => !!s && dotClass(s) === 'idle';

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hostFlags, cornerBase, hostIdOf, stripLayout, CHIP, allTasks, pcBarShown } from '../src/web/host.js';
+import { hostFlags, cornerBase, hostIdOf, stripLayout, CHIP, allTasks, pcBarShown, closable } from '../src/web/host.js';
 
 test('hostFlags: the phone (no flag) keeps everything', () => {
   const phone = { mode: null, keepAwake: true, fullscreen: true, away: true, drift: true, rail: true };
@@ -57,4 +57,13 @@ test('pcBarShown: a limit the account has no window for is left out, unless limi
   assert.equal(pcBarShown({ status: 'ok' }, { pct: 0 }), true);
   assert.equal(pcBarShown({ status: 'signin' }, { pct: null }), true, 'signed out: the bars stay with the note');
   assert.equal(pcBarShown(null, { pct: null }), true);
+});
+
+test('closable: a ✕ for sessions that are done or idle, not for ones at work or waiting on you', () => {
+  assert.equal(closable({ activity: 'done' }), true, 'your turn');
+  assert.equal(closable({ activity: 'idle' }), true);
+  assert.equal(closable({ activity: 'working' }), false);
+  assert.equal(closable({ activity: 'done', background: 1 }), false, 'its background tasks still run');
+  assert.equal(closable({ activity: 'done', needsYou: true }), false);
+  assert.equal(closable(undefined), false);
 });

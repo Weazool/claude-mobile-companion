@@ -75,9 +75,12 @@ It puts a shortcut in your Startup folder that starts whichever version of the p
 
 ## <img src="docs/images/clawd/hop.png" height="40" alt="" align="absmiddle"> On your Windows taskbar
 
-An optional program puts Clawd in the corner of your Windows 11 taskbar. Rest the pointer on him and the whole dashboard opens above him.
-It's a separate download that needs desk-companion 0.14.0 or later with its server running.
+An optional program puts Clawd in the corner of your Windows 11 taskbar, with a chip for each session next to him. Click a chip to open that session in the Claude desktop app; rest the pointer on Clawd for your limits and background tasks.
+It's a separate download that needs desk-companion 0.14.6 or later with its server running.
 See [windows/README.md](windows/README.md) for how to set it up.
+
+<p align="center"><img src="docs/images/windows-taskbar.png" alt="The left of a Windows 11 taskbar: Clawd at his laptop in the corner, then three session chips, each with its own little Clawd: desk-companion at work, api-server reading while its background tasks run, and docs-site done, waving the flag, with a ✕ to clear it"></p>
+<p align="center"><img src="docs/images/windows-popup.png" width="640" alt="The popup above the corner: the weekly limit at 34% and the Fable limit at 12% with their day legends on the left, and on the right a Background tasks card counting 2: npm test and Review the migration, both from api-server"></p>
 
 ## <img src="docs/images/clawd/cool.png" height="40" alt="" align="absmiddle"> On the phone
 
