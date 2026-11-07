@@ -155,7 +155,7 @@ test('SessionEnd removes, expire drops silent sessions, list is ordered by start
   st.apply({ ...ev('UserPromptSubmit'), session_id: 'A' }, 3000);
   assert.deepEqual(st.list().map(s => s.id), ['A', 'B']);
   assert.deepEqual(Object.keys(st.list()[0]).sort(),
-    ['activity', 'background', 'contextPct', 'detail', 'effort', 'id', 'lastEventAt', 'modelLabel', 'name', 'needsYou', 'tasks']);
+    ['activity', 'background', 'contextPct', 'detail', 'effort', 'hostId', 'id', 'lastEventAt', 'modelLabel', 'name', 'needsYou', 'tasks']);
   st.apply({ ...ev('SessionEnd'), session_id: 'A' }, 4000);
   assert.deepEqual(st.list().map(s => s.id), ['B']);
   assert.equal(st.expire(2000 + EXPIRE_MS), false);
@@ -321,4 +321,13 @@ test('background tasks: the list from each Stop, each with when it started (its 
   assert.equal('id' in st.list()[0].tasks[0], false, 'task ids stay on the PC');
   st.apply(ev('Stop'), 13000); // an older Claude Code sends no list
   assert.equal(st.list()[0].tasks.length, 2);
+});
+
+test('hostId: a session keeps the desktop app id its hooks forward, for the taskbar program', () => {
+  const st = new SessionStore();
+  st.apply(ev('SessionStart'), 1000);
+  assert.equal(st.list()[0].hostId, null, 'a terminal session has none');
+  st.apply(ev('UserPromptSubmit', { hostId: 'local_abc-123' }), 2000);
+  st.apply(ev('Stop'), 3000);
+  assert.equal(st.list()[0].hostId, 'local_abc-123', 'kept once seen');
 });

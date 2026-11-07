@@ -15,7 +15,8 @@ It needs the WebView2 runtime, which Windows 11 already has.
 ## Using it
 
 - **Hover:** rest the pointer on Clawd for a moment and the dashboard opens above him. It closes about a second after the pointer leaves.
-- **Click:** pins the dashboard open. Click again, or press **Esc**, to close it.
+- **Click:** pins the dashboard open. Click again, or click into it and press **Esc**, to close it.
+- **Click while he needs you:** when the session he's acting out has a permission prompt, a question or "Your turn", a click opens that session in the Claude desktop app instead (sessions in a terminal can't be opened this way).
 - **Right-click:** Pin, Start with Windows, Quit.
 - He hides while a full-screen app is up, and when the taskbar is set to hide itself.
 - With the taskbar's icons aligned left, Clawd sits next to the tray instead.

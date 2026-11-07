@@ -102,6 +102,7 @@ export class SessionStore {
     }
     if (evt.hook_event_name in TURN) s.turn = TURN[evt.hook_event_name];
     if (c.discrete === 'prompt' || c.discrete === 'sessionStart') s.subNeeds = null;
+    if (evt.hostId) s.hostId = evt.hostId; // the desktop app's id for it (sanitize), to open it from the PC
     if (evt.cwd) s.folder = path.posix.basename(evt.cwd.replace(/\\/g, '/').replace(/\/+$/, '')) || s.folder;
     // Its name: the one the Claude app shows (the transcript's title, kept once seen), else the project folder.
     if (tail && tail.title) s.title = tail.title;
@@ -183,7 +184,7 @@ export class SessionStore {
       .sort((a, b) => a.startedAt - b.startedAt)
       .map(s => ({ id: s.id, name: s.name, modelLabel: s.modelLabel, effort: s.effort, contextPct: s.contextPct,
                    activity: s.activity, detail: !s.needsYou && s.subNeeds ? s.subNeeds : s.detail, needsYou: needs(s),
-                   background: s.background, lastEventAt: s.lastEventAt,
+                   background: s.background, lastEventAt: s.lastEventAt, hostId: s.hostId || null,
                    tasks: s.tasks.map(t => ({ kind: t.kind, label: t.label, detail: t.detail, status: t.status, since: t.since })) }));
   }
 

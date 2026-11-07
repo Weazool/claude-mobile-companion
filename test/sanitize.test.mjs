@@ -162,3 +162,11 @@ test("PostToolUse: a background launch passes on the task's id, nothing else of 
   assert.doesNotMatch(JSON.stringify(post('Bash', { stdout: 'SECRET', backgroundTaskId: 'bx1' })), /SECRET/);
   assert.equal('launched' in sanitize({ hook_event_name: 'PreToolUse', session_id: 's1', tool_name: 'Bash', tool_response: { backgroundTaskId: 'bx1' } }), false);
 });
+
+test('hostId: the desktop app session id from the env, only in the shape its links accept', () => {
+  const raw = { hook_event_name: 'Stop', session_id: 's1' };
+  assert.equal(sanitize(raw, { CLAUDE_CODE_HOST_SESSION_ID: 'local_85928310-1594-4374-85dd-026b99e9e0ea' }).hostId, 'local_85928310-1594-4374-85dd-026b99e9e0ea');
+  assert.equal(sanitize(raw, {}).hostId, undefined, 'a terminal session has none');
+  assert.equal(sanitize(raw, { CLAUDE_CODE_HOST_SESSION_ID: 'local_x&evil=1' }).hostId, undefined);
+  assert.equal(sanitize(raw, { CLAUDE_CODE_HOST_SESSION_ID: 'cse_abc' }).hostId, undefined);
+});

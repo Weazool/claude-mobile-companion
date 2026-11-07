@@ -75,10 +75,23 @@ namespace DeskCompanionTaskbar
             if (catcher.Visible) catcher.Hide();
         }
 
+        // The desktop session a click on Clawd opens while it waits on you or it's your turn (the corner page sends
+        // "open:<id>", "open:" for none); otherwise a click pins the dashboard.
+        static readonly System.Text.RegularExpressions.Regex HostId = new System.Text.RegularExpressions.Regex("^local_[A-Za-z0-9-]{1,64}$");
+        string openId;
+
         void OnCornerMessage(string m)
         {
-            if (m == "click") TogglePin();
+            if (m.StartsWith("open:")) { var id = m.Substring(5); openId = HostId.IsMatch(id) ? id : null; }
+            else if (m == "click") { if (openId != null) OpenSession(openId); else TogglePin(); }
             else if (m == "menu") ShowMenu();
+        }
+
+        // The Claude desktop app's own link for a Code session; Windows hands it to the app.
+        static void OpenSession(string id)
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("claude://code/continue?session=" + id) { UseShellExecute = true }); }
+            catch (Exception) { /* no Claude app registered for claude:// */ }
         }
 
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);

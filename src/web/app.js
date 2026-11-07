@@ -4,7 +4,8 @@ import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { loadSettings, saveSettings, validate, rotationFor, nextRotation, brightFrom, sliderFrom, sliderAt } from './settings.js';
 import { drift, keepAwakeWanted } from './saver.js';
-import { hostFlags } from './host.js';
+import { hostFlags, openTarget } from './host.js';
+import { shapesBox, createFit } from './fit.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -38,6 +39,8 @@ const store = (() => { try { return window.localStorage; } catch { return null; 
 // settings panel).
 const kept = loadSettings(store);
 let settings = validate({ rotation: kept.rotation, brightness: kept.brightness });
+// The PC's windows have no rail (host.js): upright and full brightness, whatever an earlier visit kept.
+if (!host.rail) settings = { ...settings, rotation: 0, brightness: 1 };
 const mood = createMood(settings.mood);
 const player = new Player({ idle: settings.idle });
 const view = mountClawd($('mascot'), { view: VIEW }); // Clawd's rects, drawn into the inline <svg>
@@ -163,13 +166,25 @@ function setBehaviours(map) {
 
 // Away, Clawd is hidden: nothing to draw until he is back (setAway asks for a frame then).
 let lastFrameAt = performance.now();
+// The corner sizes Clawd to what he draws (fit.js), so nothing is ever clipped at icon height.
+const fit = host.mode === 'corner' ? createFit() : null;
+let fitSettled = true;
 function loop(now) {
   const dt = Math.min(100, now - lastFrameAt);
   lastFrameAt = now;
   const moving = player.update(dt);
+  let box = null;
   if (!awayOn && (drawPending || moving)) {
-    view.render(player.shapes());
+    const shapes = player.shapes();
+    view.render(shapes);
+    if (fit) box = shapesBox(shapes);
     drawPending = false;
+  }
+  if (fit && (box || !fitSettled)) {
+    const r = fit(box, now);
+    fitSettled = r.settled;
+    const v = r.view;
+    if (v) $('mascot').setAttribute('viewBox', `${v.x0.toFixed(3)} ${v.y0.toFixed(3)} ${(v.x1 - v.x0).toFixed(3)} ${(v.y1 - v.y0).toFixed(3)}`);
   }
   requestAnimationFrame(loop);
 }
@@ -350,6 +365,16 @@ function updateSpot(now = Date.now(), step = 0) {
   renderCard(step || 1);
   renderTasks();
   $('app').classList.toggle('attn', spot.mode === 'focus' && spot.id !== null);
+  if (host.mode === 'corner') sendOpenTarget();
+}
+// The corner tells the taskbar program which desktop session a click on Clawd should open ('open:' alone for none),
+// whenever that changes.
+let sentTarget = null;
+function sendOpenTarget() {
+  const t = openTarget(snap && snap.sessions.find(s => s.id === spot.id)) || '';
+  if (t === sentTarget) return;
+  sentTarget = t;
+  toHost('open:' + t);
 }
 for (const [id, dir] of [['btnPrev', -1], ['btnNext', 1]]) {
   $(id).addEventListener('touchstart', () => {}, { passive: true }); // iOS only shows :active with a touch listener

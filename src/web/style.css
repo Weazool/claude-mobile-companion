@@ -296,12 +296,17 @@ html, body {
 #dimmer { position: absolute; inset: 0; z-index: 60; background: #000; opacity: 0; pointer-events: none; }
 
 
-/* corner: the taskbar program's ?corner window (host.js). Clawd alone on a see-through background; his body (10 of the
-   square's 32 units) fills half the window's height, the size of a taskbar icon (24 px on a 48 px taskbar). What his
-   effects draw past the window is clipped. #app#app outranks the landscape/portrait/attn rules. */
+/* corner: the taskbar program's ?corner window (host.js). Clawd alone on a see-through background, in a box as high as a
+   taskbar icon (half the window: 24 px on a 48 px taskbar) and as wide as the window. app.js sets the SVG's viewBox to
+   what he draws (fit.js), and the default preserveAspectRatio (meet) scales that to the box, so a flag or confetti
+   shrink him instead of being clipped. #app#app outranks the landscape/portrait/attn rules. */
 html.host-corner, html.host-corner body, html.host-corner #app { background: transparent; }
 html.host-corner #app#app { padding: 0; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
 html.host-corner .data, html.host-corner .tasks, html.host-corner .deck, html.host-corner .rail,
 html.host-corner #offline, html.host-corner #dimmer, html.host-corner #bubble, html.host-corner .stage::before { display: none; }
-html.host-corner #app#app .stage { grid-area: 1 / 1 / 2 / 2; --cx: 50%; --cy: 50cqh; --mascot: calc(1.6 * 100cqh); }
-html.host-corner #mascot { cursor: default; }
+html.host-corner #app#app .stage { grid-area: 1 / 1 / 2 / 2; }
+html.host-corner #mascot { left: 0; top: 25%; width: 100%; height: 50%; aspect-ratio: auto; transform: none; transition: none; cursor: default; }
+
+/* pc: the taskbar program's hover window. No rail (rotate, brightness) and no drift, so no room kept for either. */
+html.host-pc .rail { display: none; }
+html.host-pc #app#app { --pad-r: 2vmin; --pad-l: 2vmin; }

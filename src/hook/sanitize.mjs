@@ -97,6 +97,10 @@ export function sanitize(raw, env = {}, now = Date.now()) {
   const effort = r.effort && typeof r.effort === 'object' ? r.effort.level : r.effort;
   if (typeof effort === 'string' && effort) out.effort = effort;
   if (typeof env.CLAUDE_EFFORT === 'string' && env.CLAUDE_EFFORT) out.envEffort = env.CLAUDE_EFFORT;
+  // The Claude desktop app's own id for the session (its Code tab sets it for the hooks it runs), so the taskbar
+  // program can open that session; only the shape the app's claude://code links accept.
+  const hostId = env.CLAUDE_CODE_HOST_SESSION_ID;
+  if (typeof hostId === 'string' && /^local_[A-Za-z0-9-]{1,64}$/.test(hostId)) out.hostId = hostId;
   for (const k of PASS) if (typeof r[k] === 'string') out[k] = r[k];
   // A subagent's hooks (an Agent call, a workflow's agents) carry its parent's session id and its own agent_id.
   if (typeof r.agent_id === 'string' && r.agent_id) out.subagent = true;
