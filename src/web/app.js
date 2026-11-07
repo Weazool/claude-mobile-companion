@@ -4,9 +4,28 @@ import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { loadSettings, saveSettings, validate, rotationFor, nextRotation, brightFrom, sliderFrom, sliderAt } from './settings.js';
 import { drift, keepAwakeWanted } from './saver.js';
+import { hostFlags } from './host.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Who is showing the page (host.js): the phone, or the Windows taskbar program's ?corner / ?pc window.
+const host = hostFlags(location.search);
+if (host.mode) document.documentElement.classList.add('host-' + host.mode);
+// The taskbar program talks to the page through WebView2: Clawd's click and the right-click menu go out, and a
+// {bg} message comes in (a fallback fill if the window cannot be see-through).
+const toHost = msg => { try { window.chrome?.webview?.postMessage(msg); } catch {} };
+if (host.mode === 'corner') {
+  $('mascot').addEventListener('click', () => toHost('click'));
+  document.addEventListener('contextmenu', e => { e.preventDefault(); toHost('menu'); });
+}
+if (host.mode === 'pc') document.addEventListener('keydown', e => { if (e.key === 'Escape') toHost('esc'); });
+try {
+  window.chrome?.webview?.addEventListener('message', e => {
+    const bg = e.data && e.data.bg;
+    if (typeof bg === 'string' && /^#[0-9a-f]{6}$/i.test(bg)) document.body.style.background = bg;
+  });
+} catch {}
 
 let snap = null;   // latest Snapshot (spec §5)
 let skew = 0;      // serverTime - Date.now(), so countdowns use the PC's clock
@@ -40,7 +59,7 @@ function apply(cmd) {
 let forceAway = new URLSearchParams(location.search).has('away');
 let awayOn = false;
 function setAway(on) {
-  if (on === awayOn) return;
+  if (!host.away || on === awayOn) return; // the corner keeps Clawd up while the mood is away
   awayOn = on;
   $('app').classList.toggle('away', on);
   drawPending = true;
@@ -436,13 +455,13 @@ applyLayout();
 const noSleep = window.NoSleep ? new window.NoSleep() : null;
 let arming = false;
 function keepAwake() {
-  if (!settings.keepAwake || !noSleep || noSleep.isEnabled || arming) return;
+  if (!host.keepAwake || !settings.keepAwake || !noSleep || noSleep.isEnabled || arming) return;
   arming = true;
   Promise.resolve(noSleep.enable()).catch(() => {}).finally(() => { arming = false; });
 }
 function activate() {
   const el = document.documentElement;
-  if (!standalone && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  if (host.fullscreen && !standalone && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
   keepAwake();
 }
 document.addEventListener('click', activate);
@@ -496,6 +515,7 @@ $('app').addEventListener('click', e => {
 // Burn-in protection while awake: the whole dashboard drifts slowly and continuously (saver.js drift, eased by
 // #app's 2 s transform transition), so no pixel keeps lighting the same spot.
 function applyDrift() {
+  if (!host.drift) return; // --dx/--dy stay 0
   const app = $('app');
   const { dx, dy } = drift(Date.now(), window.innerWidth, window.innerHeight); // physical screen axes
   app.style.setProperty('--dx', `${dx.toFixed(1)}px`);

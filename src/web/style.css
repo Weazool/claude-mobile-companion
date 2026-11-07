@@ -295,3 +295,13 @@ html, body {
    and the offline note included. Taps go through it. */
 #dimmer { position: absolute; inset: 0; z-index: 60; background: #000; opacity: 0; pointer-events: none; }
 
+
+/* corner: the taskbar program's ?corner window (host.js). Clawd alone on a see-through background; his body (10 of the
+   square's 32 units) fills about 80% of the window's height. What his effects draw past the window is clipped. #app#app
+   outranks the landscape/portrait/attn rules. */
+html.host-corner, html.host-corner body, html.host-corner #app { background: transparent; }
+html.host-corner #app#app { padding: 0; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+html.host-corner .data, html.host-corner .tasks, html.host-corner .deck, html.host-corner .rail,
+html.host-corner #offline, html.host-corner #dimmer, html.host-corner #bubble, html.host-corner .stage::before { display: none; }
+html.host-corner #app#app .stage { grid-area: 1 / 1 / 2 / 2; --cx: 50%; --cy: 50cqh; --mascot: calc(2.6 * 100cqh); }
+html.host-corner #mascot { cursor: default; }
