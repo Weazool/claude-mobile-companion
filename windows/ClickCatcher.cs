@@ -9,6 +9,7 @@ namespace DeskCompanionTaskbar
     {
         const int WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000;
         public event Action<string>? Message;
+        public int LastX { get; private set; } // where the last click landed, in the window's pixels (the strip's chips)
 
         public ClickCatcher()
         {
@@ -19,6 +20,7 @@ namespace DeskCompanionTaskbar
             Opacity = 1.0 / 255;
             MouseUp += (_, e) =>
             {
+                LastX = e.X;
                 if (e.Button == MouseButtons.Left) Message?.Invoke("click");
                 else if (e.Button == MouseButtons.Right) Message?.Invoke("menu");
             };

@@ -22,6 +22,9 @@ export function shapesBox(shapes) {
   return x0 === Infinity ? null : { x0, y0, x1, y1 };
 }
 
+// An SVG viewBox attribute for a box.
+export const viewBoxOf = v => `${v.x0.toFixed(3)} ${v.y0.toFixed(3)} ${(v.x1 - v.x0).toFixed(3)} ${(v.y1 - v.y0).toFixed(3)}`;
+
 const union = (a, b) => ({ x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) });
 const near = (a, b) => Math.abs(a.x0 - b.x0) + Math.abs(a.y0 - b.y0) + Math.abs(a.x1 - b.x1) + Math.abs(a.y1 - b.y1) < 0.01;
 

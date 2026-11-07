@@ -24,12 +24,23 @@ namespace DeskCompanionTaskbar
         DateTime nextTry = DateTime.MinValue, nextPortCheck = DateTime.MinValue;
         string? loadedBase;
         readonly ContextMenuStrip menu = new ContextMenuStrip();
+        // The session chips (strip.html): a see-through window like the corner's, its own click catcher, and the
+        // chips' places as the page last sent them.
+        readonly CornerForm strip = new CornerForm();
+        readonly ClickCatcher stripCatcher = new ClickCatcher();
+        bool cornerLoaded, stripLoaded;
+        int stripWant;
+        (int x0, int x1, string? id)[] chipsAt = new (int, int, string?)[0];
 
         public Controller()
         {
             corner.Message += OnCornerMessage;
             catcher.Message += OnCornerMessage; // real clicks arrive here; the corner itself is click-through
             hover.Message += m => { if (m == "esc") { Unpin(); } };
+            strip.Message += OnStripMessage;
+            stripCatcher.Message += m => { if (m == "click") OpenChip(stripCatcher.LastX); else if (m == "menu") ShowMenu(); };
+            var _h4 = strip.Handle;
+            var _h5 = stripCatcher.Handle;
             var _h = corner.Handle;     // create the windows now so WebView2 can init while hidden
             var _h2 = hover.Handle;
             var _h3 = catcher.Handle;
@@ -65,6 +76,7 @@ namespace DeskCompanionTaskbar
             if (catcher.Bounds != want) catcher.Bounds = want;
             if (!catcher.Visible) catcher.Show();
             SetWindowPos(catcher.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            PlaceStrip(want, tb);
             Hover();
         }
 
@@ -73,17 +85,57 @@ namespace DeskCompanionTaskbar
             if (corner.Visible) corner.Hide();
             if (hover.Visible) hover.Hide();
             if (catcher.Visible) catcher.Hide();
+            if (strip.Visible) strip.Hide();
+            if (stripCatcher.Visible) stripCatcher.Hide();
         }
 
-        // The desktop session a click on Clawd opens while it waits on you or it's your turn (the corner page sends
-        // "open:<id>", "open:" for none); otherwise a click pins the dashboard.
-        static readonly System.Text.RegularExpressions.Regex HostId = new System.Text.RegularExpressions.Regex("^local_[A-Za-z0-9-]{1,64}$");
-        string openId;
+        void PlaceStrip(Rectangle cornerAt, TaskbarInfo tb)
+        {
+            if (stripWant <= 0 || !stripLoaded)
+            {
+                if (strip.Visible) strip.Hide();
+                if (stripCatcher.Visible) stripCatcher.Hide();
+                return;
+            }
+            var at = Placement.Strip(cornerAt, tb, stripWant);
+            foreach (Form f in new Form[] { strip, stripCatcher }) // the catcher on top
+            {
+                if (f.Bounds != at) f.Bounds = at;
+                if (!f.Visible) f.Show();
+                SetWindowPos(f.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
 
+        // "strip:<want>|<x0>,<x1>,<desktop id>;..." in the window's pixels; the id is empty for a terminal session.
+        void OnStripMessage(string m)
+        {
+            if (!m.StartsWith("strip:")) return;
+            var parts = m.Substring(6).Split('|');
+            stripWant = int.TryParse(parts[0], out var w) ? Math.Max(0, w) : 0;
+            var list = new System.Collections.Generic.List<(int, int, string?)>();
+            if (parts.Length > 1)
+                foreach (var c in parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var f = c.Split(',');
+                    if (f.Length == 3 && int.TryParse(f[0], out var a) && int.TryParse(f[1], out var b))
+                        list.Add((a, b, HostId.IsMatch(f[2]) ? f[2] : null));
+                }
+            chipsAt = list.ToArray();
+        }
+
+        void OpenChip(int x)
+        {
+            foreach (var c in chipsAt)
+                if (x >= c.x0 && x < c.x1) { if (c.id != null) OpenSession(c.id); return; }
+        }
+
+        // The desktop app's own session ids (host.js HOST_ID); only these go into a claude:// link.
+        static readonly System.Text.RegularExpressions.Regex HostId = new System.Text.RegularExpressions.Regex("^local_[A-Za-z0-9-]{1,64}$");
+
+        // A click on the corner's Clawd pins the dashboard; the chips open sessions.
         void OnCornerMessage(string m)
         {
-            if (m.StartsWith("open:")) { var id = m.Substring(5); openId = HostId.IsMatch(id) ? id : null; }
-            else if (m == "click") { if (openId != null) OpenSession(openId); else TogglePin(); }
+            if (m == "click") TogglePin();
             else if (m == "menu") ShowMenu();
         }
 
@@ -131,6 +183,7 @@ namespace DeskCompanionTaskbar
             loadedBase = b;
             corner.Navigate(b + "?corner");
             hover.Navigate(b + "?pc");
+            strip.Navigate(b + "web/strip.html");
         }
 
         void Unpin()
@@ -186,7 +239,9 @@ namespace DeskCompanionTaskbar
             try
             {
                 if (!hoverLoaded) { await hover.InitAsync(b + "?pc"); hoverLoaded = true; }
-                await corner.InitAsync(b + "?corner"); loaded = true; loadedBase = b;
+                if (!cornerLoaded) { await corner.InitAsync(b + "?corner"); cornerLoaded = true; }
+                if (!stripLoaded) { await strip.InitAsync(b + "web/strip.html"); stripLoaded = true; }
+                loaded = true; loadedBase = b;
             }
             catch (Exception) { nextTry = DateTime.Now.AddSeconds(5); }
             finally { loading = false; }
@@ -194,7 +249,7 @@ namespace DeskCompanionTaskbar
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { timer.Dispose(); menu.Dispose(); corner.Dispose(); catcher.Dispose(); hover.Dispose(); }
+            if (disposing) { timer.Dispose(); menu.Dispose(); corner.Dispose(); catcher.Dispose(); hover.Dispose(); strip.Dispose(); stripCatcher.Dispose(); }
             base.Dispose(disposing);
         }
     }

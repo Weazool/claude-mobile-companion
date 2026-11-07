@@ -4,8 +4,8 @@ import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { loadSettings, saveSettings, validate, rotationFor, nextRotation, brightFrom, sliderFrom, sliderAt } from './settings.js';
 import { drift, keepAwakeWanted } from './saver.js';
-import { hostFlags, openTarget } from './host.js';
-import { shapesBox, createFit } from './fit.js';
+import { hostFlags, cornerBase } from './host.js';
+import { shapesBox, createFit, viewBoxOf } from './fit.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -48,6 +48,8 @@ let drawPending = true;
 
 function apply(cmd) {
   if (!cmd) return;
+  // The corner's Clawd has two states (host.js cornerBase); the strip's chips act the sessions out.
+  if (host.mode === 'corner') { player.setBase(cornerBase(snap ? snap.sessions : [])); return; }
   player.setBase(cmd.base);
   if (cmd.play.length) player.play(cmd.play);
   setBubble(cmd.bubble && cmd.bubble.text, cmd.bubble && cmd.bubble.tone);
@@ -183,8 +185,7 @@ function loop(now) {
   if (fit && (box || !fitSettled)) {
     const r = fit(box, now);
     fitSettled = r.settled;
-    const v = r.view;
-    if (v) $('mascot').setAttribute('viewBox', `${v.x0.toFixed(3)} ${v.y0.toFixed(3)} ${(v.x1 - v.x0).toFixed(3)} ${(v.y1 - v.y0).toFixed(3)}`);
+    if (r.view) $('mascot').setAttribute('viewBox', viewBoxOf(r.view));
   }
   requestAnimationFrame(loop);
 }
@@ -365,16 +366,6 @@ function updateSpot(now = Date.now(), step = 0) {
   renderCard(step || 1);
   renderTasks();
   $('app').classList.toggle('attn', spot.mode === 'focus' && spot.id !== null);
-  if (host.mode === 'corner') sendOpenTarget();
-}
-// The corner tells the taskbar program which desktop session a click on Clawd should open ('open:' alone for none),
-// whenever that changes.
-let sentTarget = null;
-function sendOpenTarget() {
-  const t = openTarget(snap && snap.sessions.find(s => s.id === spot.id)) || '';
-  if (t === sentTarget) return;
-  sentTarget = t;
-  toHost('open:' + t);
 }
 for (const [id, dir] of [['btnPrev', -1], ['btnNext', 1]]) {
   $(id).addEventListener('touchstart', () => {}, { passive: true }); // iOS only shows :active with a touch listener

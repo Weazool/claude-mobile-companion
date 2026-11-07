@@ -10,7 +10,7 @@ const TYPES = {
   '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8',
 };
 const PUBLIC = new Set(['manifest.webmanifest', 'icon.png']); // browsers fetch manifests without cookies
-const PC_PAGES = new Set(['pair.html', 'behaviours.html']); // loopback-only pages (spec §2), also under /web/
+const PC_PAGES = new Set(['pair.html', 'behaviours.html', 'strip.html']); // loopback-only pages (spec §2), also under /web/
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const LOOPBACK_HOST = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i;
 const BEHAVIOURS_MAX = 16 * 1024; // a full map is about 1 KB

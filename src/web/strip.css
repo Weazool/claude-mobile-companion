@@ -1,0 +1,17 @@
+/* The taskbar program's strip of session chips (strip.js), next to the corner's Clawd. The window is see-through
+   through a colour key, so everything drawn here is opaque with square corners: a half-transparent or anti-aliased
+   edge over the key colour would show as a pink fringe. Text sits on the chip's solid background for the same reason. */
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+body {
+  font-family: "Segoe UI", system-ui, sans-serif; color: #fff;
+  -webkit-user-select: none; user-select: none; cursor: default;
+}
+#chips { display: flex; align-items: center; gap: 6px; height: 100%; }
+/* 136 px wide with 6 px gaps (host.js CHIP); the mini Clawd as high as a taskbar icon (half the taskbar). */
+.chip {
+  flex: 0 0 136px; height: 75%; box-sizing: border-box; padding: 0 8px; display: flex; align-items: center; gap: 6px;
+  background: #2a2a36;
+}
+.chip svg { flex: 0 0 auto; height: 50vh; width: 62.5vh; }
+.chip .name { font-size: 12px; white-space: nowrap; overflow: hidden; }
+.more { flex: 0 0 40px; height: 75%; display: flex; align-items: center; justify-content: center; background: #2a2a36; font-size: 12px; }

@@ -1,8 +1,8 @@
 # desk-companion for the Windows taskbar
 
-A small program that puts Clawd in the left corner of your Windows 11 taskbar. He acts out your Claude Code sessions there, like on the phone. Rest the pointer on him and the whole dashboard opens above him.
+A small program that puts Clawd in the left corner of your Windows 11 taskbar, with a chip for each of your Claude Code sessions next to him. He sits at his laptop while any session works and idles otherwise; each chip has its own little Clawd acting out its session, like on the phone. Rest the pointer on the corner's Clawd and the whole dashboard opens above him.
 
-It needs desk-companion **0.14.0 or later** with its server running. The program never starts the server. To have the server running from the moment you log in, run `node bin/autostart.mjs --install` in the plugin's folder (see the main [README](../README.md)).
+It needs desk-companion **0.14.2 or later** with its server running. The program never starts the server. To have the server running from the moment you log in, run `node bin/autostart.mjs --install` in the plugin's folder (see the main [README](../README.md)).
 
 ## Set it up
 
@@ -16,8 +16,8 @@ It needs the WebView2 runtime, which Windows 11 already has.
 
 - **Hover:** rest the pointer on Clawd for a moment and the dashboard opens above him. It closes about a second after the pointer leaves.
 - **Click:** pins the dashboard open. Click again, or click into it and press **Esc**, to close it.
-- **Click while he needs you:** when the session he's acting out has a permission prompt, a question or "Your turn", a click opens that session in the Claude desktop app instead (sessions in a terminal can't be opened this way).
-- **Right-click:** Pin, Start with Windows, Quit.
+- **Click a session's chip:** opens that session in the Claude desktop app (sessions in a terminal get a chip too, but can't be opened this way). When more sessions are open than fit, the last chip says "+N".
+- **Right-click** (Clawd or a chip): Pin, Start with Windows, Quit.
 - He hides while a full-screen app is up, and when the taskbar is set to hide itself.
 - With the taskbar's icons aligned left, Clawd sits next to the tray instead.
 - If the port in `config.json` changes, he follows it.

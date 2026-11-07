@@ -17,6 +17,16 @@ namespace DeskCompanionTaskbar
             return new Rectangle(x, tb.Bounds.Top, w, h);
         }
 
+        // The session chips: to the corner's right on a centred taskbar (to its left with left-aligned icons, where
+        // the corner sits by the tray), as wide as the chips want, at most 30% of the taskbar; the page fits the rest
+        // into a "+N" chip.
+        public static Rectangle Strip(Rectangle corner, TaskbarInfo tb, int want)
+        {
+            int w = Math.Min(want, (int)(tb.Bounds.Width * 0.3));
+            int x = tb.LeftAligned ? corner.Left - w : corner.Right;
+            return new Rectangle(x, tb.Bounds.Top, w, tb.Bounds.Height);
+        }
+
         // A quarter of the work area wide, 932:430 like the dashboard page; sits on the corner's top-left.
         public static Rectangle Hover(Rectangle corner, Rectangle work)
         {
