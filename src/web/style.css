@@ -307,6 +307,10 @@ html.host-corner #offline, html.host-corner #dimmer, html.host-corner #bubble, h
 html.host-corner #app#app .stage { grid-area: 1 / 1 / 2 / 2; }
 html.host-corner #mascot { left: 0; top: 25%; width: 100%; height: 50%; aspect-ratio: auto; transform: none; transition: none; cursor: default; }
 
-/* pc: the taskbar program's hover window. No rail (rotate, brightness) and no drift, so no room kept for either. */
-html.host-pc .rail { display: none; }
-html.host-pc #app#app { --pad-r: 2vmin; --pad-l: 2vmin; }
+/* pc: the taskbar program's hover window: the limit bars on the left two thirds and every session's background tasks
+   on the right (app.js renderTasks), side by side and still. No Clawd (the taskbar has him and the session chips), no
+   session card, no rail and no drift, so no room kept for any of them. */
+html.host-pc .rail, html.host-pc .stage, html.host-pc .deck { display: none; }
+html.host-pc #app#app { --pad-r: 2vmin; --pad-l: 2vmin; grid-template: minmax(0, 1fr) / 66% 34%; }
+html.host-pc #app#app .data { grid-area: 1 / 1 / 2 / 2; opacity: 1; visibility: visible; padding: 4cqmin 3cqmin 4cqmin 4cqmin; }
+html.host-pc #app#app .tasks { grid-area: 1 / 2 / 2 / 3; opacity: 1; visibility: visible; padding: 4cqmin 2cqmin 4cqmin 0; }

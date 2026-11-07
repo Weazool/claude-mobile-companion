@@ -4,7 +4,7 @@ import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { loadSettings, saveSettings, validate, rotationFor, nextRotation, brightFrom, sliderFrom, sliderAt } from './settings.js';
 import { drift, keepAwakeWanted } from './saver.js';
-import { hostFlags, cornerBase } from './host.js';
+import { hostFlags, cornerBase, allTasks } from './host.js';
 import { shapesBox, createFit, viewBoxOf } from './fit.js';
 
 const $ = id => document.getElementById(id);
@@ -315,10 +315,18 @@ const TASK_ICONS = {
 };
 let tasksKey = '';
 function renderTasks() {
-  const s = snap ? snap.sessions.find(x => x.id === spot.id) : null;
-  const tasks = (s && s.tasks) || [];
-  const count = s ? Math.max(s.background || 0, tasks.length) : 0;
-  const rows = tasks.map(t => taskRow(t, Date.now() + skew));
+  let tasks, count;
+  if (host.mode === 'pc') ({ tasks, count } = allTasks(snap ? snap.sessions : [])); // every session's, each row naming it
+  else {
+    const s = snap ? snap.sessions.find(x => x.id === spot.id) : null;
+    tasks = (s && s.tasks) || [];
+    count = s ? Math.max(s.background || 0, tasks.length) : 0;
+  }
+  const rows = tasks.map(t => {
+    const r = taskRow(t, Date.now() + skew);
+    if (t.session) r.meta = [t.session, r.meta].filter(Boolean).join(' · ');
+    return r;
+  });
   const key = JSON.stringify([count, rows]);
   if (key === tasksKey) return;
   tasksKey = key;

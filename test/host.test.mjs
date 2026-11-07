@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hostFlags, cornerBase, hostIdOf, stripLayout, CHIP } from '../src/web/host.js';
+import { hostFlags, cornerBase, hostIdOf, stripLayout, CHIP, allTasks } from '../src/web/host.js';
 
 test('hostFlags: the phone (no flag) keeps everything', () => {
   const phone = { mode: null, keepAwake: true, fullscreen: true, away: true, drift: true, rail: true };
@@ -39,4 +39,15 @@ test('stripLayout: every chip when they fit, else as many as fit and a "+N" chip
   const w = 2 * (chip + gap) + more; // room for two chips and the "+N" chip
   assert.deepEqual(stripLayout(5, w), { shown: 2, more: 3, want: 5 * chip + 4 * gap });
   assert.deepEqual(stripLayout(2, chip), { shown: 0, more: 2, want: 2 * chip + gap }, 'too narrow: just "+2"');
+});
+
+test("allTasks: every session's background tasks, each with its session, counted as the server counts them", () => {
+  assert.deepEqual(allTasks([]), { count: 0, tasks: [] });
+  const r = allTasks([
+    { name: 'A', background: 3, tasks: [{ kind: 'shell', label: 'npm test', since: 1 }] },
+    { name: 'B', background: 0, tasks: [] },
+    { name: 'C', tasks: [{ kind: 'subagent', label: 'review', since: 2 }, { kind: 'workflow', label: 'wf', since: 3 }] },
+  ]);
+  assert.equal(r.count, 5, 'A says 3 though it lists 1; C lists 2');
+  assert.deepEqual(r.tasks.map(t => [t.session, t.label]), [['A', 'npm test'], ['C', 'review'], ['C', 'wf']]);
 });

@@ -30,3 +30,16 @@ export function stripLayout(count, width, { chip, gap, more } = CHIP) {
   const shown = Math.max(0, Math.min(count - 1, Math.floor((width - more) / (chip + gap))));
   return { shown, more: count - shown, want };
 }
+
+// The hover window's tasks card: every session's background tasks together, each with its session's name (the
+// phone's card shows the session that's up).
+export function allTasks(sessions) {
+  let count = 0;
+  const tasks = [];
+  for (const s of sessions) {
+    const list = s.tasks || [];
+    count += Math.max(s.background || 0, list.length);
+    for (const t of list) tasks.push({ ...t, session: s.name || '' });
+  }
+  return { count, tasks };
+}
