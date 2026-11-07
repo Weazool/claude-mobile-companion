@@ -11,7 +11,6 @@ import { hostIdOf, stripLayout } from './host.js';
 
 const CLIPS = clipsFrom(ANIMS, NAMES);
 const DEFAULTS = validate({});
-const NAME_MAX = 16;
 const NS = 'http://www.w3.org/2000/svg';
 const toHost = msg => { try { window.chrome?.webview?.postMessage(msg); } catch {} };
 const box = document.getElementById('chips');
@@ -46,8 +45,6 @@ function makeChip(id, now) {
   return c;
 }
 
-const short = s => (s.length > NAME_MAX ? s.slice(0, NAME_MAX - 1) + '…' : s);
-
 let sent = '';
 function layout() {
   const list = snap ? snap.sessions.map(s => chips.get(s.id)).filter(Boolean) : [];
@@ -73,7 +70,7 @@ function onSnapshot(s) {
     let c = chips.get(x.id);
     if (!c) chips.set(x.id, c = makeChip(x.id, now));
     c.hostId = hostIdOf(x);
-    c.name.textContent = short(x.name || '');
+    c.name.textContent = x.name || ''; // strip.css ends a long one in an ellipsis
     apply(c, c.mood.onSnapshot(s, now));
   }
   layout();

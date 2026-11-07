@@ -7,11 +7,12 @@ body {
   -webkit-user-select: none; user-select: none; cursor: default;
 }
 #chips { display: flex; align-items: center; gap: 6px; height: 100%; }
-/* 136 px wide with 6 px gaps (host.js CHIP); the mini Clawd as high as a taskbar icon (half the taskbar). */
+/* 176 px wide with 6 px gaps (host.js CHIP); the mini Clawd as high as a taskbar icon (half the taskbar). A name that
+   doesn't fit ends in an ellipsis, with room to breathe on the right. */
 .chip {
-  flex: 0 0 136px; height: 75%; box-sizing: border-box; padding: 0 8px; display: flex; align-items: center; gap: 6px;
+  flex: 0 0 176px; height: 75%; box-sizing: border-box; padding: 0 14px 0 8px; display: flex; align-items: center; gap: 8px;
   background: #2a2a36;
 }
 .chip svg { flex: 0 0 auto; height: 50vh; width: 62.5vh; }
-.chip .name { font-size: 12px; white-space: nowrap; overflow: hidden; }
+.chip .name { flex: 1 1 auto; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .more { flex: 0 0 40px; height: 75%; display: flex; align-items: center; justify-content: center; background: #2a2a36; font-size: 12px; }

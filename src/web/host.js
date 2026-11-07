@@ -23,7 +23,7 @@ export const hostIdOf = s => (s && typeof s.hostId === 'string' && HOST_ID.test(
 
 // The strip's chips (strip.js), in CSS px: how many fit in `width`, and how many the last "+N" chip stands for.
 // `want` is the width every chip would take, so the taskbar program can size the window.
-export const CHIP = Object.freeze({ chip: 136, gap: 6, more: 40 });
+export const CHIP = Object.freeze({ chip: 176, gap: 6, more: 40 });
 export function stripLayout(count, width, { chip, gap, more } = CHIP) {
   const want = count * chip + Math.max(0, count - 1) * gap;
   if (want <= width) return { shown: count, more: 0, want };
