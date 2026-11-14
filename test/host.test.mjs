@@ -39,8 +39,9 @@ test('stripLayout: two chips at most, then a "+N" chip; fewer when the window is
   assert.deepEqual(stripLayout(2, 2000), { shown: 2, more: 0, want: two });
   assert.deepEqual(stripLayout(3, 2000), { shown: 2, more: 1, want: two + gap + more }, '"+1"');
   assert.deepEqual(stripLayout(5, 2000), { shown: 2, more: 3, want: two + gap + more }, '"+3"');
-  assert.deepEqual(stripLayout(3, chip + gap + more), { shown: 1, more: 2, want: chip + gap + more }, 'room for one chip');
-  assert.deepEqual(stripLayout(2, chip), { shown: 0, more: 2, want: more }, 'too narrow: just "+2"');
+  assert.deepEqual(stripLayout(3, chip + gap + more), { shown: 1, more: 2, want: two + gap + more }, 'room for one chip');
+  assert.deepEqual(stripLayout(2, chip), { shown: 0, more: 2, want: two }, 'too narrow: just "+2", but it still asks for both chips');
+  assert.deepEqual(stripLayout(2, more), stripLayout(2, chip), 'a narrow window asks for the same width: it grows back');
 });
 
 test('stripOrder: sessions waiting on you first, then the rest, each in start order', () => {

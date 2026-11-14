@@ -22,13 +22,15 @@ export const HOST_ID = /^local_[A-Za-z0-9-]{1,64}$/;
 export const hostIdOf = s => (s && typeof s.hostId === 'string' && HOST_ID.test(s.hostId) ? s.hostId : null);
 
 // The strip's chips (strip.js), in CSS px: two session chips at most, then a "+N" chip for the rest (fewer if the
-// window is narrower). `want` is the width of what shows, so the taskbar program can size the window.
+// window is narrower). `want` is the width the strip needs for `count` sessions, whatever the window's width is now,
+// so the taskbar program can size the window to it (from what fits now, a narrow window would never grow).
 export const CHIP = Object.freeze({ chip: 176, gap: 6, more: 40, max: 2 });
 export function stripLayout(count, width, { chip, gap, more, max } = CHIP) {
   const fit = n => n * chip + Math.max(0, n - 1) * gap;
-  if (count <= max && fit(count) <= width) return { shown: count, more: 0, want: fit(count) };
+  const want = count <= max ? fit(count) : fit(max) + gap + more;
+  if (count <= max && fit(count) <= width) return { shown: count, more: 0, want };
   const shown = Math.max(0, Math.min(count - 1, max, Math.floor((width - more) / (chip + gap))));
-  return { shown, more: count - shown, want: fit(shown) + (shown ? gap : 0) + more };
+  return { shown, more: count - shown, want };
 }
 
 // The strip's order: sessions waiting on you (a permission prompt, a question) first, so one behind the "+N" chip
