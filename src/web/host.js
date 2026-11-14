@@ -21,15 +21,19 @@ export const cornerBase = sessions => (sessions.some(s => dotClass(s) === 'work'
 export const HOST_ID = /^local_[A-Za-z0-9-]{1,64}$/;
 export const hostIdOf = s => (s && typeof s.hostId === 'string' && HOST_ID.test(s.hostId) ? s.hostId : null);
 
-// The strip's chips (strip.js), in CSS px: how many fit in `width`, and how many the last "+N" chip stands for.
-// `want` is the width every chip would take, so the taskbar program can size the window.
-export const CHIP = Object.freeze({ chip: 176, gap: 6, more: 40 });
-export function stripLayout(count, width, { chip, gap, more } = CHIP) {
-  const want = count * chip + Math.max(0, count - 1) * gap;
-  if (want <= width) return { shown: count, more: 0, want };
-  const shown = Math.max(0, Math.min(count - 1, Math.floor((width - more) / (chip + gap))));
-  return { shown, more: count - shown, want };
+// The strip's chips (strip.js), in CSS px: two session chips at most, then a "+N" chip for the rest (fewer if the
+// window is narrower). `want` is the width of what shows, so the taskbar program can size the window.
+export const CHIP = Object.freeze({ chip: 176, gap: 6, more: 40, max: 2 });
+export function stripLayout(count, width, { chip, gap, more, max } = CHIP) {
+  const fit = n => n * chip + Math.max(0, n - 1) * gap;
+  if (count <= max && fit(count) <= width) return { shown: count, more: 0, want: fit(count) };
+  const shown = Math.max(0, Math.min(count - 1, max, Math.floor((width - more) / (chip + gap))));
+  return { shown, more: count - shown, want: fit(shown) + (shown ? gap : 0) + more };
 }
+
+// The strip's order: sessions waiting on you (a permission prompt, a question) first, so one behind the "+N" chip
+// comes to the front; then the rest, in the order they started.
+export const stripOrder = sessions => [...sessions.filter(s => dotClass(s) === 'need'), ...sessions.filter(s => dotClass(s) !== 'need')];
 
 // The hover window's tasks card: every session's background tasks together, each with its session's name (the
 // phone's card shows the session that's up).

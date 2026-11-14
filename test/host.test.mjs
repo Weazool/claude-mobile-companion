@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hostFlags, cornerBase, hostIdOf, stripLayout, CHIP, allTasks, pcBarShown, closable } from '../src/web/host.js';
+import { hostFlags, cornerBase, hostIdOf, stripLayout, stripOrder, CHIP, allTasks, pcBarShown, closable } from '../src/web/host.js';
 
 test('hostFlags: the phone (no flag) keeps everything', () => {
   const phone = { mode: null, keepAwake: true, fullscreen: true, away: true, drift: true, rail: true };
@@ -32,13 +32,21 @@ test('hostIdOf: the desktop session id, only in the shape the app accepts', () =
   assert.equal(hostIdOf(undefined), null);
 });
 
-test('stripLayout: every chip when they fit, else as many as fit and a "+N" chip', () => {
+test('stripLayout: two chips at most, then a "+N" chip; fewer when the window is narrow', () => {
   const { chip, gap, more } = CHIP;
-  assert.deepEqual(stripLayout(0, 500), { shown: 0, more: 0, want: 0 });
-  assert.deepEqual(stripLayout(3, 3 * chip + 2 * gap), { shown: 3, more: 0, want: 3 * chip + 2 * gap });
-  const w = 2 * (chip + gap) + more; // room for two chips and the "+N" chip
-  assert.deepEqual(stripLayout(5, w), { shown: 2, more: 3, want: 5 * chip + 4 * gap });
-  assert.deepEqual(stripLayout(2, chip), { shown: 0, more: 2, want: 2 * chip + gap }, 'too narrow: just "+2"');
+  const two = 2 * chip + gap;
+  assert.deepEqual(stripLayout(0, 2000), { shown: 0, more: 0, want: 0 });
+  assert.deepEqual(stripLayout(2, 2000), { shown: 2, more: 0, want: two });
+  assert.deepEqual(stripLayout(3, 2000), { shown: 2, more: 1, want: two + gap + more }, '"+1"');
+  assert.deepEqual(stripLayout(5, 2000), { shown: 2, more: 3, want: two + gap + more }, '"+3"');
+  assert.deepEqual(stripLayout(3, chip + gap + more), { shown: 1, more: 2, want: chip + gap + more }, 'room for one chip');
+  assert.deepEqual(stripLayout(2, chip), { shown: 0, more: 2, want: more }, 'too narrow: just "+2"');
+});
+
+test('stripOrder: sessions waiting on you first, then the rest, each in start order', () => {
+  const s = [{ id: 'a', activity: 'working' }, { id: 'b', activity: 'done' }, { id: 'c', needsYou: true }, { id: 'd', activity: 'idle', needsYou: true }];
+  assert.deepEqual(stripOrder(s).map(x => x.id), ['c', 'd', 'a', 'b']);
+  assert.deepEqual(stripOrder([]), []);
 });
 
 test("allTasks: every session's background tasks, each with its session, counted as the server counts them", () => {

@@ -8,7 +8,7 @@ import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { validate } from './settings.js';
 import { shapesBox, createFit, viewBoxOf } from './fit.js';
-import { hostIdOf, stripLayout, closable } from './host.js';
+import { hostIdOf, stripLayout, stripOrder, closable } from './host.js';
 
 const CLIPS = clipsFrom(ANIMS, NAMES);
 const DEFAULTS = validate({});
@@ -49,7 +49,7 @@ function makeChip(id, now) {
 
 let sent = '';
 function layout() {
-  const list = snap ? snap.sessions.map(s => chips.get(s.id)).filter(Boolean) : [];
+  const list = snap ? stripOrder(snap.sessions).map(s => chips.get(s.id)).filter(Boolean) : [];
   const { shown, more: rest, want } = stripLayout(list.length, window.innerWidth);
   more.textContent = `+${rest}`;
   box.replaceChildren(...list.slice(0, shown).map(c => c.el), ...(rest ? [more] : []));
