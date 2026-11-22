@@ -22,6 +22,7 @@ It needs the WebView2 runtime, which Windows 11 already has.
 - **Click:** pins the dashboard open. Click again, or click into it and press **Esc**, to close it.
 - **Click a session's chip:** opens that session in the Claude desktop app (sessions in a terminal get a chip too, but can't be opened this way). Two session chips at most: sessions waiting on you (a permission prompt or a question) get them first, then finished ones, then working ones.
 - **"+1", "+2"...:** shows when working sessions are left without a chip. Click it for a menu of them, and pick one to open it.
+- **Chats** (the speech bubble, first after Clawd): opens the Claude app's Chat tab with a new chat; your recent chats are in its sidebar.
 - **✕ on a chip:** shows once its session is done or idle. Click it to clear the chip; the session comes back when you next prompt it or restart it.
 - **Right-click** (Clawd or a chip): Pin, Start with Windows, Quit.
 - He hides while a full-screen app is up, and when the taskbar is set to hide itself.

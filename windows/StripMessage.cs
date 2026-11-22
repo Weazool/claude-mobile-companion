@@ -12,6 +12,7 @@ namespace DeskCompanionTaskbar
         public List<ChipAt> chips { get; set; } = new List<ChipAt>();
         public Span? menu { get; set; }
         public List<Listed> extra { get; set; } = new List<Listed>(); // the working sessions without a card
+        public Span? chats { get; set; } // the Chats chip
 
         public class ChipAt { public int x0 { get; set; } public int x1 { get; set; } public string? host { get; set; } public int closeX { get; set; } public string id { get; set; } = ""; }
         public class Span { public int x0 { get; set; } public int x1 { get; set; } }

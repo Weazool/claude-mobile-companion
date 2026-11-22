@@ -23,18 +23,19 @@ export const hostIdOf = s => (s && typeof s.hostId === 'string' && HOST_ID.test(
 
 // The strip's chips (strip.js), in CSS px: two session cards at most. Sessions waiting on you take them first, then
 // finished ones (done, idle, failed), then working ones; the working sessions left without a card go in the "+N"
-// chip's menu (the menu chip shows only when there are some). `want` is the width the strip needs for these
+// chip's menu (the menu chip shows only when there are some). First, always, the Chats chip: it opens the Claude
+// app's Chat tab. `want` is the width the strip needs for these
 // sessions, whatever the window's width is now, so the taskbar program can size the window to it (from what fits
 // now, a narrow window would never grow).
-export const CHIP = Object.freeze({ chip: 176, gap: 6, more: 40, max: 2 });
+export const CHIP = Object.freeze({ chip: 176, gap: 6, more: 40, chats: 40, max: 2 });
 const rank = s => { const d = dotClass(s); return d === 'need' ? 0 : d === 'work' ? 2 : 1; };
 export const stripOrder = sessions => [0, 1, 2].flatMap(r => sessions.filter(s => rank(s) === r));
-export function stripPlan(sessions, width, { chip, gap, more, max } = CHIP) {
+export function stripPlan(sessions, width, { chip, gap, more, chats, max } = CHIP) {
   const order = stripOrder(sessions);
   const extraFrom = n => order.slice(n).filter(s => dotClass(s) === 'work');
   const size = n => {
     const x = extraFrom(n).length > 0;
-    return n * chip + (x ? more : 0) + Math.max(0, n + (x ? 1 : 0) - 1) * gap;
+    return n * chip + (x ? more : 0) + chats + (n + (x ? 1 : 0)) * gap; // a gap before each item after the first
   };
   const ideal = Math.min(order.length, max);
   let shown = ideal;

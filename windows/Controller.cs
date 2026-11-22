@@ -30,6 +30,9 @@ namespace DeskCompanionTaskbar
         readonly ClickCatcher stripCatcher = new ClickCatcher();
         bool cornerLoaded, stripLoaded;
         StripMessage stripAt = new StripMessage(); // the chips' places and the menu's sessions, as the page last sent them
+        // The Claude app's Chat tab, with a new chat (the Chats chip). The app's own New Chat shortcut; it ignores links
+        // to paths it doesn't know, such as /recents.
+        const string ChatsLink = "claude://claude.ai/new?surface=chat&source=desktop_action";
 
         public Controller()
         {
@@ -114,6 +117,7 @@ namespace DeskCompanionTaskbar
         // A chip opens its session (its ✕ clears it); the "+N" chip lists the working sessions without a card.
         void OpenChip(int x)
         {
+            if (stripAt.chats != null && x >= stripAt.chats.x0 && x < stripAt.chats.x1) { OpenLink(ChatsLink); return; }
             if (stripAt.menu != null && x >= stripAt.menu.x0 && x < stripAt.menu.x1) { ShowSessions(); return; }
             foreach (var c in stripAt.chips)
                 if (x >= c.x0 && x < c.x1)

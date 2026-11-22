@@ -2,7 +2,8 @@
 // (his own mood engine, focused on it) and the session's name. A click on a chip opens the session in the Claude
 // desktop app: the window is click-through, so the program catches the click and finds the chip from the layout
 // this page sends it ("strip:" + JSON: want, chips [{x0, x1, host, closeX, id}], menu {x0, x1} or null, extra
-// [{name, host, state}], device px); the menu chip's list is `extra`, the working sessions without a card. A click on a done session's ✕ comes back as
+// [{name, host, state}], chats {x0, x1}, device px); the menu chip's list is `extra`, the working sessions without a
+// card, and the Chats chip (first) opens the Claude app's Chat tab. A click on a done session's ✕ comes back as
 // { untrack: <session id> }, and the page asks the server to stop tracking it.
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
@@ -17,6 +18,8 @@ const NS = 'http://www.w3.org/2000/svg';
 const toHost = msg => { try { window.chrome?.webview?.postMessage(msg); } catch {} };
 const box = document.getElementById('chips');
 const more = Object.assign(document.createElement('div'), { className: 'more' });
+const chatsChip = Object.assign(document.createElement('div'), { className: 'more chats', title: 'Chats' });
+chatsChip.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>';
 
 const chips = new Map(); // session id -> chip
 let snap = null;
@@ -53,7 +56,7 @@ function layout() {
   const { cards, extra, want } = stripPlan(snap ? snap.sessions.filter(s => chips.has(s.id)) : [], window.innerWidth);
   const list = cards.map(s => chips.get(s.id));
   more.textContent = `+${extra.length}`;
-  box.replaceChildren(...list.map(c => c.el), ...(extra.length ? [more] : []));
+  box.replaceChildren(chatsChip, ...list.map(c => c.el), ...(extra.length ? [more] : []));
   const dpr = window.devicePixelRatio || 1;
   const px = v => Math.round(v * dpr);
   const chipsAt = list.map(c => {
@@ -63,7 +66,8 @@ function layout() {
   });
   const m = extra.length ? more.getBoundingClientRect() : null;
   const menu = m && { x0: px(m.left), x1: px(m.right) };
-  const msg = 'strip:' + JSON.stringify({ want: px(want), chips: chipsAt, menu, extra: extra.map(s => ({ name: s.name || '', host: hostIdOf(s), state: menuState(s) })) });
+  const ch = chatsChip.getBoundingClientRect();
+  const msg = 'strip:' + JSON.stringify({ want: px(want), chips: chipsAt, menu, extra: extra.map(s => ({ name: s.name || '', host: hostIdOf(s), state: menuState(s) })), chats: { x0: px(ch.left), x1: px(ch.right) } });
   if (msg !== sent) { sent = msg; toHost(msg); }
 }
 window.addEventListener('resize', layout);

@@ -39,19 +39,19 @@ test('stripOrder: waiting on you first, then finished, then working, each in sta
 });
 
 test('stripPlan: two cards, finished before working; only working sessions left over go in the menu', () => {
-  const { chip, gap, more } = CHIP;
+  const { chip, gap, more, chats } = CHIP;
   const ids = p => [p.cards.map(s => s.id), p.extra.map(s => s.id)];
   const work = id => ({ id, activity: 'working' }), done = id => ({ id, activity: 'done' });
   let p = stripPlan([], 2000);
-  assert.deepEqual([ids(p), p.want], [[[], []], 0]);
+  assert.deepEqual([ids(p), p.want], [[[], []], chats], 'no sessions: the Chats chip alone');
   p = stripPlan([work('a'), done('b')], 2000);
-  assert.deepEqual([ids(p), p.want], [[['b', 'a'], []], 2 * chip + gap], 'two sessions: two cards, no menu chip');
+  assert.deepEqual([ids(p), p.want], [[['b', 'a'], []], 2 * chip + chats + 2 * gap], 'two sessions: two cards, no menu chip');
   p = stripPlan([work('a'), work('b'), done('c'), done('d')], 2000);
-  assert.deepEqual([ids(p), p.want], [[['c', 'd'], ['a', 'b']], 2 * chip + more + 2 * gap], 'finished take the cards, working go in the menu');
+  assert.deepEqual([ids(p), p.want], [[['c', 'd'], ['a', 'b']], 2 * chip + more + chats + 3 * gap], 'finished take the cards, working go in the menu');
   p = stripPlan([done('a'), done('b'), done('c')], 2000);
-  assert.deepEqual([ids(p), p.want], [[['a', 'b'], []], 2 * chip + gap], 'a third finished session has no menu entry');
-  p = stripPlan([work('a'), work('b'), work('c')], chip + gap + more);
-  assert.deepEqual([ids(p), p.want], [[['a'], ['b', 'c']], 2 * chip + more + 2 * gap], 'narrow: one card, the rest in the menu, still asking for the full width');
+  assert.deepEqual([ids(p), p.want], [[['a', 'b'], []], 2 * chip + chats + 2 * gap], 'a third finished session has no menu entry');
+  p = stripPlan([work('a'), work('b'), work('c')], chip + more + chats + 2 * gap);
+  assert.deepEqual([ids(p), p.want], [[['a'], ['b', 'c']], 2 * chip + more + chats + 3 * gap], 'narrow: one card, the rest in the menu, still asking for the full width');
 });
 
 test('menuState: what the menu says about each session', () => {
