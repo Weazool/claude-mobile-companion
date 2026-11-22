@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hostFlags, cornerBase, hostIdOf, stripLayout, stripOrder, CHIP, allTasks, pcBarShown, closable } from '../src/web/host.js';
+import { hostFlags, cornerBase, hostIdOf, stripPlan, stripOrder, menuState, CHIP, allTasks, pcBarShown, closable } from '../src/web/host.js';
 
 test('hostFlags: the phone (no flag) keeps everything', () => {
   const phone = { mode: null, keepAwake: true, fullscreen: true, away: true, drift: true, rail: true };
@@ -32,22 +32,35 @@ test('hostIdOf: the desktop session id, only in the shape the app accepts', () =
   assert.equal(hostIdOf(undefined), null);
 });
 
-test('stripLayout: two chips at most, then a "+N" chip; fewer when the window is narrow', () => {
-  const { chip, gap, more } = CHIP;
-  const two = 2 * chip + gap;
-  assert.deepEqual(stripLayout(0, 2000), { shown: 0, more: 0, want: 0 });
-  assert.deepEqual(stripLayout(2, 2000), { shown: 2, more: 0, want: two });
-  assert.deepEqual(stripLayout(3, 2000), { shown: 2, more: 1, want: two + gap + more }, '"+1"');
-  assert.deepEqual(stripLayout(5, 2000), { shown: 2, more: 3, want: two + gap + more }, '"+3"');
-  assert.deepEqual(stripLayout(3, chip + gap + more), { shown: 1, more: 2, want: two + gap + more }, 'room for one chip');
-  assert.deepEqual(stripLayout(2, chip), { shown: 0, more: 2, want: two }, 'too narrow: just "+2", but it still asks for both chips');
-  assert.deepEqual(stripLayout(2, more), stripLayout(2, chip), 'a narrow window asks for the same width: it grows back');
+test('stripOrder: waiting on you first, then finished, then working, each in start order', () => {
+  const s = [{ id: 'a', activity: 'working' }, { id: 'b', activity: 'done' }, { id: 'c', needsYou: true }, { id: 'd', activity: 'idle' }, { id: 'e', activity: 'done', background: 1 }];
+  assert.deepEqual(stripOrder(s).map(x => x.id), ['c', 'b', 'd', 'a', 'e']);
+  assert.deepEqual(stripOrder([]), []);
 });
 
-test('stripOrder: sessions waiting on you first, then the rest, each in start order', () => {
-  const s = [{ id: 'a', activity: 'working' }, { id: 'b', activity: 'done' }, { id: 'c', needsYou: true }, { id: 'd', activity: 'idle', needsYou: true }];
-  assert.deepEqual(stripOrder(s).map(x => x.id), ['c', 'd', 'a', 'b']);
-  assert.deepEqual(stripOrder([]), []);
+test('stripPlan: two cards, finished before working; only working sessions left over go in the menu', () => {
+  const { chip, gap, more } = CHIP;
+  const ids = p => [p.cards.map(s => s.id), p.extra.map(s => s.id)];
+  const work = id => ({ id, activity: 'working' }), done = id => ({ id, activity: 'done' });
+  let p = stripPlan([], 2000);
+  assert.deepEqual([ids(p), p.want], [[[], []], 0]);
+  p = stripPlan([work('a'), done('b')], 2000);
+  assert.deepEqual([ids(p), p.want], [[['b', 'a'], []], 2 * chip + gap], 'two sessions: two cards, no menu chip');
+  p = stripPlan([work('a'), work('b'), done('c'), done('d')], 2000);
+  assert.deepEqual([ids(p), p.want], [[['c', 'd'], ['a', 'b']], 2 * chip + more + 2 * gap], 'finished take the cards, working go in the menu');
+  p = stripPlan([done('a'), done('b'), done('c')], 2000);
+  assert.deepEqual([ids(p), p.want], [[['a', 'b'], []], 2 * chip + gap], 'a third finished session has no menu entry');
+  p = stripPlan([work('a'), work('b'), work('c')], chip + gap + more);
+  assert.deepEqual([ids(p), p.want], [[['a'], ['b', 'c']], 2 * chip + more + 2 * gap], 'narrow: one card, the rest in the menu, still asking for the full width');
+});
+
+test('menuState: what the menu says about each session', () => {
+  assert.equal(menuState({ needsYou: true, activity: 'working' }), 'Needs you');
+  assert.equal(menuState({ activity: 'working' }), 'Working');
+  assert.equal(menuState({ activity: 'done', background: 2 }), 'Background tasks');
+  assert.equal(menuState({ activity: 'done' }), 'Your turn');
+  assert.equal(menuState({ activity: 'idle' }), 'Idle');
+  assert.equal(menuState({ activity: 'error' }), 'Error');
 });
 
 test("allTasks: every session's background tasks, each with its session, counted as the server counts them", () => {

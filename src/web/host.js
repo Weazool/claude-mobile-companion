@@ -21,21 +21,36 @@ export const cornerBase = sessions => (sessions.some(s => dotClass(s) === 'work'
 export const HOST_ID = /^local_[A-Za-z0-9-]{1,64}$/;
 export const hostIdOf = s => (s && typeof s.hostId === 'string' && HOST_ID.test(s.hostId) ? s.hostId : null);
 
-// The strip's chips (strip.js), in CSS px: two session chips at most, then a "+N" chip for the rest (fewer if the
-// window is narrower). `want` is the width the strip needs for `count` sessions, whatever the window's width is now,
-// so the taskbar program can size the window to it (from what fits now, a narrow window would never grow).
+// The strip's chips (strip.js), in CSS px: two session cards at most. Sessions waiting on you take them first, then
+// finished ones (done, idle, failed), then working ones; the working sessions left without a card go in the "+N"
+// chip's menu (the menu chip shows only when there are some). `want` is the width the strip needs for these
+// sessions, whatever the window's width is now, so the taskbar program can size the window to it (from what fits
+// now, a narrow window would never grow).
 export const CHIP = Object.freeze({ chip: 176, gap: 6, more: 40, max: 2 });
-export function stripLayout(count, width, { chip, gap, more, max } = CHIP) {
-  const fit = n => n * chip + Math.max(0, n - 1) * gap;
-  const want = count <= max ? fit(count) : fit(max) + gap + more;
-  if (count <= max && fit(count) <= width) return { shown: count, more: 0, want };
-  const shown = Math.max(0, Math.min(count - 1, max, Math.floor((width - more) / (chip + gap))));
-  return { shown, more: count - shown, want };
+const rank = s => { const d = dotClass(s); return d === 'need' ? 0 : d === 'work' ? 2 : 1; };
+export const stripOrder = sessions => [0, 1, 2].flatMap(r => sessions.filter(s => rank(s) === r));
+export function stripPlan(sessions, width, { chip, gap, more, max } = CHIP) {
+  const order = stripOrder(sessions);
+  const extraFrom = n => order.slice(n).filter(s => dotClass(s) === 'work');
+  const size = n => {
+    const x = extraFrom(n).length > 0;
+    return n * chip + (x ? more : 0) + Math.max(0, n + (x ? 1 : 0) - 1) * gap;
+  };
+  const ideal = Math.min(order.length, max);
+  let shown = ideal;
+  while (shown > 0 && size(shown) > width) shown--;
+  return { cards: order.slice(0, shown), extra: extraFrom(shown), want: size(ideal) };
 }
 
-// The strip's order: sessions waiting on you (a permission prompt, a question) first, so one behind the "+N" chip
-// comes to the front; then the rest, in the order they started.
-export const stripOrder = sessions => [...sessions.filter(s => dotClass(s) === 'need'), ...sessions.filter(s => dotClass(s) !== 'need')];
+// A session's state as the menu chip's list says it.
+export function menuState(s) {
+  switch (dotClass(s)) {
+    case 'need': return 'Needs you';
+    case 'work': return s.activity === 'done' ? 'Background tasks' : 'Working';
+    case 'bad': return 'Error';
+    default: return s.activity === 'done' ? 'Your turn' : 'Idle';
+  }
+}
 
 // The hover window's tasks card: every session's background tasks together, each with its session's name (the
 // phone's card shows the session that's up).

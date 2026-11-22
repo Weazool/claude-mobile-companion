@@ -29,9 +29,7 @@ namespace DeskCompanionTaskbar
         readonly CornerForm strip = new CornerForm();
         readonly ClickCatcher stripCatcher = new ClickCatcher();
         bool cornerLoaded, stripLoaded;
-        int stripWant;
-        (int x0, int x1, string? id, int closeX, string sid)[] chipsAt = new (int, int, string?, int, string)[0];
-        static readonly System.Text.RegularExpressions.Regex SessionId = new System.Text.RegularExpressions.Regex("^[A-Za-z0-9-]{1,80}$");
+        StripMessage stripAt = new StripMessage(); // the chips' places and the menu's sessions, as the page last sent them
 
         public Controller()
         {
@@ -92,13 +90,13 @@ namespace DeskCompanionTaskbar
 
         void PlaceStrip(Rectangle cornerAt, TaskbarInfo tb)
         {
-            if (stripWant <= 0 || !stripLoaded)
+            if (stripAt.want <= 0 || !stripLoaded)
             {
                 if (strip.Visible) strip.Hide();
                 if (stripCatcher.Visible) stripCatcher.Hide();
                 return;
             }
-            var at = Placement.Strip(cornerAt, tb, stripWant);
+            var at = Placement.Strip(cornerAt, tb, stripAt.want);
             foreach (Form f in new Form[] { strip, stripCatcher }) // the catcher on top
             {
                 if (f.Bounds != at) f.Bounds = at;
@@ -107,37 +105,38 @@ namespace DeskCompanionTaskbar
             }
         }
 
-        // "strip:<want>|<x0>,<x1>,<desktop id>,<✕ x0 or -1>,<session id>;..." in the window's pixels; the desktop id is
-        // empty for a terminal session.
         void OnStripMessage(string m)
         {
-            if (!m.StartsWith("strip:")) return;
-            var parts = m.Substring(6).Split('|');
-            stripWant = int.TryParse(parts[0], out var w) ? Math.Max(0, w) : 0;
-            var list = new System.Collections.Generic.List<(int, int, string?, int, string)>();
-            if (parts.Length > 1)
-                foreach (var c in parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
-                {
-                    var f = c.Split(',');
-                    if (f.Length == 5 && int.TryParse(f[0], out var a) && int.TryParse(f[1], out var b) && int.TryParse(f[3], out var x) && SessionId.IsMatch(f[4]))
-                        list.Add((a, b, HostId.IsMatch(f[2]) ? f[2] : null, x, f[4]));
-                }
-            chipsAt = list.ToArray();
+            var msg = StripMessage.Parse(m);
+            if (msg != null) stripAt = msg;
         }
 
+        // A chip opens its session (its ✕ clears it); the "+N" chip lists the working sessions without a card.
         void OpenChip(int x)
         {
-            foreach (var c in chipsAt)
+            if (stripAt.menu != null && x >= stripAt.menu.x0 && x < stripAt.menu.x1) { ShowSessions(); return; }
+            foreach (var c in stripAt.chips)
                 if (x >= c.x0 && x < c.x1)
                 {
-                    if (c.closeX >= 0 && x >= c.closeX) strip.PostJson("{\"untrack\":\"" + c.sid + "\"}"); // the ✕
-                    else if (c.id != null) OpenSession(c.id);
+                    if (c.closeX >= 0 && x >= c.closeX) strip.PostJson("{\"untrack\":\"" + c.id + "\"}"); // the ✕
+                    else if (c.host != null) OpenSession(c.host);
                     return;
                 }
         }
 
-        // The desktop app's own session ids (host.js HOST_ID); only these go into a claude:// link.
-        static readonly System.Text.RegularExpressions.Regex HostId = new System.Text.RegularExpressions.Regex("^local_[A-Za-z0-9-]{1,64}$");
+        void ShowSessions()
+        {
+            menu.Items.Clear();
+            foreach (var s in stripAt.extra)
+            {
+                var host = s.host;
+                // A terminal session has no desktop id: listed, but it can't be opened from here.
+                var item = new ToolStripMenuItem(s.name.Replace("&", "&&") + "  ·  " + s.state) { Enabled = host != null };
+                if (host != null) item.Click += (_, __) => OpenSession(host);
+                menu.Items.Add(item);
+            }
+            if (menu.Items.Count > 0) Popup();
+        }
 
         // A click on the corner's Clawd pins the dashboard; the chips open sessions.
         void OnCornerMessage(string m)
@@ -147,9 +146,14 @@ namespace DeskCompanionTaskbar
         }
 
         // The Claude desktop app's own link for a Code session; Windows hands it to the app.
-        static void OpenSession(string id)
+        static void OpenSession(string id) => OpenLink("claude://code/continue?session=" + id);
+
+        [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
+
+        static void OpenLink(string url)
         {
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("claude://code/continue?session=" + id) { UseShellExecute = true }); }
+            AllowSetForegroundWindow(-1); // ASFW_ANY: the Claude app may bring its window forward
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
             catch (Exception) { /* no Claude app registered for claude:// */ }
         }
 
@@ -166,7 +170,11 @@ namespace DeskCompanionTaskbar
             var quit = new ToolStripMenuItem("Quit");
             quit.Click += (_, __) => ExitThread();
             menu.Items.AddRange(new ToolStripItem[] { pin, auto, quit });
+            Popup();
+        }
 
+        void Popup()
+        {
             // A menu from a no-activate window only closes on an outside click if one of our windows is
             // foreground; take it for the menu, then give it back to where it was.
             IntPtr prev = GetForegroundWindow();
@@ -174,6 +182,8 @@ namespace DeskCompanionTaskbar
             void Restore(object? s, ToolStripDropDownClosedEventArgs e)
             {
                 menu.Closed -= Restore;
+                // A picked item may open the Claude app: let it come to the front instead of handing focus back.
+                if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked) return;
                 if (prev != IntPtr.Zero && prev != catcher.Handle) SetForegroundWindow(prev);
             }
             menu.Closed += Restore;

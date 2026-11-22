@@ -1,14 +1,15 @@
 // The taskbar program's strip (strip.html): one chip per session, each with its own Clawd acting that session out
 // (his own mood engine, focused on it) and the session's name. A click on a chip opens the session in the Claude
 // desktop app: the window is click-through, so the program catches the click and finds the chip from the layout
-// this page sends it ("strip:<want>|<x0>,<x1>,<desktop id>,<✕ x0 or -1>,<session id>;...", device px). A click on a
-// done session's ✕ comes back as { untrack: <session id> }, and the page asks the server to stop tracking it.
+// this page sends it ("strip:" + JSON: want, chips [{x0, x1, host, closeX, id}], menu {x0, x1} or null, extra
+// [{name, host, state}], device px); the menu chip's list is `extra`, the working sessions without a card. A click on a done session's ✕ comes back as
+// { untrack: <session id> }, and the page asks the server to stop tracking it.
 import { Player, mountClawd, VIEW, ANIMS, NAMES } from './clawd/index.js';
 import { createMood } from './mood.js';
 import { validateMap, clipsFrom } from './behaviours.js';
 import { validate } from './settings.js';
 import { shapesBox, createFit, viewBoxOf } from './fit.js';
-import { hostIdOf, stripLayout, stripOrder, closable } from './host.js';
+import { hostIdOf, stripPlan, menuState, closable } from './host.js';
 
 const CLIPS = clipsFrom(ANIMS, NAMES);
 const DEFAULTS = validate({});
@@ -49,17 +50,20 @@ function makeChip(id, now) {
 
 let sent = '';
 function layout() {
-  const list = snap ? stripOrder(snap.sessions).map(s => chips.get(s.id)).filter(Boolean) : [];
-  const { shown, more: rest, want } = stripLayout(list.length, window.innerWidth);
-  more.textContent = `+${rest}`;
-  box.replaceChildren(...list.slice(0, shown).map(c => c.el), ...(rest ? [more] : []));
+  const { cards, extra, want } = stripPlan(snap ? snap.sessions.filter(s => chips.has(s.id)) : [], window.innerWidth);
+  const list = cards.map(s => chips.get(s.id));
+  more.textContent = `+${extra.length}`;
+  box.replaceChildren(...list.map(c => c.el), ...(extra.length ? [more] : []));
   const dpr = window.devicePixelRatio || 1;
-  const at = list.slice(0, shown).map(c => {
+  const px = v => Math.round(v * dpr);
+  const chipsAt = list.map(c => {
     const r = c.el.getBoundingClientRect();
-    const x = c.x.hidden ? -1 : Math.round(c.x.getBoundingClientRect().left * dpr) - 6; // a little room for a miss
-    return `${Math.round(r.left * dpr)},${Math.round(r.right * dpr)},${c.hostId || ''},${x},${c.id}`;
+    const closeX = c.x.hidden ? -1 : px(c.x.getBoundingClientRect().left) - 6; // a little room for a miss
+    return { x0: px(r.left), x1: px(r.right), host: c.hostId, closeX, id: c.id };
   });
-  const msg = `strip:${Math.round(want * dpr)}|${at.join(';')}`;
+  const m = extra.length ? more.getBoundingClientRect() : null;
+  const menu = m && { x0: px(m.left), x1: px(m.right) };
+  const msg = 'strip:' + JSON.stringify({ want: px(want), chips: chipsAt, menu, extra: extra.map(s => ({ name: s.name || '', host: hostIdOf(s), state: menuState(s) })) });
   if (msg !== sent) { sent = msg; toHost(msg); }
 }
 window.addEventListener('resize', layout);

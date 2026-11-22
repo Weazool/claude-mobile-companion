@@ -20,7 +20,8 @@ It needs the WebView2 runtime, which Windows 11 already has.
 
 - **Hover:** rest the pointer on Clawd for a moment and the popup opens above him: your limits on the left, every session's background tasks on the right (a limit your plan doesn't have, like the 5-hour one on Ultra, is left out). It closes about a second after the pointer leaves.
 - **Click:** pins the dashboard open. Click again, or click into it and press **Esc**, to close it.
-- **Click a session's chip:** opens that session in the Claude desktop app (sessions in a terminal get a chip too, but can't be opened this way). Two session chips at most; a third says "+1", "+2"... for the rest. A session waiting on you (a permission prompt or a question) moves to the first chip, so it never hides behind "+N".
+- **Click a session's chip:** opens that session in the Claude desktop app (sessions in a terminal get a chip too, but can't be opened this way). Two session chips at most: sessions waiting on you (a permission prompt or a question) get them first, then finished ones, then working ones.
+- **"+1", "+2"...:** shows when working sessions are left without a chip. Click it for a menu of them, and pick one to open it.
 - **✕ on a chip:** shows once its session is done or idle. Click it to clear the chip; the session comes back when you next prompt it or restart it.
 - **Right-click** (Clawd or a chip): Pin, Start with Windows, Quit.
 - He hides while a full-screen app is up, and when the taskbar is set to hide itself.
